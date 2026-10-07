@@ -28,6 +28,10 @@ namespace Ror2Common
         public static Vector3 PushOutOfWalls(Vector3 center, float radius, float wallNormalY,
             List<Vector3> walls, int maxWalls, int rays = 16)
         {
+            // Every ray stays inside this thin square, so nothing in it, nothing to push off. Most
+            // queries (open ground, droplets in the air) end here for one overlap test.
+            if (!Physics.CheckBox(center, new Vector3(radius, 0.01f, radius), Quaternion.identity, Mask, QueryTriggerInteraction.Ignore))
+                return center;
             var c = center;
             for (int pass = 0; pass < 2; pass++)
             {

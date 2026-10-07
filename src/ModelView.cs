@@ -161,10 +161,16 @@ namespace Ror2Common
             if (!src.Texture(id, out var t, null, 0)) return null;
             var px = new byte[t.width * t.height * 4];
             if (!src.Texture(id, out t, px, (uint)px.Length)) return null;
-            // Rows top first, as Unity's v = 0 is the first row: GX's v = 0 is the top.
+            return MakeTexture($"{Name} texture {id}", t, px);
+        }
+
+        /// A mipmapped texture from a native view's RGBA8 pixels (rows top first, as Unity's
+        /// v = 0 is the first row: GX's v = 0 is the top). Not readable afterwards.
+        public static Texture2D MakeTexture(string name, ViewTexture t, byte[] px)
+        {
             var tex = new Texture2D((int)t.width, (int)t.height, TextureFormat.RGBA32, true)
             {
-                name = $"{Name} texture {id}",
+                name = name,
                 filterMode = FilterMode.Bilinear,
                 wrapModeU = Wrap(t.wrap_s),
                 wrapModeV = Wrap(t.wrap_t),
@@ -183,28 +189,7 @@ namespace Ror2Common
         {
             bool blended = b.blend == ViewBlend.Translucent || b.blend == ViewBlend.Additive;
             if (blended && Shaders.CloudRemap())
-            {
-                var g = new Material(Shaders.CloudRemap()) { name = $"{Name} glass", renderQueue = 3000 };
-                g.SetTexture("_MainTex", tex ? tex : Texture2D.whiteTexture);
-                g.SetColor("_TintColor", Color.white);
-                g.SetFloat("_DisableRemapOn", 1f);
-                g.EnableKeyword("DISABLEREMAP");
-                bool add = b.blend == ViewBlend.Additive;
-                g.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
-                g.SetFloat("_DstBlend", (float)(add ? BlendMode.One : BlendMode.OneMinusSrcAlpha));
-                g.SetFloat("_Boost", 1f);
-                g.SetFloat("_AlphaBoost", 1f);
-                g.SetFloat("_AlphaBias", 0f);
-                g.SetFloat("_InvFade", 100f);
-                g.SetFloat("_Cull", 0f);
-                g.SetFloat("_ZTest", (float)CompareFunction.LessEqual);
-                if (b.lit != 0)
-                {
-                    g.SetFloat("_VertexColorOn", 1f);
-                    g.EnableKeyword("VERTEXCOLOR");
-                }
-                return g;
-            }
+                return Shaders.SeeThrough($"{Name} glass", tex, b.blend == ViewBlend.Additive, b.lit != 0);
             var m = new Material(Shaders.HgStandard()) { name = Name };
             if (tex) m.SetTexture("_MainTex", tex);
             m.SetColor("_Color", Color.white);
@@ -491,6 +476,33 @@ namespace Ror2Common
             try { cloud = LegacyShaderAPI.Find("Hopoo Games/FX/Cloud Remap"); }
             catch (Exception e) { CommonLog.Warn($"no Cloud Remap shader ({e.Message}); see-through parts drawn solid"); }
             return cloud;
+        }
+
+        /// An unlit see-through material on Cloud Remap with its colour remap off: `tex` (white
+        /// if null) times _TintColor, alpha blended or `additive`, times the vertex colours with
+        /// `vertexColor`. Null without Cloud Remap.
+        public static Material SeeThrough(string name, Texture tex, bool additive, bool vertexColor)
+        {
+            if (!CloudRemap()) return null;
+            var g = new Material(CloudRemap()) { name = name, renderQueue = 3000 };
+            g.SetTexture("_MainTex", tex ? tex : Texture2D.whiteTexture);
+            g.SetColor("_TintColor", Color.white);
+            g.SetFloat("_DisableRemapOn", 1f);
+            g.EnableKeyword("DISABLEREMAP");
+            g.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+            g.SetFloat("_DstBlend", (float)(additive ? BlendMode.One : BlendMode.OneMinusSrcAlpha));
+            g.SetFloat("_Boost", 1f);
+            g.SetFloat("_AlphaBoost", 1f);
+            g.SetFloat("_AlphaBias", 0f);
+            g.SetFloat("_InvFade", 100f);
+            g.SetFloat("_Cull", 0f);
+            g.SetFloat("_ZTest", (float)CompareFunction.LessEqual);
+            if (vertexColor)
+            {
+                g.SetFloat("_VertexColorOn", 1f);
+                g.EnableKeyword("VERTEXCOLOR");
+            }
+            return g;
         }
     }
 }

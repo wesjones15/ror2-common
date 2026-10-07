@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using RoR2;
 using UnityEngine;
@@ -27,13 +28,23 @@ namespace Ror2Common
             return Camera.main ? Camera.main.transform : null;
         }
 
-        /// Hides (or shows again) a body's own model, counting like RoR2's cloaking does.
+        static readonly List<Renderer> renderers = new List<Renderer>();
+
+        /// Hides (or shows again) a body's own model and everything on it (item displays,
+        /// effects parented to it) by switching its renderers off. Not RoR2's invisibilityCount:
+        /// that is the cloak (the Stealthkit's refracting shimmer, drawn over whatever stands in
+        /// for the model), and monsters lose track of a cloaked body. RoR2 never touches
+        /// forceRenderingOff, so it stays put. Call every frame while hiding, as items add
+        /// renderers.
         public static void HideModel(CharacterBody body, ref bool hidden, bool hide)
         {
-            if (hide == hidden || !body || !body.modelLocator || !body.modelLocator.modelTransform) return;
-            var cm = body.modelLocator.modelTransform.GetComponent<CharacterModel>();
-            if (!cm) return;
-            cm.invisibilityCount += hide ? 1 : -1;
+            if (!hide && !hidden) return;
+            var model = body && body.modelLocator ? body.modelLocator.modelTransform : null;
+            if (!model) return;
+            model.GetComponentsInChildren(true, renderers);
+            foreach (var r in renderers)
+                if (r && r.forceRenderingOff != hide) r.forceRenderingOff = hide;
+            renderers.Clear();
             hidden = hide;
         }
     }
