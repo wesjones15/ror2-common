@@ -41,11 +41,18 @@ namespace Ror2Common
             if (!hide && !hidden) return;
             var model = body && body.modelLocator ? body.modelLocator.modelTransform : null;
             if (!model) return;
-            model.GetComponentsInChildren(true, renderers);
+            HideRenderers(model, hide);
+            hidden = hide;
+        }
+
+        /// Switches every renderer under `root` off (or back on) with forceRenderingOff.
+        public static void HideRenderers(Transform root, bool hide)
+        {
+            if (!root) return;
+            root.GetComponentsInChildren(true, renderers);
             foreach (var r in renderers)
                 if (r && r.forceRenderingOff != hide) r.forceRenderingOff = hide;
             renderers.Clear();
-            hidden = hide;
         }
     }
 }
