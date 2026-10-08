@@ -10,19 +10,20 @@ namespace Ror2Common
     public sealed class SpawnMusic : MonoBehaviour
     {
         static AudioClip clip;
-        static ConfigEntry<bool> enabled;
+        static ConfigEntry<bool> musicEnabled;
         static ConfigEntry<float> volume;
         AudioSource source;
         bool played;
+        bool paused;
 
         public static void Initialize(ConfigFile config, string folder)
         {
-            enabled = config.Bind("SpawnMusic", "Enabled", true, "Play a short musical sting when your character arrives.");
+            musicEnabled = config.Bind("SpawnMusic", "Enabled", true, "Play a short musical sting when your character arrives.");
             volume = config.Bind("SpawnMusic", "Volume", 1f, "Sting volume, multiplied by RoR2 master and music volume (0-2).");
             try
             {
                 // Our build tools emit canonical stereo PCM16 WAVs. Reject other formats.
-                var b = File.ReadAllBytes(Path.Combine(folder, "spawn.wav"));
+                var b = File.ReadAllBytes(System.IO.Path.Combine(folder, "spawn.wav"));
                 if (b.Length < 44 || System.Text.Encoding.ASCII.GetString(b, 0, 4) != "RIFF"
                     || System.Text.Encoding.ASCII.GetString(b, 8, 8) != "WAVEfmt "
                     || BitConverter.ToInt32(b, 16) != 16 || BitConverter.ToInt16(b, 20) != 1
@@ -57,7 +58,14 @@ namespace Ror2Common
             var player = body.GetComponent<SpawnMusic>() ?? body.gameObject.AddComponent<SpawnMusic>();
             if (player.played) return;
             player.played = true;
-            if (enabled == null || !enabled.Value || !clip) return;
+            if (musicEnabled == null || !musicEnabled.Value || !clip) return;
+            // RoR2 uses Wwise; some camera setups only have an AkAudioListener.
+            // Unity PCM playback also needs a Unity listener.
+            if (!FindObjectOfType<AudioListener>())
+            {
+                var camera = GameSettings.PlayerCamera();
+                if (camera) camera.gameObject.AddComponent<AudioListener>();
+            }
             player.source = body.gameObject.AddComponent<AudioSource>();
             player.source.playOnAwake = false;
             player.source.loop = false;
@@ -67,13 +75,20 @@ namespace Ror2Common
             player.source.Play();
         }
 
-        void SetVolume() => source.volume = enabled.Value
+        void SetVolume() => source.volume = musicEnabled.Value
             ? Mathf.Clamp(volume.Value, 0f, 2f) * GameSettings.MusicVolume() : 0f;
 
         void Update()
         {
             if (!source) return;
             SetVolume();
+            bool pause = Time.timeScale == 0f;
+            if (pause != paused)
+            {
+                if (pause) source.Pause(); else source.UnPause();
+                paused = pause;
+            }
+            if (paused) return;
             if (!source.isPlaying && !AudioListener.pause) { Destroy(source); source = null; }
         }
     }
