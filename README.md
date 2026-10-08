@@ -59,3 +59,5 @@ retain RoR2's transform-based check. This overload requires `ROR2COMMON_HOOKS` f
 stationary override; both survivor plugins enable it.
 
 SpawnMusic provides one-shot local arrival playback from a build-generated stereo PCM16 spawn.wav. Initialize it with the plugin config and folder, then call PlayOnce(body) at emergence. It follows master/music volume, supports a separate enable/volume setting, fades the excerpt edges, pauses with the game and cannot retrigger on the same body. A missing clip logs a warning and leaves gameplay usable.
+
+RunAudio resets native presentation and arrival stings at game over (before run destruction), direct quit, shutdown, and new-run startup. Its Ended gate prevents recreation on the results screen. Run the headless event-sequence regression with dotnet run --project tests/RunAudioCheck -c Release. Native device silence still needs an in-game check.

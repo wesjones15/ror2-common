@@ -50,6 +50,7 @@ namespace Ror2Common
 
         public static void PlayOnce(CharacterBody body)
         {
+            if (RunAudio.Ended) return;
             if (!body || !body.healthComponent || !body.healthComponent.alive) return;
             bool local = false;
             foreach (var user in LocalUserManager.readOnlyLocalUsersList)
@@ -77,6 +78,17 @@ namespace Ror2Common
 
         void SetVolume() => source.volume = musicEnabled.Value
             ? Mathf.Clamp(volume.Value, 0f, 2f) * GameSettings.MusicVolume() : 0f;
+
+        public static void StopAll()
+        {
+            foreach (var player in FindObjectsOfType<SpawnMusic>())
+            {
+                if (!player.source) continue;
+                player.source.Stop();
+                Destroy(player.source);
+                player.source = null;
+            }
+        }
 
         void Update()
         {
