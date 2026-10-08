@@ -120,7 +120,7 @@ namespace Ror2Common
                     mesh.SetTriangles(tri, b, false);
                     MaterialFor(batches[b], batches[b].texture);
                 }
-                // Animations reach past the bind pose; a roomy box saves recomputing it.
+                // A first box from the bind pose (each frame boxes the posed vertices).
                 var lo = new Vector3(info.lo.x, info.lo.y, info.lo.z);
                 var hi = new Vector3(info.hi.x, info.hi.y, info.hi.z);
                 mesh.bounds = new Bounds((lo + hi) * 0.5f, (hi - lo) * 2f + Vector3.one * 20f);
@@ -274,6 +274,10 @@ namespace Ror2Common
                 }
                 inst.mesh.SetVertices(vbuf, 0, vn);
                 inst.mesh.SetNormals(nbuf, 0, vn);
+                // Parts posed away from their own origin (a cap at the head, hands at the
+                // wrists, all in the body's space) leave the bind-pose box behind, and Unity
+                // culls them when that box leaves the view: box what's drawn.
+                inst.mesh.RecalculateBounds();
                 if (model.hasEnv && uvs != null && d.first_vertex + vn <= uc)
                 {
                     fixed (Vector2* ud = ubuf)
