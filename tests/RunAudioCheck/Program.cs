@@ -3,7 +3,7 @@ using Ror2Common;
 
 class Program
 {
-    static void Main()
+    static void Main(string[] args)
     {
         bool streamOpen = false;
         int closes = 0;
@@ -29,6 +29,24 @@ class Program
         UnityEngine.Application.Quit();
         if (closes != 12 || SpawnMusic.Stops != closes) throw new Exception("Incomplete cleanup sequence");
         Console.WriteLine("PASS: repeated runs, results screen, direct quit, shutdown, and sting cleanup");
+        if (Array.IndexOf(args, "--device") >= 0)
+        {
+            // Queue silence: exercise the real output device without playing a test tone.
+            for (int i = 0; i < 3; i++)
+            {
+                using var output = new PcmOutput(new float[3200], 32000, 1f);
+                output.Pause(true);
+                output.Pause(false);
+                if (i == 0)
+                {
+                    var deadline = DateTime.UtcNow.AddSeconds(3);
+                    while (!output.Finished && DateTime.UtcNow < deadline) System.Threading.Thread.Sleep(10);
+                    if (!output.Finished) throw new Exception("Windows audio buffer never completed");
+                }
+                output.Dispose(); output.Dispose();
+            }
+            Console.WriteLine("PASS: Windows PCM completion, pause/resume, immediate stop, repeated disposal/reopen");
+        }
     }
 }
 

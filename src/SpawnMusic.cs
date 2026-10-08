@@ -9,10 +9,11 @@ namespace Ror2Common
     /// Local arrival music, once per body. Each plugin supplies a disc-rendered PCM sting.
     public sealed class SpawnMusic : MonoBehaviour
     {
-        static AudioClip clip;
+        static float[] clip;
+        static int sampleRate;
         static ConfigEntry<bool> musicEnabled;
         static ConfigEntry<float> volume;
-        AudioSource source;
+        PcmOutput source;
         bool played;
         bool paused;
 
@@ -42,8 +43,7 @@ namespace Ror2Common
                         Mathf.Clamp01((frames - 1 - i / 2) / (rate * .18f)));
                     pcm[i] = BitConverter.ToInt16(b, 44 + i * 2) / 32768f * fade;
                 }
-                clip = AudioClip.Create("Arrival sting", frames, 2, rate, false);
-                clip.SetData(pcm, 0);
+                clip = pcm; sampleRate = rate;
             }
             catch (Exception e) { CommonLog.Warn("Spawn music unavailable: " + e.Message); }
         }
@@ -59,49 +59,39 @@ namespace Ror2Common
             var player = body.GetComponent<SpawnMusic>() ?? body.gameObject.AddComponent<SpawnMusic>();
             if (player.played) return;
             player.played = true;
-            if (musicEnabled == null || !musicEnabled.Value || !clip) return;
-            // RoR2 uses Wwise; some camera setups only have an AkAudioListener.
-            // Unity PCM playback also needs a Unity listener.
-            if (!FindObjectOfType<AudioListener>())
+            if (musicEnabled == null || !musicEnabled.Value || clip == null) return;
+            try
             {
-                var camera = GameSettings.PlayerCamera();
-                if (camera) camera.gameObject.AddComponent<AudioListener>();
+                float gain = Mathf.Clamp(volume.Value, 0f, 2f) * GameSettings.MusicVolume();
+                player.source = new PcmOutput(clip, sampleRate, gain);
+                CommonLog.Info($"Arrival sting started ({clip.Length / (2f * sampleRate):F2}s, gain {gain:F2})");
             }
-            player.source = body.gameObject.AddComponent<AudioSource>();
-            player.source.playOnAwake = false;
-            player.source.loop = false;
-            player.source.spatialBlend = 0f;
-            player.source.clip = clip;
-            player.SetVolume();
-            player.source.Play();
+            catch (Exception e) { CommonLog.Warn("Arrival sting failed: " + e.Message); }
         }
-
-        void SetVolume() => source.volume = musicEnabled.Value
-            ? Mathf.Clamp(volume.Value, 0f, 2f) * GameSettings.MusicVolume() : 0f;
-
         public static void StopAll()
         {
             foreach (var player in FindObjectsOfType<SpawnMusic>())
             {
-                if (!player.source) continue;
-                player.source.Stop();
-                Destroy(player.source);
+                if (player.source == null) continue;
+                player.source.Dispose();
                 player.source = null;
             }
         }
 
+        void OnDestroy() { source?.Dispose(); source = null; }
+
         void Update()
         {
-            if (!source) return;
-            SetVolume();
+            if (source == null) return;
+            if (!musicEnabled.Value) { source.Dispose(); source = null; return; }
             bool pause = Time.timeScale == 0f;
             if (pause != paused)
             {
-                if (pause) source.Pause(); else source.UnPause();
+                source.Pause(pause);
                 paused = pause;
             }
             if (paused) return;
-            if (!source.isPlaying && !AudioListener.pause) { Destroy(source); source = null; }
+            if (source.Finished) { source.Dispose(); source = null; }
         }
     }
 }
