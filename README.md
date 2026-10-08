@@ -24,6 +24,8 @@ Set `Ror2Common.CommonLog.Log = Logger;` first thing in the plugin's `Awake`.
 | `ModelView.cs` | A native view's models in Unity. Meshes are built once; each frame takes skinned vertices and per-batch texture and colour. Uses HGStandard, plus Cloud Remap for see-through and additive parts. Also has `Shaders`. |
 | `GameSettings.cs` | RoR2's SFX volume, the player's camera, hiding a body's own model (or any hierarchy's renderers). |
 | `CameraPivot.cs` | Puts a body's camera on a pivot of our own (a plain child of the body), for plugins that hide the body's model: the stock pivot hangs off that still-animated model and sways the camera. Its comment lists what the driver should do too (run before RoR2's camera; never leave the body ahead of the drawn position). |
+| `InteractGuard.cs` | RoR2's interact button when it's also one of the character's buttons: a press made while RoR2 shows an interact prompt is RoR2's until let go. `Claim(down, prompt)` each frame returns the button as the character sees it; `PromptShown(driver)` is the prompt check. |
+| `InteractTarget.cs` | A native object as a RoR2 interactable, with RoR2's own prompt: `Make(name, parent, at, context, canUse, onUse)`, then `Override(driver, target)` each frame while it's in reach (null takes the prompt back). No collider, so only the plugin's own reach test finds it. Host or single player only (a client's interact goes by network id). |
 | `DisplayModel.cs` | The character select screen: on a survivor's display prefab, draws an `IDisplayActor` (the plugin's own view, posed by its own sim) at the prefab's root and hides the prefab's model. `DisplayModel.Attach(displayPrefab, id, factory)`. |
 
 The native views are `sms_view_*` in libsms-ffi and `pik_view_*` in libpikmin-ffi. Their
