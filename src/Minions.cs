@@ -190,6 +190,23 @@ namespace Ror2Common
             if (body.characterDirection) body.characterDirection.forward = rotation * Vector3.forward;
         }
 
+        /// Explicit conditions for host-driven bodies: hovering counts as moving even
+        /// at a fixed point. Grounded and stationary conditions belong to this entity.
+        public void Place(Vector3 at, Quaternion rotation, bool moving, bool grounded)
+        {
+            var body = Body;
+            if (!body) return;
+            var motion = body.GetComponent<MinionMotion>() ?? body.gameObject.AddComponent<MinionMotion>();
+            motion.Set(moving);
+            if (body.characterMotor)
+            {
+                body.characterMotor.velocity = (at - body.transform.position) / Mathf.Max(Time.fixedDeltaTime, 0.001f);
+                if (body.characterMotor.Motor)
+                    body.characterMotor.Motor.GroundingStatus.IsStableOnGround = grounded;
+            }
+            Place(at, rotation);
+        }
+
         /// Removes it (no death, no kill credit).
         public void Release()
         {

@@ -50,3 +50,10 @@ structs match field for field, so a plugin only wraps its own functions in an
 
 `ModelView` came from ror2-olimar's `ModelView.cs` without its particles: Pikmin's whistle
 and ghosts still live in ror2-olimar.
+
+`Minion.Place(at, rotation, moving, grounded)` supplies explicit conditions for externally
+controlled entities. Hovering hosts pass `moving: true, grounded: false`; planted entities
+pass `false, true`. `MinionMotion` hooks RoR2's stationary query for only those entities and
+starts the normal one-second stationary delay on landing. Existing two-argument callers
+retain RoR2's transform-based check. This overload requires `ROR2COMMON_HOOKS` for the
+stationary override; both survivor plugins enable it.
