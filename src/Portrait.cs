@@ -94,28 +94,46 @@ namespace Ror2Common
                     stage.position + stage.rotation * (new Vector3(d.pos.x, d.pos.y, d.pos.z) * actor.Scale),
                     stage.rotation * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)), job.hide);
 
-                var renderers = actor.Models.Root.GetComponentsInChildren<Renderer>();
-                bool any = false;
-                var bounds = new Bounds();
-                foreach (var r in renderers)
+                // The posed vertices themselves: the meshes' bounds are padded for animation and
+                // would frame a lot of empty space.
+                var points = new List<Vector3>();
+                foreach (var mf in actor.Models.Root.GetComponentsInChildren<MeshFilter>())
                 {
-                    if (!r.enabled || !r.gameObject.activeInHierarchy) continue;
-                    bounds = any ? Union(bounds, r.bounds) : r.bounds;
-                    any = true;
+                    var r = mf.GetComponent<Renderer>();
+                    if (!mf.sharedMesh || !r || !r.enabled || !mf.gameObject.activeInHierarchy) continue;
+                    var m = mf.transform.localToWorldMatrix;
+                    foreach (var v in mf.sharedMesh.vertices) points.Add(m.MultiplyPoint3x4(v));
                 }
-                if (!any) return null;
+                if (points.Count == 0) return null;
+                float top = float.MinValue, bottom = float.MaxValue;
+                foreach (var p in points)
+                {
+                    top = Mathf.Max(top, p.y);
+                    bottom = Mathf.Min(bottom, p.y);
+                }
                 foreach (var t in actor.Models.Root.GetComponentsInChildren<Transform>(true))
                 {
                     layers.Add((t.gameObject, t.gameObject.layer));
                     t.gameObject.layer = layer;
                 }
 
-                // The upper body: the top 60% of the character's height, in a square.
-                float h = bounds.size.y;
-                float view = Mathf.Max(h * 0.6f, Mathf.Max(bounds.size.x, bounds.size.z) * 0.6f);
-                var centre = new Vector3(bounds.center.x, bounds.max.y - view * 0.5f, bounds.center.z);
+                // Head and shoulders, as RoR2's portraits are: a square from just above the top
+                // of the head down through the top half of the character, centred on that part.
+                float h = top - bottom;
+                float cut = top - h * 0.5f;
+                var slice = new Bounds();
+                bool any = false;
+                foreach (var p in points)
+                {
+                    if (p.y < cut) continue;
+                    if (any) slice.Encapsulate(p);
+                    else slice = new Bounds(p, Vector3.zero);
+                    any = true;
+                }
+                float view = Mathf.Max(h * 0.5f, Mathf.Max(slice.size.x, slice.size.z)) * 1.08f;
+                var centre = new Vector3(slice.center.x, top + view * 0.04f - view * 0.5f, slice.center.z);
                 const float fov = 20f;
-                float dist = view * 0.5f / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) + bounds.extents.z;
+                float dist = view * 0.5f / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) + slice.extents.z;
 
                 camGo = new GameObject("portrait camera");
                 var cam = camGo.AddComponent<Camera>();
@@ -184,12 +202,6 @@ namespace Ror2Common
             var px = read.GetPixels();
             UnityEngine.Object.Destroy(read);
             return px;
-        }
-
-        static Bounds Union(Bounds a, Bounds b)
-        {
-            a.Encapsulate(b);
-            return a;
         }
 
         // A layer with no name: nothing in RoR2 draws or collides on it.
