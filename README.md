@@ -26,7 +26,21 @@ Set `Ror2Common.CommonLog.Log = Logger;` first thing in the plugin's `Awake`.
 | `CameraPivot.cs` | Puts a body's camera on a pivot of our own (a plain child of the body), for plugins that hide the body's model: the stock pivot hangs off that still-animated model and sways the camera. Its comment lists what the driver should do too (run before RoR2's camera; never leave the body ahead of the drawn position). |
 | `InteractGuard.cs` | RoR2's interact button when it's also one of the character's buttons: a press made while RoR2 shows an interact prompt is RoR2's until let go. `Claim(down, prompt)` each frame returns the button as the character sees it; `PromptShown(driver)` is the prompt check. |
 | `InteractTarget.cs` | A native object as a RoR2 interactable, with RoR2's own prompt: `Make(name, parent, at, context, canUse, onUse)`, then `Override(driver, target)` each frame while it's in reach (null takes the prompt back). No collider, so only the plugin's own reach test finds it. Host or single player only (a client's interact goes by network id). |
+| `NativeHit.cs` | Damage from a native sim as RoR2 damage from a character (`Deal(attacker, victim, spec)`): crit, kill credit, `OnHitEnemy`/`OnHitAll` at the spec's proc coefficient. Server only. |
+| `MinionHit.cs`, `MinionHooks.cs` | A hit by a minion with no RoR2 body: `NativeHit` from its owner, with the attacker-position check in `TakeDamage` (Focus Crystal, backstab) made from the minion. The hook needs `ROR2COMMON_HOOKS` (see below). |
+| `MinionStats.cs` | An owner's stats as ratios to base (damage, attack speed, move speed, max health), plus regen fraction, damage taken after armour and crit, for a native sim's minions or the character itself. |
 | `DisplayModel.cs` | The character select screen: on a survivor's display prefab, draws an `IDisplayActor` (the plugin's own view, posed by its own sim) at the prefab's root and hides the prefab's model. `DisplayModel.Attach(displayPrefab, id, factory)`. |
+
+IL hooks are opt-in, so a plugin that doesn't want MonoMod still compiles: define
+`ROR2COMMON_HOOKS` and reference BepInEx's own copies:
+
+```xml
+<DefineConstants>$(DefineConstants);ROR2COMMON_HOOKS</DefineConstants>
+...
+<Reference Include="Mono.Cecil"><HintPath>$(RoR2Dir)\BepInEx\core\Mono.Cecil.dll</HintPath></Reference>
+<Reference Include="MonoMod.Utils"><HintPath>$(RoR2Dir)\BepInEx\core\MonoMod.Utils.dll</HintPath></Reference>
+<Reference Include="MonoMod.RuntimeDetour"><HintPath>$(RoR2Dir)\BepInEx\core\MonoMod.RuntimeDetour.dll</HintPath></Reference>
+```
 
 The native views are `sms_view_*` in libsms-ffi and `pik_view_*` in libpikmin-ffi. Their
 structs match field for field, so a plugin only wraps its own functions in an
