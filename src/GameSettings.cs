@@ -9,6 +9,12 @@ namespace Ror2Common
     {
         /// RoR2's master times sound-effects volume (its convars are 0-100), 0..1.
         public static float SfxVolume()
+            => Volume("volume_sfx");
+
+        public static float MusicVolume()
+            => Volume("volume_music");
+
+        static float Volume(string channel)
         {
             float Get(string name)
             {
@@ -16,7 +22,7 @@ namespace Ror2Common
                 return cv != null && float.TryParse(cv.GetString(), NumberStyles.Float,
                     CultureInfo.InvariantCulture, out float v) ? Mathf.Clamp01(v / 100f) : 1f;
             }
-            return Get("volume_master") * Get("volume_sfx");
+            return Get("volume_master") * Get(channel);
         }
 
         /// The first local player's camera (their rig's scene camera, else Camera.main).
