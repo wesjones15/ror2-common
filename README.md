@@ -57,3 +57,5 @@ pass `false, true`. `MinionMotion` hooks RoR2's stationary query for only those 
 starts the normal one-second stationary delay on landing. Existing two-argument callers
 retain RoR2's transform-based check. This overload requires `ROR2COMMON_HOOKS` for the
 stationary override; both survivor plugins enable it.
+
+SpawnMusic provides one-shot local arrival playback from a build-generated stereo PCM16 spawn.wav. Initialize it with the plugin config and folder, then call PlayOnce(body) at emergence. It follows master/music volume, supports a separate enable/volume setting, fades the excerpt edges, pauses with the game and cannot retrigger on the same body. A missing clip logs a warning and leaves gameplay usable.
