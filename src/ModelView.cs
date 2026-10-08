@@ -57,6 +57,8 @@ namespace Ror2Common
         /// RoR2's hit flash colour for draws flagged as flashing.
         public Color FlashColor = new Color(1f, 1f, 1f, 0.5f);
         public string Name { get; }
+        /// The object every model instance hangs under.
+        public Transform Root => root;
 
         public int DrawCount => drawCount;
         public ViewDraw DrawAt(int i) => draws[i];
