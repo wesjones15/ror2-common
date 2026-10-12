@@ -17,11 +17,14 @@ class Program
             RoR2.Run.Start();
             if (RunAudio.Ended || streamOpen) throw new Exception("Dirty new run");
             streamOpen = true;
-            // Game over must stop audio while the Run still exists (results screen).
+            // Game over must stop audio while the Run still exists (results screen), but let a
+            // death sting finish; leaving the run stops that too.
             RoR2.Run.GameOver();
             if (streamOpen || !RunAudio.Ended) throw new Exception("Audio survived game over");
+            if (SpawnMusic.LastDeathToo) throw new Exception("Game over cut the death sting");
             RoR2.Run.Destroy();
             if (streamOpen || !RunAudio.Ended) throw new Exception("Audio survived run destruction");
+            if (!SpawnMusic.LastDeathToo) throw new Exception("Death sting survived the run");
         }
         // Quitting directly to menu skips the game-over event.
         RoR2.Run.Start(); streamOpen = true; RoR2.Run.Destroy();
@@ -75,6 +78,7 @@ namespace Ror2Common
     static class SpawnMusic
     {
         public static int Stops;
-        public static void StopAll() => Stops++;
+        public static bool LastDeathToo;
+        public static void StopAll(bool deathToo = true) { Stops++; LastDeathToo = deathToo; }
     }
 }
