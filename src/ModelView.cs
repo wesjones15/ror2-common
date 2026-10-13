@@ -20,6 +20,7 @@ namespace Ror2Common
         readonly Transform root;
         // One material for every part, in place of the baked ones (Create's `skin`).
         Material skin;
+        readonly Dictionary<Material, Material> skinCopies = new Dictionary<Material, Material>();
 
         class Model
         {
@@ -39,6 +40,7 @@ namespace Ror2Common
             public bool seen;
             public int[] textures;
             public Material[] materials;
+            public Material skin;
         }
 
         Model[] models;
@@ -55,6 +57,10 @@ namespace Ror2Common
         static readonly int FadeId = Shader.PropertyToID("_Fade");
         static readonly int FlashId = Shader.PropertyToID("_FlashColor");
         static readonly int TintId = Shader.PropertyToID("_TintColor");
+
+        /// A skin for particular draws (a Goobo Jr. clone's captain among a shared view's), or
+        /// null for the usual: this material replaces the draw's textures as Create's `skin` does.
+        public Func<ViewDraw, Material> SkinFor;
 
         /// RoR2's hit flash colour for draws flagged as flashing.
         public Color FlashColor = new Color(1f, 1f, 1f, 0.5f);
@@ -306,14 +312,21 @@ namespace Ror2Common
                     inst.mesh.SetColors(cbuf, 0, vn);
                 }
 
-                // A draw's own textures (a blink frame); materials change only when they do.
+                // A skin for this draw (the view's, or SkinFor's), or its baked textures.
+                var wanted = SkinOf(d);
                 bool changed = false;
+                if (wanted != inst.skin)
+                {
+                    inst.skin = wanted;
+                    for (int b = 0; b < bn; b++) { inst.textures[b] = int.MinValue; inst.materials[b] = null; }
+                }
+                // A draw's own textures (a blink frame); materials change only when they do.
                 for (int b = 0; b < bn; b++)
                 {
                     int tex = tid[d.first_color + b];
                     if (inst.textures[b] == tex && inst.materials[b]) continue;
                     inst.textures[b] = tex;
-                    inst.materials[b] = MaterialFor(model.batches[b], tex);
+                    inst.materials[b] = wanted ? wanted : MaterialFor(model.batches[b], tex);
                     changed = true;
                 }
                 if (changed) inst.renderer.sharedMaterials = inst.materials;
@@ -323,7 +336,7 @@ namespace Ror2Common
                     block.Clear();
                     var c = col[d.first_color + b];
                     var mb = model.batches[b];
-                    if (skin)
+                    if (wanted)
                     {
                         // Its own colour; only the fade and the flash.
                         block.SetFloat(FadeId, Mathf.Clamp01(d.alpha));
@@ -342,6 +355,20 @@ namespace Ror2Common
             }
             foreach (var inst in instances.Values)
                 if (!inst.seen && inst.go.activeSelf) inst.go.SetActive(false);
+        }
+
+        // The skin for a draw: SkinFor's (a copy drawn both sides), else the view's.
+        Material SkinOf(ViewDraw d)
+        {
+            var given = SkinFor?.Invoke(d);
+            if (!given) return skin;
+            if (!skinCopies.TryGetValue(given, out var copy))
+            {
+                copy = new Material(given) { name = Name + " skin" };
+                copy.SetFloat("_Cull", 0f);
+                skinCopies[given] = copy;
+            }
+            return copy;
         }
 
         /// Hides every instance (until the next Update).
@@ -457,6 +484,9 @@ namespace Ror2Common
             foreach (var mat in materials.Values)
                 if (mat) UnityEngine.Object.Destroy(mat);
             materials.Clear();
+            foreach (var copy in skinCopies.Values)
+                if (copy) UnityEngine.Object.Destroy(copy);
+            skinCopies.Clear();
             if (skin) UnityEngine.Object.Destroy(skin);
             skin = null;
             foreach (var tex in textures.Values)
