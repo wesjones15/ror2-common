@@ -85,6 +85,16 @@ namespace Ror2Common
         /// start, not a throw.
         public void ForgetVelocity() => wrote = false;
 
+        /// JumpVolume marks its throws by disabling air control until the next collision.
+        /// Native hosts preserve the pad's trajectory using RoR2's gravity for that flight.
+        public bool JumpPadLaunch => motor && motor.disableAirControlUntilCollision;
+
+        /// The native controller reported ground contact: finish the pad's air-control hold.
+        public void Landed()
+        {
+            if (motor) motor.disableAirControlUntilCollision = false;
+        }
+
         // ---- crowd control ---------------------------------------------------------------
 
         static readonly string[] heldStates =
