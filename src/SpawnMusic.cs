@@ -19,7 +19,7 @@ namespace Ror2Common
 
         static Clip arrival, death;
         static ConfigEntry<bool> musicEnabled, deathEnabled;
-        static ConfigEntry<float> volume;
+        static ConfigEntry<float> volume, deathVolume;
         // The run whose arrival sting has played (it plays once, on the first stage).
         static Run playedRun;
         PcmOutput source;
@@ -31,6 +31,7 @@ namespace Ror2Common
             musicEnabled = config.Bind("SpawnMusic", "Enabled", true, "Play a short musical sting when your character arrives on a run's first stage.");
             deathEnabled = config.Bind("SpawnMusic", "DeathSting", true, "Play a short musical sting when your character dies.");
             volume = config.Bind("SpawnMusic", "Volume", 1f, "Sting volume, multiplied by RoR2 master and music volume (0-2).");
+            deathVolume = config.Bind("SpawnMusic", "DeathVolume", 1.4f, "Extra gain for the death sting, on top of Volume (0-2). The miss jingle is quiet next to the game's own audio.");
             try { arrival = Load(System.IO.Path.Combine(folder, "spawn.wav")); }
             catch (Exception e) { CommonLog.Warn("Spawn music unavailable: " + e.Message); }
             var deathPath = System.IO.Path.Combine(folder, "death.wav");
@@ -96,15 +97,15 @@ namespace Ror2Common
             if (deathEnabled == null || !deathEnabled.Value || death == null) return;
             var player = new GameObject("DeathSting").AddComponent<SpawnMusic>();
             player.isDeath = true;
-            player.Begin(death, "Death");
+            player.Begin(death, "Death", Mathf.Clamp(deathVolume.Value, 0f, 2f));
         }
 
-        void Begin(Clip clip, string what)
+        void Begin(Clip clip, string what, float extra = 1f)
         {
             if (source != null) return;
             try
             {
-                float gain = Mathf.Clamp(volume.Value, 0f, 2f) * GameSettings.MusicVolume();
+                float gain = Mathf.Clamp(volume.Value, 0f, 2f) * extra * GameSettings.MusicVolume();
                 source = new PcmOutput(clip.pcm, clip.rate, gain);
                 CommonLog.Info($"{what} sting started ({clip.pcm.Length / (2f * clip.rate):F2}s, gain {gain:F2})");
             }
