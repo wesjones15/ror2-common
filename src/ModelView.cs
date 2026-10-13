@@ -18,6 +18,8 @@ namespace Ror2Common
     {
         readonly IViewSource src;
         readonly Transform root;
+        // One material for every part, in place of the baked ones (Create's `skin`).
+        Material skin;
 
         class Model
         {
@@ -63,21 +65,30 @@ namespace Ror2Common
         public int DrawCount => drawCount;
         public ViewDraw DrawAt(int i) => draws[i];
 
-        ModelView(IViewSource src, Transform root, string name)
+        ModelView(IViewSource src, Transform root, string name, Material skin)
         {
             this.src = src;
+            this.skin = skin;
             this.root = root;
             Name = name;
         }
 
         /// Builds every model's mesh. Null (and logs why) if that fails; the caller then keeps
-        /// its stand-in. `parent` null keeps the objects across scenes.
-        public static ModelView Create(IViewSource src, string name, Transform parent = null)
+        /// its stand-in. `parent` null keeps the objects across scenes. `skin`, if given, is drawn
+        /// on every part instead of their textures (a copy, both sides, with the part's alpha
+        /// and hit flash; the game's gummy clone material, say).
+        public static ModelView Create(IViewSource src, string name, Transform parent = null, Material skin = null)
         {
             var root = new GameObject(name).transform;
             if (parent) root.SetParent(parent, false);
             else UnityEngine.Object.DontDestroyOnLoad(root.gameObject);
-            var mv = new ModelView(src, root, name);
+            if (skin)
+            {
+                skin = new Material(skin) { name = name + " skin" };
+                // The mirror flip turns the winding around.
+                skin.SetFloat("_Cull", 0f);
+            }
+            var mv = new ModelView(src, root, name, skin);
             try
             {
                 mv.Build();
@@ -189,6 +200,7 @@ namespace Ror2Common
 
         Material MakeMaterial(ViewBatch b, Texture2D tex)
         {
+            if (skin) return skin;
             bool blended = b.blend == ViewBlend.Translucent || b.blend == ViewBlend.Additive;
             if (blended && Shaders.CloudRemap())
                 return Shaders.SeeThrough($"{Name} glass", tex, b.blend == ViewBlend.Additive, b.lit != 0,
@@ -311,7 +323,13 @@ namespace Ror2Common
                     block.Clear();
                     var c = col[d.first_color + b];
                     var mb = model.batches[b];
-                    if ((mb.blend == ViewBlend.Translucent || mb.blend == ViewBlend.Additive) && Shaders.CloudRemap())
+                    if (skin)
+                    {
+                        // Its own colour; only the fade and the flash.
+                        block.SetFloat(FadeId, Mathf.Clamp01(d.alpha));
+                        if ((d.flags & 1) != 0) block.SetColor(FlashId, FlashColor);
+                    }
+                    else if ((mb.blend == ViewBlend.Translucent || mb.blend == ViewBlend.Additive) && Shaders.CloudRemap())
                         block.SetColor(TintId, c);
                     else
                     {
@@ -439,6 +457,8 @@ namespace Ror2Common
             foreach (var mat in materials.Values)
                 if (mat) UnityEngine.Object.Destroy(mat);
             materials.Clear();
+            if (skin) UnityEngine.Object.Destroy(skin);
+            skin = null;
             foreach (var tex in textures.Values)
                 if (tex) UnityEngine.Object.Destroy(tex);
             textures.Clear();
