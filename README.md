@@ -56,6 +56,11 @@ The native views are `sms_view_*` in libsms-ffi and `pik_view_*` in libpikmin-ff
 structs match field for field, so a plugin only wraps its own functions in an
 `IViewSource`.
 
+Translucent model surfaces and Mario's water share `Shaders.SurfaceTintOpacity` (0.25):
+an alpha-only multiplier that keeps overlapping pale tints from washing the background
+white. Smoke and additive particles keep their original opacity. `SeeThrough` also accepts
+an explicit opacity multiplier; water's nearly opaque juice uses 1 instead.
+
 `ModelView` came from ror2-olimar's `ModelView.cs` without its particles: Pikmin's whistle
 and ghosts still live in ror2-olimar.
 

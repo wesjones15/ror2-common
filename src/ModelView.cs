@@ -191,7 +191,8 @@ namespace Ror2Common
         {
             bool blended = b.blend == ViewBlend.Translucent || b.blend == ViewBlend.Additive;
             if (blended && Shaders.CloudRemap())
-                return Shaders.SeeThrough($"{Name} glass", tex, b.blend == ViewBlend.Additive, b.lit != 0);
+                return Shaders.SeeThrough($"{Name} glass", tex, b.blend == ViewBlend.Additive, b.lit != 0,
+                    b.blend == ViewBlend.Translucent ? Shaders.SurfaceTintOpacity : 1f);
             var m = new Material(Shaders.HgStandard()) { name = Name };
             if (tex) m.SetTexture("_MainTex", tex);
             m.SetColor("_Color", Color.white);
@@ -447,6 +448,11 @@ namespace Ror2Common
 
     public static class Shaders
     {
+        // Glass and water are mostly transmission. Their baked pale colour represents the
+        // visible surface tint, not an opaque white coat. Keep it faint when shells or drops
+        // overlap; particle smoke and additive lights retain their authored opacity.
+        public const float SurfaceTintOpacity = 0.25f;
+
         static Shader standard, cloud;
         static bool cloudLooked;
 
@@ -486,8 +492,9 @@ namespace Ror2Common
 
         /// An unlit see-through material on Cloud Remap with its colour remap off: `tex` (white
         /// if null) times _TintColor, alpha blended or `additive`, times the vertex colours with
-        /// `vertexColor`. Null without Cloud Remap.
-        public static Material SeeThrough(string name, Texture tex, bool additive, bool vertexColor)
+        /// `vertexColor`. `opacity` scales alpha only (not RGB). Null without Cloud Remap.
+        public static Material SeeThrough(string name, Texture tex, bool additive, bool vertexColor,
+            float opacity = 1f)
         {
             if (!CloudRemap()) return null;
             var g = new Material(CloudRemap()) { name = name, renderQueue = 3000 };
@@ -498,7 +505,7 @@ namespace Ror2Common
             g.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
             g.SetFloat("_DstBlend", (float)(additive ? BlendMode.One : BlendMode.OneMinusSrcAlpha));
             g.SetFloat("_Boost", 1f);
-            g.SetFloat("_AlphaBoost", 1f);
+            g.SetFloat("_AlphaBoost", Mathf.Clamp01(opacity));
             g.SetFloat("_AlphaBias", 0f);
             g.SetFloat("_InvFade", 100f);
             g.SetFloat("_Cull", 0f);
