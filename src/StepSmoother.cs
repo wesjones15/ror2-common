@@ -54,9 +54,12 @@ namespace Ror2Common
         }
 
         /// This display frame's position, between the last two steps; moves the body there.
-        public Vector3 Smooth()
+        public Vector3 Smooth() => Smooth(Alpha);
+
+        /// A sim with its own clock (for example Pikmin's 30 Hz clock) supplies its alpha.
+        public Vector3 Smooth(float alpha)
         {
-            var p = Vector3.Lerp(prev, cur, Alpha);
+            var p = Vector3.Lerp(prev, cur, Mathf.Clamp01(alpha));
             Place(p);
             return p;
         }
