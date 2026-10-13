@@ -31,7 +31,7 @@ namespace Ror2Common
             musicEnabled = config.Bind("SpawnMusic", "Enabled", true, "Play a short musical sting when your character arrives on a run's first stage.");
             deathEnabled = config.Bind("SpawnMusic", "DeathSting", true, "Play a short musical sting when your character dies.");
             volume = config.Bind("SpawnMusic", "Volume", 1f, "Sting volume, multiplied by RoR2 master and music volume (0-2).");
-            deathVolume = config.Bind("SpawnMusic", "DeathVolume", 1.4f, "Extra gain for the death sting, on top of Volume (0-2). The miss jingle is quiet next to the game's own audio.");
+            deathVolume = config.Bind("SpawnMusic", "DeathVolume", 1.15f, "Extra gain for the death sting, on top of Volume (0-2). The miss jingle is quiet next to the game's own audio.");
             try { arrival = Load(System.IO.Path.Combine(folder, "spawn.wav")); }
             catch (Exception e) { CommonLog.Warn("Spawn music unavailable: " + e.Message); }
             var deathPath = System.IO.Path.Combine(folder, "death.wav");
