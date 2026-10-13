@@ -4,18 +4,22 @@ using UnityEngine;
 namespace Ror2Common
 {
     // Locking onto an enemy while a button is held (Pikmin's RT, Mario's LT): the one nearest
-    // the camera's heading within 25 m with a clear line, kept until released or lost; `cycle`
-    // steps to the next in `direction` on screen.
+    // the camera's heading within `Range` (25 m) with a clear line, kept until released or lost;
+    // `cycle` steps to the next in `direction` on screen.
     public sealed class EnemyLock
     {
         CharacterBody target;
+
+        /// How far away an enemy can be locked, in metres.
+        public float Range = 25f;
+
         bool Valid(CharacterBody owner, CharacterBody candidate)
         {
             if (!candidate || candidate == owner || !candidate.healthComponent || !candidate.healthComponent.alive
                 || !candidate.teamComponent || candidate.teamComponent.teamIndex == TeamIndex.None
                 || (owner.teamComponent && candidate.teamComponent.teamIndex == owner.teamComponent.teamIndex)) return false;
             var delta = candidate.corePosition - owner.corePosition;
-            return delta.sqrMagnitude <= 25f * 25f
+            return delta.sqrMagnitude <= Range * Range
                 && !Physics.Linecast(owner.corePosition, candidate.corePosition, WorldProbe.Mask, QueryTriggerInteraction.Ignore);
         }
 
