@@ -24,8 +24,10 @@ namespace Ror2Common
 
     // On a survivor's display prefab (the character select screen's mannequin): draws a native
     // character in place of the prefab's own model, standing at the prefab's root and facing
-    // its forward, and switches every other renderer under the prefab off. The prefab's own
-    // model stays as the stand-in if the character can't be had.
+    // its forward, and switches every other renderer under the prefab off, and its animators
+    // (so the prefab's intro sound doesn't play). The prefab's own model stays as the stand-in
+    // if the character can't be had. A new display is made each time the survivor is picked,
+    // and asks the factory again: that's the actor's cue to play its intro.
     public sealed class DisplayModel : MonoBehaviour
     {
         static readonly Dictionary<string, Func<IDisplayActor>> factories = new Dictionary<string, Func<IDisplayActor>>();
@@ -70,12 +72,33 @@ namespace Ror2Common
             if (actor == null) return;
             // Every frame: the display's animation turns parts and effects on as it plays.
             GameSettings.HideRenderers(transform, true);
+            Silence();
             actor.Step(Mathf.Min(Time.deltaTime, 0.1f), transform);
             var at = transform;
             actor.Models.Update(actor.Scale, d => (
                 at.position + at.rotation * (new Vector3(d.pos.x, d.pos.y, d.pos.z) * actor.Scale),
                 at.rotation * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)));
         }
+
+        // A survivor's display plays a one-off intro clip when picked (Commando's "Display",
+        // MUL-T's "PoseForLobby"), then loops an idle; the intro's sounds are animation events
+        // (AnimationEvents.PlaySound: Commando's is "play_bandit2_R_load"). With the native
+        // character drawn instead, the hidden model's animator stops, so its sounds and effects
+        // don't play for the wrong character; the actor plays its own intro. The animator
+        // controller loads late (by address), so this checks every frame.
+        void Silence()
+        {
+            if (animators == null || animatorsFoundAt != transform.childCount)
+            {
+                animators = GetComponentsInChildren<Animator>(true);
+                animatorsFoundAt = transform.childCount;
+            }
+            foreach (var a in animators)
+                if (a && a.enabled) a.enabled = false;
+        }
+
+        Animator[] animators;
+        int animatorsFoundAt = -1;
 
         void OnDisable() => Release();
 
