@@ -40,6 +40,8 @@ namespace Ror2Common
         }
 
         static readonly Dictionary<short, Entry> entries = new Dictionary<short, Entry>();
+        static readonly Fragments.Assembler assembler = new Fragments.Assembler();
+        static ushort nextId;
         static bool hooked;
 
         /// Server handlers fire only on the server (host); client handlers on every client,
@@ -78,7 +80,10 @@ namespace Ror2Common
             try
             {
                 if (!entries.TryGetValue(type, out var entry)) return;
-                var data = msg.ReadMessage<Message>().data;
+                // Large payloads arrive in fragments (Fragments): handlers get them whole.
+                int sender = server && msg.conn != null ? msg.conn.connectionId : -1;
+                var data = assembler.Add(sender, type, msg.ReadMessage<Message>().data);
+                if (data == null) return;
                 var reader = new ByteReader(data);
                 if (server) entry.server?.Invoke(msg.conn, reader);
                 else entry.client?.Invoke(null, reader);
@@ -116,14 +121,16 @@ namespace Ror2Common
             }
             var client = NetworkClient.allClients.Count > 0 ? NetworkClient.allClients[0] : null;
             if (client == null || !client.isConnected) return;
-            client.SendByChannel(type, new Message { data = payload }, Channel(reliable));
+            foreach (var packet in Fragments.Pack(payload, nextId++))
+                client.SendByChannel(type, new Message { data = packet }, Channel(reliable));
         }
 
         /// Server to every client (the host's own included).
         public static void SendToAll(short type, byte[] payload, bool reliable = true)
         {
             if (!NetworkServer.active) return;
-            NetworkServer.SendByChannelToAll(type, new Message { data = payload }, Channel(reliable));
+            foreach (var packet in Fragments.Pack(payload, nextId++))
+                NetworkServer.SendByChannelToAll(type, new Message { data = packet }, Channel(reliable));
         }
 
         /// Server to every client but `except` (null excepts none), for relaying one client's
@@ -131,12 +138,13 @@ namespace Ror2Common
         public static void SendToAllExcept(short type, byte[] payload, NetworkConnection except, bool reliable = true)
         {
             if (!NetworkServer.active) return;
-            var msg = new Message { data = payload };
+            var packets = Fragments.Pack(payload, nextId++);
             int channel = Channel(reliable);
             foreach (var conn in NetworkServer.connections)
             {
                 if (conn == null || conn == except || !conn.isReady) continue;
-                conn.SendByChannel(type, msg, channel);
+                foreach (var packet in packets)
+                    conn.SendByChannel(type, new Message { data = packet }, channel);
             }
         }
 
@@ -144,7 +152,8 @@ namespace Ror2Common
         public static void SendTo(NetworkConnection conn, short type, byte[] payload, bool reliable = true)
         {
             if (conn == null || !conn.isReady) return;
-            conn.SendByChannel(type, new Message { data = payload }, Channel(reliable));
+            foreach (var packet in Fragments.Pack(payload, nextId++))
+                conn.SendByChannel(type, new Message { data = packet }, Channel(reliable));
         }
 
         /// The networked object with this id on this process, or null.

@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/ByteIO.cs" Link="ByteIO.cs" />
+    <Compile Include="../../src/Fragments.cs" Link="Fragments.cs" />
   </ItemGroup>
 </Project>
