@@ -118,6 +118,16 @@ namespace Ror2Common
         /// another skill overrides the slot.
         public static int Charges(GenericSkill slot, SkillDef own) => Holds(slot, own) ? slot.stock : 0;
 
+        /// Is there a charge for the native move `own` in `slot`, without spending it (a move spent
+        /// when it lands, not when it starts)? With another skill overriding the slot (Heresy):
+        /// whether that one is ready.
+        public static bool Ready(GenericSkill slot, SkillDef own)
+        {
+            if (!slot) return false;
+            if (slot.skillDef != own) return slot.IsReady();
+            return Unlimited(slot.characterBody) || slot.stock >= 1;
+        }
+
         /// The sim makes the move held in `slot`. With `own` in the slot, spends a charge if
         /// there is one (free under Brainstalks) and tells RoR2 the skill was used, as using
         /// any skill does (its on-use items, the out-of-combat clock). With another skill
