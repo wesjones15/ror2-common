@@ -60,6 +60,9 @@ namespace Ror2Common
             length += count;
         }
 
+        /// Another writer's bytes, as they are.
+        public void Append(ByteWriter other) => Bytes(other.buffer, 0, other.length);
+
         /// A length-prefixed string (UTF-8, up to 255 bytes).
         public void Str(string s)
         {
@@ -98,6 +101,8 @@ namespace Ror2Common
 
         /// Reading past the end (a corrupt or truncated packet) sets this and returns zeros.
         public bool Failed { get; private set; }
+        /// The whole buffer this reads from (for relaying a payload untouched).
+        public byte[] Raw => data;
         public int Remaining => end - pos;
         public bool Done => pos >= end;
 
