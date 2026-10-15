@@ -12,9 +12,11 @@ namespace Ror2Common
             => Volume("volume_sfx");
 
         public static float MusicVolume()
-            => Volume("volume_music");
+            // DLC4's VolumeConVar folds master into Volume_MSX when either master or
+            // parent_volume_music changes. GetString already returns that effective value.
+            => Volume("volume_music", false);
 
-        static float Volume(string channel)
+        static float Volume(string channel, bool multiplyMaster = true)
         {
             float Get(string name)
             {
@@ -22,7 +24,7 @@ namespace Ror2Common
                 return cv != null && float.TryParse(cv.GetString(), NumberStyles.Float,
                     CultureInfo.InvariantCulture, out float v) ? Mathf.Clamp01(v / 100f) : 1f;
             }
-            return Get("volume_master") * Get(channel);
+            return (multiplyMaster ? Get("volume_master") : 1f) * Get(channel);
         }
 
         /// The first local player's camera (their rig's scene camera, else Camera.main).
