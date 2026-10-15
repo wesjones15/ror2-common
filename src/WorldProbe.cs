@@ -9,7 +9,32 @@ namespace Ror2Common
     // these.
     public static class WorldProbe
     {
-        public static int Mask => LayerIndex.world.mask;
+        static int bodyMask;
+        static bool haveBodyMask;
+
+        /// What the probes hit: the layers RoR2's own bodies collide with once `UseBodyCollision`
+        /// has read them, else just the world layer. The world layer alone misses what vanilla
+        /// characters stand on and are stopped by: a lake bed, the invisible walls round a stage
+        /// (their own layer), so a native-sim body falls through the one and walks out through
+        /// the other.
+        public static int Mask => haveBodyMask ? bodyMask : LayerIndex.world.mask;
+
+        /// Takes the probes' layers from `motor`, the body's character motor: the layers it
+        /// collides with (the physics layer matrix for the body's own layer, as its motor builds
+        /// them), always with the world layer, never the body's own layer (its colliders, and every
+        /// other body's, are not terrain). Call once the motor exists; the motor can stay off.
+        public static void UseBodyCollision(CharacterMotor motor, GameObject body)
+        {
+            if (!motor || !body) return;
+            int layers = motor.Motor.CollidableLayers.value | LayerIndex.world.mask;
+            layers &= ~(1 << body.layer);
+            bodyMask = layers;
+            haveBodyMask = true;
+            var names = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < 32; i++)
+                if ((layers & (1 << i)) != 0) names.Add(LayerMask.LayerToName(i) is var n && n.Length > 0 ? n : i.ToString());
+            CommonLog.Info($"WorldProbe: probes hit layers {string.Join(", ", names)} (the body's collision layers, minus its own)");
+        }
 
         /// The highest floor at or below `from` within `reach` (`checkGround`). A false return is a
         /// pit with nothing under it. A sim that reads that as the edge of the world (Sunshine's
