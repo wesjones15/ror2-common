@@ -10,7 +10,7 @@ namespace Ror2Common
     /// character first arrives on the run's first stage, and `death.wav` (optional) when the
     /// character dies. Optional extras: `gameover.wav` plays in place of the death sting when
     /// the character dies (`death.wav` is then for `PlayMiss`, a lesser loss), and `bluecoin.wav`
-    /// is a cue for `PlayCue("bluecoin")`.
+    /// is a cue for `PlayCue("bluecoin")`, as are `shineget` (the Shine Get fanfare) and `secret`.
     public sealed class SpawnMusic : MonoBehaviour
     {
         sealed class Clip
@@ -23,7 +23,7 @@ namespace Ror2Common
         static Func<float> deathGain;
         static readonly System.Collections.Generic.Dictionary<string, Clip> extras =
             new System.Collections.Generic.Dictionary<string, Clip>();
-        static readonly string[] extraNames = { "gameover", "bluecoin" };
+        static readonly string[] extraNames = { "gameover", "bluecoin", "shineget", "secret" };
         static ConfigEntry<bool> musicEnabled, deathEnabled, cuesEnabled;
         static ConfigEntry<float> volume, deathVolume;
         // The run whose arrival sting has played (it plays once, on the first stage).
@@ -137,14 +137,16 @@ namespace Ror2Common
             player.Begin(death, "Miss", Mathf.Clamp(deathVolume.Value, 0f, 2f));
         }
 
-        /// One of the character's extra cues (`bluecoin`), now, for the local player.
-        public static void PlayCue(string name)
+        /// One of the character's extra cues (`bluecoin`, `shineget`, `secret`), now, for the local
+        /// player. False if the cue isn't there or cues are off.
+        public static bool PlayCue(string name)
         {
-            if (cuesEnabled == null || !cuesEnabled.Value || !extras.TryGetValue(name, out var clip)) return;
+            if (cuesEnabled == null || !cuesEnabled.Value || !extras.TryGetValue(name, out var clip)) return false;
             var player = new GameObject("Cue " + name).AddComponent<SpawnMusic>();
             player.isDeath = true;
             player.gate = cuesEnabled;
             player.Begin(clip, name);
+            return true;
         }
 
         void Begin(Clip clip, string what, float extra = 1f, Func<float> gainOverride = null)
