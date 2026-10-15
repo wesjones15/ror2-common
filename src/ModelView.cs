@@ -64,6 +64,8 @@ namespace Ror2Common
 
         /// RoR2's hit flash colour for draws flagged as flashing.
         public Color FlashColor = new Color(1f, 1f, 1f, 0.5f);
+        /// The icy sheen for draws flagged frozen (flag 2: a Pikmin caught in a Glacial blast).
+        public Color FrozenColor = new Color(0.55f, 0.8f, 1f, 0.35f);
         public string Name { get; }
         /// The object every model instance hangs under.
         public Transform Root => root;
@@ -341,6 +343,7 @@ namespace Ror2Common
                         // Its own colour; only the fade and the flash.
                         block.SetFloat(FadeId, Mathf.Clamp01(d.alpha));
                         if ((d.flags & 1) != 0) block.SetColor(FlashId, FlashColor);
+                        else if ((d.flags & 2) != 0) block.SetColor(FlashId, FrozenColor);
                     }
                     else if ((mb.blend == ViewBlend.Translucent || mb.blend == ViewBlend.Additive) && Shaders.CloudRemap())
                         block.SetColor(TintId, c);
@@ -349,6 +352,7 @@ namespace Ror2Common
                         block.SetColor(ColorId, c);
                         block.SetFloat(FadeId, Mathf.Clamp01(d.alpha));
                         if ((d.flags & 1) != 0) block.SetColor(FlashId, FlashColor);
+                        else if ((d.flags & 2) != 0) block.SetColor(FlashId, FrozenColor);
                     }
                     inst.renderer.SetPropertyBlock(block, b);
                 }
