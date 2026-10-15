@@ -23,25 +23,24 @@ namespace Ror2Common
             elapsed = safeAge = 0f;
         }
 
-        /// Metres below its last standing spot a body over a void is rescued at (about a second's
-        /// fall), and the depth at which it is rescued anyway, even with a floor far below (150 m
-        /// is past any drop RoR2's stages ask of a player).
-        public const float VoidDrop = 20f, AnyDrop = 150f;
+        /// Metres below its last standing spot at which a body is rescued even outside every map
+        /// zone (a stage without them; 150 m is past any drop RoR2's stages ask of a player).
+        public const float AnyDrop = 150f;
 
-        /// Fall-off-the-map recovery, like RoR2's kill zones give its own characters, for a body a
-        /// native sim moves (their motor is off, and a zone never sees it). Call every tick after
-        /// `Step`, which keeps the last standing spot. True when `feet` has dropped `voidDrop`
-        /// below that spot with nothing under it (or `anyDrop`, whatever is under), and
-        /// `destination` is where to put the body back: the spot it last stood on, as clear as it
-        /// is now, with no damage dealt. The caller teleports it and calls `Reset`.
+        /// Fall-off-the-map recovery, like RoR2's own for its characters, for a body a native sim
+        /// moves (its motor is off, so the stage's zones don't bring it back reliably). Call every
+        /// tick after `Step`, which keeps the last standing spot. True when the body's centre is
+        /// where a map zone would send a player back (`WorldProbe.InMapZone`, the same moment
+        /// vanilla characters are returned), or it is `anyDrop` below that spot; `destination` is
+        /// that spot, as clear as it is now, no damage dealt. The caller teleports it and calls
+        /// `Reset`.
         public bool Fell(Vector3 feet, float height, GroundProbe probe, out Vector3 destination,
-            float voidDrop = VoidDrop, float anyDrop = AnyDrop)
+            float anyDrop = AnyDrop)
         {
             destination = default;
             if (!hasSafeFeet) return false;
-            float below = safeFeet.y - feet.y;
-            if (below < voidDrop) return false;
-            if (below < anyDrop && WorldProbe.Ground(feet, 2000f, out _)) return false;
+            if (safeFeet.y - feet.y < anyDrop && !WorldProbe.InMapZone(feet + Vector3.up * (height * 0.5f)))
+                return false;
             destination = probe(safeFeet, height * 0.25f, height * 0.5f, out var clear) ? clear : safeFeet;
             return true;
         }

@@ -68,6 +68,32 @@ namespace Ror2Common
             return true;
         }
 
+        /// Whether `point` is where one of the stage's own map zones (RoR2's kill and keep-in
+        /// volumes) would send a player back: inside an enter-type zone, or outside an exit-type
+        /// one. RoR2 tests the body's collider against these; a native-sim body asks here, so it
+        /// is returned at the moment vanilla characters are.
+        public static bool InMapZone(Vector3 point)
+        {
+            foreach (var zone in InstanceTracker.GetInstancesList<MapZone>())
+            {
+                if (!zone) continue;
+                var col = zone.GetComponent<Collider>();
+                if (!col) continue;
+                bool inside = Inside(col, point);
+                if (zone.triggerType == MapZone.TriggerType.TriggerExit ? !inside : inside) return true;
+            }
+            return false;
+        }
+
+        static bool Inside(Collider col, Vector3 point)
+        {
+            // Boxes, spheres, capsules and convex meshes know their own shape; the rest, their bounds.
+            if (col is BoxCollider || col is SphereCollider || col is CapsuleCollider
+                || (col is MeshCollider mesh && mesh.convex))
+                return (col.ClosestPoint(point) - point).sqrMagnitude < 1e-6f;
+            return col.bounds.Contains(point);
+        }
+
         static readonly RaycastHit[] crossHits = new RaycastHit[8];
 
         /// Whether a body whose centre line went from `from` to `to` (feet, in Unity units) passed
