@@ -37,7 +37,7 @@ namespace Ror2Common
             if (!body) return false;
             var inv = body.inventory;
             var id = ByName.Item("GummyCloneIdentifier");
-            if (inv && id != ItemIndex.None && inv.GetItemCount(id) > 0) return true;
+            if (inv && id != ItemIndex.None && inv.GetItemCountEffective(id) > 0) return true;
             var master = body.master;
             return master && !master.playerCharacterMasterController
                 && master.minionOwnership && master.minionOwnership.ownerMaster;

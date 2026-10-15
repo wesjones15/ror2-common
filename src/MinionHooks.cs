@@ -16,16 +16,18 @@ namespace Ror2Common
         {
             try
             {
-                var m = typeof(HealthComponent).GetMethod(nameof(HealthComponent.TakeDamage), new[] { typeof(DamageInfo) });
+                var m = typeof(HealthComponent).GetMethod("TakeDamageProcess", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null, new[] { typeof(DamageInfo) }, null);
                 bool found = false;
                 takeDamage = new ILHook(m, il =>
                 {
+                    // DLC4 captures damageInfo in local 0 inside TakeDamageProcess.
                     // attackerBody.corePosition - damageInfo.position: the minion's position in
                     // place of the body's while MinionHit.Deal runs.
                     var c = new ILCursor(il);
                     if (!c.TryGotoNext(MoveType.Before,
                             x => x.MatchCallvirt<CharacterBody>("get_corePosition"),
-                            x => x.MatchLdarg(1),
+                            x => x.OpCode == Mono.Cecil.Cil.OpCodes.Ldloc_0,
+                            x => x.Operand is Mono.Cecil.FieldReference field && field.Name == "damageInfo",
                             x => x.MatchLdfld<DamageInfo>(nameof(DamageInfo.position)),
                             x => x.MatchCall<Vector3>("op_Subtraction")))
                         return;
@@ -37,14 +39,14 @@ namespace Ror2Common
                 {
                     takeDamage.Dispose();
                     takeDamage = null;
-                    CommonLog.Warn("MinionHit: TakeDamage's attacker vector not found; minion hits measure from the owner");
+                    CommonLog.Warn("MinionHit: TakeDamageProcess's attacker vector not found; minion hits measure from the owner");
                     return;
                 }
                 hooked = true;
             }
             catch (Exception e)
             {
-                CommonLog.Error($"MinionHit: hooking TakeDamage failed: {e}");
+                CommonLog.Error($"MinionHit: hooking TakeDamageProcess failed: {e}");
             }
         }
     }

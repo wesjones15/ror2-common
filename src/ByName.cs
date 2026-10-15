@@ -37,7 +37,7 @@ namespace Ror2Common
         {
             var inv = body ? body.inventory : null;
             var i = Item(item);
-            return inv && i != ItemIndex.None ? inv.GetItemCount(i) : 0;
+            return inv && i != ItemIndex.None ? inv.GetItemCountEffective(i) : 0;
         }
 
         /// The sum over several items (one item renamed between builds, or a set).

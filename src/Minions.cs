@@ -162,7 +162,7 @@ namespace Ror2Common
         {
             ownerInventory = owner ? owner.inventory : null;
             if (ownerInventory) ownerInventory.onInventoryChanged += CopyItems;
-            if (spec.copyEquipment && ownerInventory && master.inventory) master.inventory.CopyEquipmentFrom(ownerInventory);
+            if (spec.copyEquipment && ownerInventory && master.inventory) master.inventory.CopyEquipmentFrom(ownerInventory, false);
             var body = Body;
             if (!body) return;
             if (spec.invincible && body.healthComponent) body.healthComponent.godMode = true;
@@ -174,7 +174,7 @@ namespace Ror2Common
         {
             if (!master || !master.inventory || !ownerInventory) return;
             master.inventory.CopyItemsFrom(ownerInventory, filter);
-            if (spec.copyEquipment) master.inventory.CopyEquipmentFrom(ownerInventory);
+            if (spec.copyEquipment) master.inventory.CopyEquipmentFrom(ownerInventory, false);
         }
 
         /// Puts it at `at` (its root on the ground or in the air) facing `rotation`. Call

@@ -15,7 +15,7 @@ namespace Ror2Common
         /// How strongly on-hit items proc (1 is a normal bullet). Keep it low for anything
         /// that hits many times a second: every hit runs `OnHitEnemy`.
         public float procCoefficient;
-        public DamageType damageType;
+        public DamageTypeCombo damageType;
         public DamageColorIndex color;
         /// What hit, as a projectile would be; null for the attacker itself.
         public GameObject inflictor;

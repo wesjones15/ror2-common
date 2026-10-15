@@ -80,13 +80,13 @@ namespace Ror2Common
             }
             try
             {
-                var four = typeof(Glyphs).GetMethod("GetGlyphString",
-                    new[] { typeof(MPEventSystem), typeof(string), typeof(AxisRange), typeof(MPEventSystem.InputSource) });
+                var five = typeof(Glyphs).GetMethod("GetGlyphString",
+                    new[] { typeof(MPEventSystem), typeof(string), typeof(AxisRange), typeof(MPEventSystem.InputSource), typeof(bool) });
                 var three = typeof(Glyphs).GetMethod("GetGlyphString",
                     new[] { typeof(MPEventSystem), typeof(string), typeof(AxisRange) });
-                if (four != null)
-                    hooks.Add(new Hook(four, (Func<Func<MPEventSystem, string, AxisRange, MPEventSystem.InputSource, string>,
-                        MPEventSystem, string, AxisRange, MPEventSystem.InputSource, string>)OnGlyph4));
+                if (five != null)
+                    hooks.Add(new Hook(five, (Func<Func<MPEventSystem, string, AxisRange, MPEventSystem.InputSource, bool, string>,
+                        MPEventSystem, string, AxisRange, MPEventSystem.InputSource, bool, string>)OnGlyph5));
                 if (three != null)
                     hooks.Add(new Hook(three, (Func<Func<MPEventSystem, string, AxisRange, string>,
                         MPEventSystem, string, AxisRange, string>)OnGlyph3));
@@ -101,10 +101,10 @@ namespace Ror2Common
             go.AddComponent<Refresher>();
         }
 
-        static string OnGlyph4(Func<MPEventSystem, string, AxisRange, MPEventSystem.InputSource, string> orig,
-            MPEventSystem es, string action, AxisRange range, MPEventSystem.InputSource source)
+        static string OnGlyph5(Func<MPEventSystem, string, AxisRange, MPEventSystem.InputSource, bool, string> orig,
+            MPEventSystem es, string action, AxisRange range, MPEventSystem.InputSource source, bool allowFallback)
         {
-            return Override(es, action, source) ?? orig(es, action, range, source);
+            return Override(es, action, source) ?? orig(es, action, range, source, allowFallback);
         }
 
         static string OnGlyph3(Func<MPEventSystem, string, AxisRange, string> orig,
@@ -216,8 +216,8 @@ namespace Ror2Common
                 var name = body ? BodyCatalog.GetBodyName(body.bodyIndex) : null;
                 if (name == last) return;
                 last = name;
-                foreach (var c in InputBindingDisplayController.instances)
-                    if (c) c.Refresh(true);
+                foreach (var c in UnityEngine.Object.FindObjectsOfType<InputBindingDisplayController>())
+                    if (c) c.SendMessage("Refresh", SendMessageOptions.DontRequireReceiver);
             }
         }
     }

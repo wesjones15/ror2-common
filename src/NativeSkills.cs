@@ -19,10 +19,10 @@ namespace Ror2Common
     {
         public Func<GenericSkill, bool> RechargeGate;
 
-        public override void OnFixedUpdate(GenericSkill skillSlot)
+        public override void OnFixedUpdate(GenericSkill skillSlot, float deltaTime)
         {
             if (RechargeGate != null && !RechargeGate(skillSlot)) return;
-            base.OnFixedUpdate(skillSlot);
+            base.OnFixedUpdate(skillSlot, deltaTime);
         }
     }
 

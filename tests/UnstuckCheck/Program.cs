@@ -124,6 +124,7 @@ namespace UnityEngine
         public float x, y, z;
         public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; }
         public static Vector3 zero => default;
+        public static Vector3 up => new Vector3(0f, 1f, 0f);
         public float sqrMagnitude => x * x + y * y + z * z;
         public static Vector3 operator +(Vector3 a, Vector3 b) => new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
         public static Vector3 operator -(Vector3 a, Vector3 b) => new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
@@ -136,4 +137,20 @@ namespace UnityEngine
         public static float Sin(float a) => (float)Math.Sin(a);
         public static float Cos(float a) => (float)Math.Cos(a);
     }
+}
+
+namespace RoR2
+{
+    public class MapZone { public string name, zoneType, triggerType; }
+}
+
+namespace Ror2Common
+{
+    // These timeout tests do not simulate map-zone recovery.
+    static class WorldProbe
+    {
+        public static bool InMapZone(Vector3 point, out RoR2.MapZone zone) { zone = null; return false; }
+        public static bool Triggers(RoR2.MapZone zone, Vector3 point) => false;
+    }
+    static class CommonLog { public static void Info(string message) { } }
 }

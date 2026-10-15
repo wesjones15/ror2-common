@@ -64,5 +64,7 @@ namespace Ror2Common
         public bool ShouldIgnoreSpherecastForInteractibility(Interactor activator) => true;
 
         public bool ShouldShowOnScanner() => false;
+
+        public bool ShouldProximityHighlight() => false;
     }
 }
