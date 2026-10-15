@@ -12,7 +12,7 @@ namespace Ror2Common
     // native models need the disc's files, which may not be there until extraction finishes,
     // so it's tried as each scene starts until it works.
     //
-    // One render, by hand, of the character alone (on a layer nothing else uses) with a light
+    // One render, by hand, of the character alone on RoR2's ManualRender layer with a light
     // of its own, framed on the upper body and seen from the front; done over a black and a
     // white background so the difference gives the alpha.
     public static class Portrait
@@ -73,7 +73,7 @@ namespace Ror2Common
 
         static Texture2D Render(Job job)
         {
-            int layer = FreeLayer();
+            int layer = PortraitLayer();
             if (layer < 0) return null;
             var actor = job.make();
             if (actor == null || actor.Models == null || !actor.Models.Root)
@@ -145,6 +145,8 @@ namespace Ror2Common
                 cam.farClipPlane = dist * 4f;
                 cam.allowHDR = false;
                 cam.allowMSAA = false;
+                // HGStandard supplies a deferred pass; a standalone camera must use it too.
+                cam.renderingPath = RenderingPath.DeferredShading;
                 camGo.transform.position = centre + stage.forward * dist;
                 camGo.transform.rotation = Quaternion.LookRotation(-stage.forward, Vector3.up);
 
@@ -204,11 +206,15 @@ namespace Ror2Common
             return px;
         }
 
-        // A layer with no name: nothing in RoR2 draws or collides on it.
-        static int FreeLayer()
+        // DLC4 occupies every layer from 8 through 31. ManualRender is reserved for
+        // offscreen cameras; the remote stage and short clip range isolate this actor.
+        static int PortraitLayer()
         {
+            int manual = LayerMask.NameToLayer("ManualRender");
+            if (manual >= 0) return manual;
             for (int i = 31; i >= 8; i--)
                 if (string.IsNullOrEmpty(LayerMask.LayerToName(i))) return i;
+            CommonLog.Warn("portrait skipped: no ManualRender or unused layer");
             return -1;
         }
     }
