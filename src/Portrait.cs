@@ -44,8 +44,16 @@ namespace Ror2Common
 
         sealed class Runner : MonoBehaviour
         {
+            bool rendering;
+            float retryAt;
             void OnEnable() => SceneManager.activeSceneChanged += Changed;
             void OnDisable() => SceneManager.activeSceneChanged -= Changed;
+
+            void Update()
+            {
+                if (pending.Count > 0 && !rendering && Time.unscaledTime >= retryAt)
+                    StartCoroutine(Later());
+            }
 
             void Changed(Scene from, Scene to)
             {
@@ -54,6 +62,8 @@ namespace Ror2Common
 
             IEnumerator Later()
             {
+                if (rendering) yield break;
+                rendering = true;
                 // Let the scene's lights and the game's own start-up settle.
                 for (int i = 0; i < 3; i++) yield return null;
                 for (int i = pending.Count - 1; i >= 0; i--)
@@ -68,6 +78,8 @@ namespace Ror2Common
                     pending.RemoveAt(i);
                     CommonLog.Info($"portrait for {job.body.name} rendered");
                 }
+                retryAt = Time.unscaledTime + 2f;
+                rendering = false;
             }
         }
 
@@ -163,13 +175,17 @@ namespace Ror2Common
                 var black = Grab(cam, rt, Color.black);
                 var white = Grab(cam, rt, Color.white);
                 var px = new Color[black.Length];
+                int visible = 0;
                 for (int i = 0; i < px.Length; i++)
                 {
                     var b = black[i];
                     var w = white[i];
                     float a = Mathf.Clamp01(1f - Mathf.Max(w.r - b.r, Mathf.Max(w.g - b.g, w.b - b.b)));
                     px[i] = a > 0.004f ? new Color(Mathf.Clamp01(b.r / a), Mathf.Clamp01(b.g / a), Mathf.Clamp01(b.b / a), a) : Color.clear;
+                    if (a > 0.1f && Mathf.Max(b.r, Mathf.Max(b.g, b.b)) > 0.01f) visible++;
                 }
+                // Keep the job queued if startup produced an empty or entirely black render.
+                if (visible < px.Length / 1000) return null;
                 var tex = new Texture2D(job.size, job.size, TextureFormat.RGBA32, false)
                 {
                     name = job.body.name + " portrait",
