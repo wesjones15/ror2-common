@@ -19,6 +19,30 @@ namespace Ror2Common
         public static bool Ground(Vector3 from, float reach, out RaycastHit hit) =>
             Physics.Raycast(from + Vector3.up * 0.001f, Vector3.down, out hit, reach, Mask, QueryTriggerInteraction.Ignore);
 
+        /// Clear standing ground near `sample`, for putting a body back (`Unstuck`'s probe): a floor
+        /// at most `rise` above and `drop` below it that is level (normal.y 0.7 or more), with room
+        /// for a capsule of `height` and `radius` standing on it, and floor under all four sides of
+        /// it, so a body is never put on a narrow edge or a door's corner. `feet` is where it stands.
+        public static bool StandingGround(Vector3 sample, float rise, float drop, float height,
+            float radius, out Vector3 feet)
+        {
+            feet = default;
+            if (!Ground(sample + Vector3.up * rise, rise + drop, out var hit) || hit.normal.y < 0.7f)
+                return false;
+            float skin = Mathf.Max(0.02f, height * 0.02f);
+            feet = hit.point + Vector3.up * skin;
+            if (Physics.CheckCapsule(feet + Vector3.up * radius, feet + Vector3.up * (height - radius),
+                radius, Mask, QueryTriggerInteraction.Ignore)) return false;
+            for (int i = 0; i < 4; i++)
+            {
+                var offset = (i < 2 ? Vector3.right : Vector3.forward) * (i % 2 == 0 ? radius : -radius);
+                if (!Ground(feet + offset + Vector3.up * (height * 0.1f), height * 0.2f + skin, out var support)
+                    || support.normal.y < 0.7f)
+                    return false;
+            }
+            return true;
+        }
+
         static readonly RaycastHit[] crossHits = new RaycastHit[8];
 
         /// Whether a body whose centre line went from `from` to `to` (feet, in Unity units) passed
