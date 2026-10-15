@@ -20,6 +20,7 @@ namespace Ror2Common
         }
 
         static Clip arrival, death;
+        static Func<float> deathGain;
         static readonly System.Collections.Generic.Dictionary<string, Clip> extras =
             new System.Collections.Generic.Dictionary<string, Clip>();
         static readonly string[] extraNames = { "gameover", "bluecoin" };
@@ -30,6 +31,13 @@ namespace Ror2Common
         PcmOutput source;
         bool paused;
         bool isDeath;
+
+        /// Disc-rendered death SFX that must survive the native scene stream's teardown.
+        public static void SetDeathPcm(float[] pcm, int rate, Func<float> gain)
+        {
+            death = new Clip { pcm = pcm, rate = rate };
+            deathGain = gain;
+        }
         // Which switch ends this one when turned off (cues have their own).
         ConfigEntry<bool> gate;
 
@@ -85,7 +93,7 @@ namespace Ror2Common
         static bool IsLocal(CharacterBody body)
         {
             foreach (var user in LocalUserManager.readOnlyLocalUsersList)
-                if (user.cachedBody == body) return true;
+                if (user.cachedBody == body || (body.master && user.cachedMaster == body.master)) return true;
             return false;
         }
 
@@ -115,7 +123,7 @@ namespace Ror2Common
             if (clip == null) return;
             var player = new GameObject("DeathSting").AddComponent<SpawnMusic>();
             player.isDeath = true;
-            player.Begin(clip, "Death", Mathf.Clamp(deathVolume.Value, 0f, 2f));
+            player.Begin(clip, "Death", Mathf.Clamp(deathVolume.Value, 0f, 2f), deathGain);
         }
 
         /// The death sting itself (`death.wav`), for a loss short of dying: a fall off the map. Only
@@ -139,12 +147,13 @@ namespace Ror2Common
             player.Begin(clip, name);
         }
 
-        void Begin(Clip clip, string what, float extra = 1f)
+        void Begin(Clip clip, string what, float extra = 1f, Func<float> gainOverride = null)
         {
             if (source != null) return;
             try
             {
-                float gain = Mathf.Clamp(volume.Value, 0f, 2f) * extra * GameSettings.MusicVolume();
+                float gain = gainOverride != null ? gainOverride()
+                    : Mathf.Clamp(volume.Value, 0f, 2f) * extra * GameSettings.MusicVolume();
                 source = new PcmOutput(clip.pcm, clip.rate, gain);
                 CommonLog.Info($"{what} sting started ({clip.pcm.Length / (2f * clip.rate):F2}s, gain {gain:F2})");
             }
@@ -177,7 +186,7 @@ namespace Ror2Common
                 source = null;
                 return;
             }
-            bool pause = Time.timeScale == 0f;
+            bool pause = Time.timeScale == 0f && !(isDeath && RunAudio.Ended);
             if (pause != paused)
             {
                 source.Pause(pause);
