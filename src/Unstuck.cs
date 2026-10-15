@@ -24,6 +24,13 @@ namespace Ror2Common
             elapsed = safeAge = 0f;
         }
 
+        /// The last spot the body stood on safely, if it has one.
+        public bool TryGetSafe(out Vector3 feet)
+        {
+            feet = safeFeet;
+            return hasSafeFeet;
+        }
+
         /// Metres below its last standing spot at which a body is rescued even outside every map
         /// zone (a stage without them; 150 m is past any drop RoR2's stages ask of a player).
         public const float AnyDrop = 150f;
