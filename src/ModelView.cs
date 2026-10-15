@@ -29,7 +29,11 @@ namespace Ror2Common
             public int vertexCount;
             public bool hasEnv;
             public bool lightsVertices;
+            public float[] vertexAlpha;
         }
+
+        /// `ViewBatch.lit` bit 4: the batch fades by its vertices' alpha (`IVertexAlphaSource`).
+        const byte FadesByVertex = 4;
 
         class Instance
         {
@@ -127,10 +131,24 @@ namespace Ror2Common
                 var uvs = new Vector2[info.vertex_count];
                 for (int i = 0; i < uvs.Length; i++) uvs[i] = new Vector2(uvPairs[2 * i], uvPairs[2 * i + 1]);
 
+                // A batch that fades by its vertices (bit 4 of lit) gets their alpha.
+                float[] alphas = null;
+                if (src is IVertexAlphaSource fades && Array.Exists(batches, x => (x.lit & FadesByVertex) != 0))
+                {
+                    alphas = new float[info.vertex_count];
+                    fades.VertexAlphas(m, alphas, info.vertex_count);
+                }
+
                 var mesh = new Mesh { name = $"{Name} model {m}" };
                 if (info.vertex_count > 65000) mesh.indexFormat = IndexFormat.UInt32;
                 mesh.vertices = new Vector3[info.vertex_count];
                 mesh.uv = uvs;
+                if (alphas != null)
+                {
+                    var white = new Color[alphas.Length];
+                    for (int i = 0; i < white.Length; i++) white[i] = new Color(1f, 1f, 1f, alphas[i]);
+                    mesh.colors = white;
+                }
                 mesh.subMeshCount = batches.Length;
                 for (int b = 0; b < batches.Length; b++)
                 {
@@ -149,7 +167,8 @@ namespace Ror2Common
                     batches = batches,
                     vertexCount = (int)info.vertex_count,
                     hasEnv = Array.Exists(batches, x => x.env != 0),
-                    lightsVertices = Array.Exists(batches, x => x.blend == ViewBlend.Translucent && x.lit != 0),
+                    lightsVertices = Array.Exists(batches, x => (x.blend == ViewBlend.Translucent && (x.lit & 3) != 0) || (x.lit & FadesByVertex) != 0),
+                    vertexAlpha = alphas,
                 };
             }
         }
@@ -416,21 +435,27 @@ namespace Ror2Common
             for (int i = 0; i < vn; i++) cbuf[i] = Color.white;
             foreach (var b in model.batches)
             {
-                if (b.blend != ViewBlend.Translucent || b.lit == 0) continue;
+                bool lights = b.blend == ViewBlend.Translucent && (b.lit & 3) != 0;
+                bool fades = (b.lit & FadesByVertex) != 0 && model.vertexAlpha != null;
+                if (!lights && !fades) continue;
                 int end = (int)Math.Min(b.first_vertex + b.vertex_count, (uint)vn);
                 for (int i = (int)b.first_vertex; i < end; i++)
                 {
-                    var n = nbuf[i];
-                    // The model is mirrored across its own X, so are its normals.
-                    float d = Mathf.Max(0f, Vector3.Dot(rot * new Vector3(-n.x, n.y, n.z), toSun));
                     var c = Color.white;
-                    if ((b.lit & 1) != 0)
+                    if (lights)
                     {
-                        c.r = Mathf.Clamp01(ambient.r + sunColor.r * d);
-                        c.g = Mathf.Clamp01(ambient.g + sunColor.g * d);
-                        c.b = Mathf.Clamp01(ambient.b + sunColor.b * d);
+                        var n = nbuf[i];
+                        // The model is mirrored across its own X, so are its normals.
+                        float d = Mathf.Max(0f, Vector3.Dot(rot * new Vector3(-n.x, n.y, n.z), toSun));
+                        if ((b.lit & 1) != 0)
+                        {
+                            c.r = Mathf.Clamp01(ambient.r + sunColor.r * d);
+                            c.g = Mathf.Clamp01(ambient.g + sunColor.g * d);
+                            c.b = Mathf.Clamp01(ambient.b + sunColor.b * d);
+                        }
+                        if ((b.lit & 2) != 0) c.a = Mathf.Clamp01(d);
                     }
-                    if ((b.lit & 2) != 0) c.a = Mathf.Clamp01(d);
+                    if (fades) c.a *= model.vertexAlpha[i];
                     cbuf[i] = c;
                 }
             }

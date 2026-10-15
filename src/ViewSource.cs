@@ -69,6 +69,13 @@ namespace Ror2Common
         public uint id;
     }
 
+    /// A view whose batches can fade by their vertices' alpha (`ViewBatch.lit` bit 4): the alpha
+    /// each of a model's vertices carries. Optional beside `IViewSource`.
+    public interface IVertexAlphaSource
+    {
+        uint VertexAlphas(uint model, float[] output, uint max);
+    }
+
     public interface IViewSource
     {
         uint ModelCount();
