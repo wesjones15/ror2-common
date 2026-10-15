@@ -141,6 +141,66 @@ namespace Ror2Common
             return found;
         }
 
+        /// `CrossedWall` with a sphere of `radius` instead of a ray, so a thin pole or a corner
+        /// between the rays' lines is caught too. A sphere that starts touching something finds
+        /// nothing there (distance 0), so a body resting against a wall is never "crossing" it.
+        public static bool SweptIntoWall(Vector3 from, Vector3 to, float[] heights, float radius,
+            float wallNormalY, out RaycastHit hit)
+        {
+            hit = default;
+            var move = to - from;
+            float distance = move.magnitude;
+            if (distance < 0.001f) return false;
+            var dir = move / distance;
+            bool found = false;
+            foreach (float h in heights)
+            {
+                int n = Physics.SphereCastNonAlloc(from + Vector3.up * h, radius, dir, crossHits, distance, Mask,
+                    QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < n; i++)
+                {
+                    var c = crossHits[i];
+                    if (c.distance <= 0f || Mathf.Abs(c.normal.y) >= wallNormalY) continue;
+                    if (!found || c.distance < hit.distance)
+                    {
+                        hit = c;
+                        found = true;
+                    }
+                }
+            }
+            return found;
+        }
+
+        static readonly Vector3[] insideDirs =
+        {
+            Vector3.up, Vector3.down, Vector3.right, Vector3.left, Vector3.forward, Vector3.back,
+        };
+
+        /// Whether `point` is inside solid geometry: overlapping a box, sphere, capsule or convex
+        /// mesh, or, for a concave mesh (whose inside no overlap test sees), looking out through
+        /// the back of its faces in at least two of six directions and through the front of none.
+        /// A ray started inside a mesh normally hits no back face, which is how a body that gets
+        /// into a wall stays in it; this asks for them.
+        public static bool InsideSolid(Vector3 point, float reach = 8f)
+        {
+            if (Physics.CheckSphere(point, 0.08f, Mask, QueryTriggerInteraction.Ignore)) return true;
+            bool before = Physics.queriesHitBackfaces;
+            Physics.queriesHitBackfaces = true;
+            int back = 0, front = 0;
+            try
+            {
+                foreach (var d in insideDirs)
+                {
+                    if (!Physics.Raycast(point, d, out var h, reach, Mask, QueryTriggerInteraction.Ignore))
+                        continue;
+                    if (Vector3.Dot(h.normal, d) > 0.01f) back++;
+                    else front++;
+                }
+            }
+            finally { Physics.queriesHitBackfaces = before; }
+            return back >= 2 && front == 0;
+        }
+
         /// The lowest ceiling at or above `from` within `reach` (`checkRoof`).
         public static bool Roof(Vector3 from, float reach, out RaycastHit hit) =>
             Physics.Raycast(from - Vector3.up * 0.001f, Vector3.up, out hit, reach, Mask, QueryTriggerInteraction.Ignore);
