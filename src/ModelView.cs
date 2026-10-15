@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using RoR2;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 
 namespace Ror2Common
@@ -535,10 +536,21 @@ namespace Ror2Common
         static Shader standard, cloud;
         static bool cloudLooked;
 
-        /// RoR2's HGStandard, taken off Commando's own material.
+        /// Load the shader itself: DLC4 loads Commando's renderer materials asynchronously,
+        /// so his body prefab can exist before baseRendererInfos has a usable material.
         public static Shader HgStandard()
         {
             if (standard) return standard;
+            try
+            {
+                standard = Addressables.LoadAssetAsync<Shader>("RoR2/Base/Shaders/HGStandard.shader").WaitForCompletion();
+            }
+            catch (Exception e) { CommonLog.Warn($"loading HGStandard: {e.Message}"); }
+            if (standard)
+            {
+                CommonLog.Info($"native model shader: {standard.name}");
+                return standard;
+            }
             var commando = LegacyResourcesAPI.Load<GameObject>("Prefabs/CharacterBodies/CommandoBody");
             var cm = commando ? commando.GetComponentInChildren<CharacterModel>() : null;
             if (cm && cm.baseRendererInfos != null)
