@@ -15,6 +15,7 @@ namespace Ror2Common
         Vector3 anchor, safeFeet;
         bool watching, hasSafeFeet;
         float elapsed, safeAge;
+        RoR2.MapZone ignored;
 
         // External teleports, vehicles, death and loss of authority invalidate old ground.
         public void Reset()
@@ -39,8 +40,21 @@ namespace Ror2Common
         {
             destination = default;
             if (!hasSafeFeet) return false;
-            if (safeFeet.y - feet.y < anyDrop && !WorldProbe.InMapZone(feet + Vector3.up * (height * 0.5f)))
-                return false;
+            if (safeFeet.y - feet.y < anyDrop)
+            {
+                if (!WorldProbe.InMapZone(feet + Vector3.up * (height * 0.5f), out var zone)) return false;
+                // A zone that fires at the last standing spot too is not telling the body it fell:
+                // sending it back there would only fire it again, every tick.
+                if (WorldProbe.Triggers(zone, safeFeet + Vector3.up * (height * 0.5f)))
+                {
+                    if (ignored != zone)
+                    {
+                        ignored = zone;
+                        CommonLog.Info($"Map zone '{zone.name}' ({zone.zoneType}, {zone.triggerType}) fires where the body last stood safely; not used for fall recovery");
+                    }
+                    return false;
+                }
+            }
             destination = probe(safeFeet, height * 0.25f, height * 0.5f, out var clear) ? clear : safeFeet;
             return true;
         }

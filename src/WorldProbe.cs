@@ -72,17 +72,28 @@ namespace Ror2Common
         /// volumes) would send a player back: inside an enter-type zone, or outside an exit-type
         /// one. RoR2 tests the body's collider against these; a native-sim body asks here, so it
         /// is returned at the moment vanilla characters are.
-        public static bool InMapZone(Vector3 point)
+        public static bool InMapZone(Vector3 point) => InMapZone(point, out _);
+
+        /// As `InMapZone`, and the zone that fired.
+        public static bool InMapZone(Vector3 point, out MapZone zone)
         {
-            foreach (var zone in InstanceTracker.GetInstancesList<MapZone>())
+            foreach (var z in InstanceTracker.GetInstancesList<MapZone>())
             {
-                if (!zone) continue;
-                var col = zone.GetComponent<Collider>();
-                if (!col) continue;
-                bool inside = Inside(col, point);
-                if (zone.triggerType == MapZone.TriggerType.TriggerExit ? !inside : inside) return true;
+                if (!z || !Triggers(z, point)) continue;
+                zone = z;
+                return true;
             }
+            zone = null;
             return false;
+        }
+
+        /// Whether `point` is where `zone` fires: inside a trigger-enter zone, outside a trigger-exit one.
+        public static bool Triggers(MapZone zone, Vector3 point)
+        {
+            var col = zone.GetComponent<Collider>();
+            if (!col) return false;
+            bool inside = Inside(col, point);
+            return zone.triggerType == MapZone.TriggerType.TriggerExit ? !inside : inside;
         }
 
         static bool Inside(Collider col, Vector3 point)
