@@ -8,7 +8,9 @@ namespace Ror2Common
 {
     /// Local stings, each plugin supplying disc-rendered PCM: `spawn.wav` once a run, as the
     /// character first arrives on the run's first stage, and `death.wav` (optional) when the
-    /// character dies.
+    /// character dies. Optional extras: `gameover.wav` plays in place of the death sting when
+    /// the character dies (`death.wav` is then for `PlayMiss`, a lesser loss), and `bluecoin.wav`
+    /// is a cue for `PlayCue("bluecoin")`.
     public sealed class SpawnMusic : MonoBehaviour
     {
         sealed class Clip
@@ -18,22 +20,35 @@ namespace Ror2Common
         }
 
         static Clip arrival, death;
-        static ConfigEntry<bool> musicEnabled, deathEnabled;
+        static readonly System.Collections.Generic.Dictionary<string, Clip> extras =
+            new System.Collections.Generic.Dictionary<string, Clip>();
+        static readonly string[] extraNames = { "gameover", "bluecoin" };
+        static ConfigEntry<bool> musicEnabled, deathEnabled, cuesEnabled;
         static ConfigEntry<float> volume, deathVolume;
         // The run whose arrival sting has played (it plays once, on the first stage).
         static Run playedRun;
         PcmOutput source;
         bool paused;
         bool isDeath;
+        // Which switch ends this one when turned off (cues have their own).
+        ConfigEntry<bool> gate;
 
         public static void Initialize(ConfigFile config, string folder)
         {
             musicEnabled = config.Bind("SpawnMusic", "Enabled", true, "Play a short musical sting when your character arrives on a run's first stage.");
             deathEnabled = config.Bind("SpawnMusic", "DeathSting", true, "Play a short musical sting when your character dies.");
+            cuesEnabled = config.Bind("SpawnMusic", "Cues", true, "Play the character's other disc sounds (a game over song, a blue coin's jingle) when their files are there.");
             volume = config.Bind("SpawnMusic", "Volume", 1f, "Sting volume, multiplied by RoR2 master and music volume (0-2).");
             deathVolume = config.Bind("SpawnMusic", "DeathVolume", 1.15f, "Extra gain for the death sting, on top of Volume (0-2). The miss jingle is quiet next to the game's own audio.");
             try { arrival = Load(System.IO.Path.Combine(folder, "spawn.wav")); }
             catch (Exception e) { CommonLog.Warn("Spawn music unavailable: " + e.Message); }
+            foreach (var name in extraNames)
+            {
+                var path = System.IO.Path.Combine(folder, name + ".wav");
+                if (!File.Exists(path)) continue;
+                try { extras[name] = Load(path); }
+                catch (Exception e) { CommonLog.Warn($"Cue {name} unavailable: " + e.Message); }
+            }
             var deathPath = System.IO.Path.Combine(folder, "death.wav");
             if (File.Exists(deathPath))
             {
@@ -94,10 +109,34 @@ namespace Ror2Common
         public static void PlayDeath(CharacterBody body)
         {
             if (!body || !IsLocal(body)) return;
-            if (deathEnabled == null || !deathEnabled.Value || death == null) return;
+            if (deathEnabled == null || !deathEnabled.Value) return;
+            // A character with a game over song dies to it.
+            if (!extras.TryGetValue("gameover", out var clip)) clip = death;
+            if (clip == null) return;
             var player = new GameObject("DeathSting").AddComponent<SpawnMusic>();
             player.isDeath = true;
-            player.Begin(death, "Death", Mathf.Clamp(deathVolume.Value, 0f, 2f));
+            player.Begin(clip, "Death", Mathf.Clamp(deathVolume.Value, 0f, 2f));
+        }
+
+        /// The death sting itself (`death.wav`), for a loss short of dying: a fall off the map. Only
+        /// differs from `PlayDeath` for a character that has a game over song.
+        public static void PlayMiss(CharacterBody body)
+        {
+            if (!body || !IsLocal(body)) return;
+            if (deathEnabled == null || !deathEnabled.Value || death == null) return;
+            var player = new GameObject("MissSting").AddComponent<SpawnMusic>();
+            player.isDeath = true;
+            player.Begin(death, "Miss", Mathf.Clamp(deathVolume.Value, 0f, 2f));
+        }
+
+        /// One of the character's extra cues (`bluecoin`), now, for the local player.
+        public static void PlayCue(string name)
+        {
+            if (cuesEnabled == null || !cuesEnabled.Value || !extras.TryGetValue(name, out var clip)) return;
+            var player = new GameObject("Cue " + name).AddComponent<SpawnMusic>();
+            player.isDeath = true;
+            player.gate = cuesEnabled;
+            player.Begin(clip, name);
         }
 
         void Begin(Clip clip, string what, float extra = 1f)
@@ -132,7 +171,12 @@ namespace Ror2Common
                 if (isDeath) Destroy(gameObject);
                 return;
             }
-            if (!(isDeath ? deathEnabled.Value : musicEnabled.Value)) { source.Dispose(); source = null; return; }
+            if (!(gate != null ? gate.Value : isDeath ? deathEnabled.Value : musicEnabled.Value))
+            {
+                source.Dispose();
+                source = null;
+                return;
+            }
             bool pause = Time.timeScale == 0f;
             if (pause != paused)
             {
