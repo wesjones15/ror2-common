@@ -75,6 +75,11 @@ namespace Ror2Common
                     if (!tex) continue;
                     var cb = job.body ? job.body.GetComponent<CharacterBody>() : null;
                     if (cb) cb.portraitIcon = tex;
+                    // A late asset extraction can finish while character select is open.
+                    // Its icon controllers cache the texture when their grid is built.
+                    foreach (var icon in UnityEngine.Object.FindObjectsOfType<RoR2.UI.SurvivorIconController>())
+                        if (icon.survivorDef && icon.survivorDef.bodyPrefab == job.body && icon.survivorIcon)
+                            icon.survivorIcon.texture = tex;
                     pending.RemoveAt(i);
                     CommonLog.Info($"portrait for {job.body.name} rendered");
                 }
