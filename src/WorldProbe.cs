@@ -11,9 +11,49 @@ namespace Ror2Common
     {
         public static int Mask => LayerIndex.world.mask;
 
-        /// The highest floor at or below `from` within `reach` (`checkGround`).
+        /// The highest floor at or below `from` within `reach` (`checkGround`). A false return is a
+        /// pit with nothing under it. A sim that reads that as the edge of the world (Sunshine's
+        /// illegal floor, which turns a body back) makes every gap in a map an invisible wall, where
+        /// RoR2's own characters walk or jump over it and the kill zone below deals with a miss, so
+        /// answer it with a floor far below instead (see MarioTest's `UnityHost.Ground`).
         public static bool Ground(Vector3 from, float reach, out RaycastHit hit) =>
             Physics.Raycast(from + Vector3.up * 0.001f, Vector3.down, out hit, reach, Mask, QueryTriggerInteraction.Ignore);
+
+        static readonly RaycastHit[] crossHits = new RaycastHit[8];
+
+        /// Whether a body whose centre line went from `from` to `to` (feet, in Unity units) passed
+        /// through a wall, a face whose normal is within `wallNormalY` of horizontal, at any of
+        /// the `heights` above its feet; `hit` is the nearest such face. A body's own wall pushing
+        /// (`PushOutOfWalls`) is a ring of rays at a few heights, blind from inside a wall (a ray
+        /// started in a mesh collider hits no back face), so a body that gets past it, by a
+        /// fast step, a corner or a thin pole between rays, walks out of the map unchecked. This
+        /// sweep runs from where it stood to where it ended up, so it catches the crossing itself.
+        public static bool CrossedWall(Vector3 from, Vector3 to, float[] heights, float wallNormalY,
+            out RaycastHit hit)
+        {
+            hit = default;
+            var move = to - from;
+            float distance = move.magnitude;
+            if (distance < 0.001f) return false;
+            var dir = move / distance;
+            bool found = false;
+            foreach (float h in heights)
+            {
+                int n = Physics.RaycastNonAlloc(from + Vector3.up * h, dir, crossHits, distance, Mask,
+                    QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < n; i++)
+                {
+                    var c = crossHits[i];
+                    if (Mathf.Abs(c.normal.y) >= wallNormalY) continue;
+                    if (!found || c.distance < hit.distance)
+                    {
+                        hit = c;
+                        found = true;
+                    }
+                }
+            }
+            return found;
+        }
 
         /// The lowest ceiling at or above `from` within `reach` (`checkRoof`).
         public static bool Roof(Vector3 from, float reach, out RaycastHit hit) =>
