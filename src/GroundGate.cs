@@ -12,6 +12,11 @@ namespace Ror2Common
         /// How far below the feet to look, metres.
         const float Reach = 2000f;
 
+        /// A body spawned or let out of a pod can be sunk a little into the floor, and a ray from
+        /// under a one-sided mesh never hits it: look from this far above the feet as well (the same
+        /// reach MarioTest's sim probe uses, which is what let him stand there before the gate).
+        const float EmbedReach = 0.6f;
+
         readonly float limit;
         bool arrived, announced;
         float waited;
@@ -26,7 +31,7 @@ namespace Ror2Common
         {
             if (arrived) return true;
             waited += dt;
-            if (WorldProbe.Ground(feet, Reach, out _))
+            if (WorldProbe.Ground(feet, Reach, out _) || WorldProbe.Ground(feet + Vector3.up * EmbedReach, EmbedReach, out _))
             {
                 arrived = true;
                 if (announced) CommonLog.Info($"The stage's ground arrived after {waited:F1} s; {who} starts at {feet}");
