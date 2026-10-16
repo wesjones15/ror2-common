@@ -5,7 +5,8 @@ namespace Ror2Common
 {
     // Locking onto an enemy while a button is held (Pikmin's RT, Mario's LT): the one nearest
     // the camera's heading within `Range` (25 m) with a clear line, kept until released or lost;
-    // `cycle` steps to the next in `direction` on screen.
+    // `cycle` steps to the next in `direction` on screen. Enemies on screen come first, but one
+    // off screen can still be locked (and stepped to) when nothing on screen is in reach.
     public sealed class EnemyLock
     {
         CharacterBody target;
@@ -27,6 +28,17 @@ namespace Ror2Common
         // enemy in between, as a wall, most often with the flying ones.
         static bool Clear(CharacterBody owner, CharacterBody candidate) =>
             !Physics.Linecast(owner.corePosition, candidate.corePosition, LayerIndex.world.mask, QueryTriggerInteraction.Ignore);
+
+        /// What an enemy off screen adds to its score: more than any on-screen enemy's, so they come
+        /// first, but finite, so with none on screen the best of the rest is still taken.
+        const float OffScreen = 8f;
+
+        static bool OnScreen(Camera camera, Vector3 point)
+        {
+            if (!camera) return true;
+            var v = camera.WorldToViewportPoint(point);
+            return v.z > 0f && v.x > 0f && v.x < 1f && v.y > 0f && v.y < 1f;
+        }
 
         float reported;
 
@@ -66,6 +78,7 @@ namespace Ror2Common
             var forward = camera ? camera.forward : owner.transform.forward;
             var right = camera ? camera.right : owner.transform.right;
             var up = camera ? camera.up : Vector3.up;
+            var view = camera ? camera.GetComponent<Camera>() : null;
             if (direction.sqrMagnitude < .2f) direction = Vector2.right;
             direction.Normalize();
             CharacterBody best = null, wrap = null;
@@ -76,7 +89,8 @@ namespace Ror2Common
                 var delta = b.corePosition - owner.corePosition;
                 if (!target)
                 {
-                    float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * .01f;
+                    float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * .01f
+                        + (OnScreen(view, b.corePosition) ? 0f : OffScreen);
                     if (s < score) { best = b; score = s; }
                     continue;
                 }
@@ -86,7 +100,7 @@ namespace Ror2Common
                 if (along < wrapScore) { wrap = b; wrapScore = along; }
                 float alignment = Vector2.Dot(screen.normalized, direction);
                 if (alignment <= .1f) continue;
-                float rank = screen.magnitude / alignment;
+                float rank = screen.magnitude / alignment + (OnScreen(view, b.corePosition) ? 0f : OffScreen * 1000f);
                 if (rank < score) { best = b; score = rank; }
             }
             if (best) target = best;
