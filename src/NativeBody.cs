@@ -1,4 +1,5 @@
 using System.Reflection;
+using UnityEngine.Networking;
 using EntityStates;
 using RoR2;
 using UnityEngine;
@@ -23,6 +24,9 @@ namespace Ror2Common
     //   native attacks aren't skills, so `MarkCombat` restarts it.
     // - The primary: on-primary items (Shuriken) listen for the primary skill being used;
     //   `PulsePrimary` reports a use, no more often than asked.
+    // - Jumps and landings: RoR2's movement code raises the body's jump event and the motor's
+    //   landing event, which items listen for; `Jumped` and `Landed(velocity)` raise them for
+    //   the sim's. `JumpScale` and `AccelerationScale` hand the sim what items do to those stats.
     //
     // It also marks the body for ror2-common's item hooks (ItemHooks.cs), which keep RoR2's
     // motor-driven item states (Headstompers' stomp) off it: the plugin does those itself.
@@ -93,6 +97,85 @@ namespace Ror2Common
         public void Landed()
         {
             if (motor) motor.disableAirControlUntilCollision = false;
+        }
+
+        // ---- jumps and landings ----------------------------------------------------------
+
+        static FieldInfo jumpEvent;
+        static bool jumpLooked;
+
+        /// The sim jumped (off the ground or in mid-air). RoR2's own jump code raises the body's
+        /// jump event for items to hear (Faraday Spur's discharge, Earthbound Vessel, Hex of
+        /// Leaping); a sim's jump never runs that code, so this raises it: where the body has
+        /// authority as RoR2 does (`TriggerJumpEventGlobally`, which tells the other machines);
+        /// on a server stepping another player's body, here and on the clients without it.
+        public void Jumped()
+        {
+            if (!body) return;
+            if (body.hasAuthority)
+            {
+                body.TriggerJumpEventGlobally();
+                return;
+            }
+            if (!NetworkServer.active) return;
+            if (!jumpLooked)
+            {
+                jumpLooked = true;
+                jumpEvent = ByName.Field(typeof(CharacterBody), "onJump");
+                if (jumpEvent == null) CommonLog.Warn("NativeBody: no onJump on CharacterBody in this RoR2; jump items stay quiet for remote bodies");
+            }
+            (jumpEvent?.GetValue(body) as CharacterBody.JumpDelegate)?.Invoke();
+            body.CallRpcTriggerJumpEvent();
+        }
+
+        static FieldInfo hitGroundEvent;
+        static bool hitGroundLooked;
+
+        /// The sim touched down moving at `velocity` (m/s, world). Raises the motor's
+        /// `onHitGroundAuthority` as RoR2's character motor does on landing, for the states that
+        /// wait for it (Mycelium Cap's spore burst), where the body has authority (those states
+        /// run there). Fall damage stays with the plugin: this doesn't call
+        /// `GlobalEventManager.OnCharacterHitGroundServer`. Also ends a jump pad's air-control hold.
+        public void Landed(Vector3 velocity)
+        {
+            Landed();
+            if (!motor || !motor.hasEffectiveAuthority) return;
+            if (!hitGroundLooked)
+            {
+                hitGroundLooked = true;
+                hitGroundEvent = ByName.Field(typeof(CharacterMotor), "onHitGroundAuthority");
+                if (hitGroundEvent == null) CommonLog.Warn("NativeBody: no onHitGroundAuthority in this RoR2; landing items stay quiet");
+            }
+            if (!(hitGroundEvent?.GetValue(motor) is CharacterMotor.HitGroundDelegate landed)) return;
+            var info = new CharacterMotor.HitGroundInfo
+            {
+                velocity = velocity,
+                position = body ? body.footPosition : transform.position,
+                isValidForEffect = true,
+                ownerBodyObject = gameObject,
+            };
+            try { landed(ref info); }
+            catch (System.Exception e) { CommonLog.Error($"NativeBody: a landing listener failed: {e}"); }
+        }
+
+        // ---- stats for the sim -----------------------------------------------------------
+
+        /// The body's jump power over what its level alone gives it: how items change its jumps
+        /// (Faraday Spur's charge raises it, Hex of Leaping lowers it), for the sim's takeoff
+        /// speed. 1 with none; clamped to 0.1..10.
+        public static float JumpScale(CharacterBody body)
+        {
+            if (!body) return 1f;
+            float baseline = body.baseJumpPower + body.levelJumpPower * Mathf.Max(0f, body.level - 1f);
+            return baseline > 0.01f ? Mathf.Clamp(body.jumpPower / baseline, 0.1f, 10f) : 1f;
+        }
+
+        /// The body's acceleration over its base (Hex of Acceleration's slippery ground lowers it),
+        /// for how quickly the sim reaches its walking speed. 1 with none; clamped to 0.1..10.
+        public static float AccelerationScale(CharacterBody body)
+        {
+            if (!body || body.baseAcceleration <= 0.01f) return 1f;
+            return Mathf.Clamp(body.acceleration / body.baseAcceleration, 0.1f, 10f);
         }
 
         // ---- crowd control ---------------------------------------------------------------
