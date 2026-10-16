@@ -19,7 +19,7 @@ namespace Ror2Common
             public int rate;
         }
 
-        static Clip arrival, death;
+        static Clip arrival, death, victory;
         static Func<float> deathGain;
         static readonly System.Collections.Generic.Dictionary<string, Clip> extras =
             new System.Collections.Generic.Dictionary<string, Clip>();
@@ -31,6 +31,25 @@ namespace Ror2Common
         PcmOutput source;
         bool paused;
         bool isDeath;
+        bool isVictory;
+
+        /// Disc-rendered stereo music retained through the game-over report. Leaving
+        /// the run still disposes it, as does disabling cues. Bounded to two minutes.
+        public static void SetVictoryPcm(float[] pcm, int rate)
+        {
+            if (pcm == null || rate < 8000 || rate > 96000 || pcm.Length == 0 || pcm.Length % 2 != 0 || pcm.Length / 2 > rate * 120) return;
+            victory = new Clip { pcm = pcm, rate = rate };
+        }
+        public static bool PlayVictory()
+        {
+            if (victory == null || cuesEnabled == null || !cuesEnabled.Value) return false;
+            var player = new GameObject("Victory music").AddComponent<SpawnMusic>();
+            DontDestroyOnLoad(player.gameObject);
+            player.isVictory = true;
+            player.gate = cuesEnabled;
+            player.Begin(victory, "Victory");
+            return true;
+        }
 
         /// Disc-rendered death SFX that must survive the native scene stream's teardown.
         public static void SetDeathPcm(float[] pcm, int rate, Func<float> gain)
@@ -167,7 +186,7 @@ namespace Ror2Common
         {
             foreach (var player in FindObjectsOfType<SpawnMusic>())
             {
-                if (player.source == null || (player.isDeath && !deathToo)) continue;
+                if (player.source == null || ((player.isDeath || player.isVictory) && !deathToo)) continue;
                 player.source.Dispose();
                 player.source = null;
             }
@@ -179,7 +198,7 @@ namespace Ror2Common
         {
             if (source == null)
             {
-                if (isDeath) Destroy(gameObject);
+                if (isDeath || isVictory) Destroy(gameObject);
                 return;
             }
             if (!(gate != null ? gate.Value : isDeath ? deathEnabled.Value : musicEnabled.Value))
@@ -188,7 +207,7 @@ namespace Ror2Common
                 source = null;
                 return;
             }
-            bool pause = Time.timeScale == 0f && !(isDeath && RunAudio.Ended);
+            bool pause = Time.timeScale == 0f && !((isDeath || isVictory) && RunAudio.Ended);
             if (pause != paused)
             {
                 source.Pause(pause);
