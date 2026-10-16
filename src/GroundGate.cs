@@ -17,21 +17,31 @@ namespace Ror2Common
         /// reach MarioTest's sim probe uses, which is what let him stand there before the gate).
         const float EmbedReach = 0.6f;
 
+        /// Any world collider this close to the feet means the stage is there (a spawn inside a
+        /// mesh a ray can't see, a pod's own shell): the wait is only for a stage whose geometry
+        /// hasn't loaded, where there is nothing at all around the body.
+        const float NearbyRadius = 2f;
+
         readonly float limit;
         bool arrived, announced;
         float waited;
 
-        public GroundGate(float seconds = 10f) => limit = seconds;
+        public GroundGate(float seconds = 5f) => limit = seconds;
 
         /// Ground has been found (or the wait ran out): the gate stays open from then on.
         public bool Arrived => arrived;
+
+        static bool Found(Vector3 feet) =>
+            WorldProbe.Ground(feet, Reach, out _)
+            || WorldProbe.Ground(feet + Vector3.up * EmbedReach, EmbedReach, out _)
+            || Physics.CheckSphere(feet + Vector3.up * NearbyRadius * 0.5f, NearbyRadius, WorldProbe.Mask, QueryTriggerInteraction.Ignore);
 
         /// Call each physics step with the body's feet. True once the character may start.
         public bool Ready(Vector3 feet, float dt, string who)
         {
             if (arrived) return true;
             waited += dt;
-            if (WorldProbe.Ground(feet, Reach, out _) || WorldProbe.Ground(feet + Vector3.up * EmbedReach, EmbedReach, out _))
+            if (Found(feet))
             {
                 arrived = true;
                 if (announced) CommonLog.Info($"The stage's ground arrived after {waited:F1} s; {who} starts at {feet}");
