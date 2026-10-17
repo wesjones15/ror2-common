@@ -11,6 +11,9 @@ namespace Ror2Common
         float Scale { get; }
         int AudioRate { get; }
         bool UpSpecialFinished { get; }
+        /// Posed body anchor in display space, excluding the current draw offset.
+        Vector3 PoseAnchor { get; }
+        Vector3 DrawOffset { set; }
         void BeginUpSpecial();
         void Step(float dt);
         bool RenderAudio(float[] stereo);
@@ -24,6 +27,7 @@ namespace Ror2Common
         PcmStream audio;
         readonly bool intro;
         bool started, audioFinished;
+        Vector3 anchor;
         public MeleeSelectDisplay(IMeleeSelectSource source, bool intro = true)
         { this.source = source ?? throw new ArgumentNullException(nameof(source)); this.intro = intro; }
         public ModelView Models => source?.Models;
@@ -36,12 +40,16 @@ namespace Ror2Common
                 started = true;
                 if (intro)
                 {
+                    anchor = source.PoseAnchor;
                     source.BeginUpSpecial();
                     try { audio = new PcmStream(source.AudioRate); }
                     catch (Exception e) { CommonLog.Warn("Melee selection audio unavailable: " + e.Message); }
                 }
             }
             source.Step(dt);
+            // Source jump/root translation must not take the intro out of the
+            // lobby camera. Keep its body anchor at the initial idle location.
+            if (intro) source.DrawOffset = anchor - source.PoseAnchor;
             if (!intro || audioFinished) return;
             if (source.UpSpecialFinished)
             {

@@ -3,7 +3,15 @@ using Ror2Common;
 
 // Engine/device stand-ins: exercise the production display policy without
 // launching Unity or opening an actual Windows sound device.
-namespace UnityEngine { public class Transform {} public static class Time { public static float timeScale=1; } }
+namespace UnityEngine {
+    public class Transform {}
+    public struct Vector3 {
+        public float x,y,z;
+        public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
+        public static Vector3 operator -(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);
+    }
+    public static class Time { public static float timeScale=1; }
+}
 namespace Ror2Common
 {
     public class ModelView {}
@@ -32,6 +40,8 @@ class Program
         public float Scale=>0.1f;
         public int AudioRate=>32000;
         public bool UpSpecialFinished {get;set;}
+        public UnityEngine.Vector3 PoseAnchor=>new UnityEngine.Vector3(0,stepped*10,0);
+        public UnityEngine.Vector3 DrawOffset {get;set;}
         public int begun,stepped,released,sounded;
         public void BeginUpSpecial(){begun++;}
         public void Step(float dt){stepped++;}
@@ -44,6 +54,7 @@ class Program
         var source=new Source();var display=new MeleeSelectDisplay(source);
         for(int i=0;i<10;i++)display.Step(1f/144,null);
         Check(source.begun==1&&source.sounded==10,"selection must play one up-special and its PCM");
+        Check(source.DrawOffset.y==-100,"jumping intro must stay anchored in the display camera");
         UnityEngine.Time.timeScale=0;display.Step(0,null);
         Check(PcmStream.paused&&source.sounded==10,"pause must pause sound");UnityEngine.Time.timeScale=1;
         source.UpSpecialFinished=true;display.Step(1f/60,null);display.Step(1f/60,null);
