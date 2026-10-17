@@ -2,6 +2,17 @@
 
 # ror2-common
 
+`ModelView` caches unchanged material property blocks and avoids sunlight searches
+for models without native vertex lighting. A rigid `IViewSource` may additionally
+implement `IStaticGeometrySource` to share one mesh per model and upload its geometry
+once. This promises identical positions, normals and frame UVs across all instances
+for the source's entire lifetime; animated sources must leave it off. Models requiring
+rotation-dependent vertex lighting automatically retain separate dynamic meshes.
+Transforms, materials, tint, fade, hit flash and freeze sheen still update normally.
+
+Run `dotnet run --project tests/ModelViewCheck -c Release` to check mesh sharing,
+ownership, dynamic fallback and material-state updates with a recording host.
+
 C# shared by the Risk of Rain 2 hosts: `../ror2-mario` (libsms) and `../ror2-olimar`
 (libpikmin). It targets RoR2 1.2.4.4 (Unity 2019.4, BepInEx 5, no R2API).
 
