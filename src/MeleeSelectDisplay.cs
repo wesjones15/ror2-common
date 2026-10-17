@@ -19,8 +19,8 @@ namespace Ror2Common
         bool RenderAudio(float[] stereo);
     }
 
-    /// Plays up-special once per selection and releases its PCM device on exit.
-    /// Portraits use the same source with intro=false: idle pose, no sound device.
+    /// Plays up-special, idles briefly, and repeats on the UI clock. Releases
+    /// PCM on completion/exit. A silent idle source can use intro=false.
     public sealed class MeleeSelectDisplay : IDisplayActor, IDisplayEffects
     {
         IMeleeSelectSource source;

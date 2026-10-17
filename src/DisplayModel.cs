@@ -37,6 +37,7 @@ namespace Ror2Common
 
         IDisplayActor actor;
         bool failed;
+        float retryAt;
 
         /// Puts a DisplayModel on `displayPrefab` that draws what `make` lends out (null: keep the
         /// prefab's model). `id` names the factory; plugins pick their own.
@@ -52,6 +53,7 @@ namespace Ror2Common
         {
             if (actor == null && !failed)
             {
+                if(Time.unscaledTime<retryAt)return;
                 try
                 {
                     actor = factories.TryGetValue(actorId ?? "", out var make) ? make() : null;
@@ -61,7 +63,10 @@ namespace Ror2Common
                     CommonLog.Error($"lobby display {actorId}: {e}");
                     actor = null;
                 }
-                failed = actor == null || actor.Models == null;
+                // Native extraction may still be running at first selection.
+                // A pending factory must be retried once assets become ready.
+                if(actor==null){retryAt=Time.unscaledTime+0.5f;return;}
+                failed = actor.Models == null;
                 if (failed)
                 {
                     actor?.Release();
