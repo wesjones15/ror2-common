@@ -19,7 +19,7 @@ namespace Ror2Common
         bool RenderAudio(float[] stereo);
     }
 
-    /// Plays up-special, idles briefly, and repeats on the UI clock. Releases
+    /// Plays up-special once, then lets the fighter idle on the UI clock. Releases
     /// PCM on completion/exit. A silent idle source can use intro=false.
     public sealed class MeleeSelectDisplay : IDisplayActor, IDisplayEffects
     {
@@ -28,7 +28,6 @@ namespace Ror2Common
         readonly bool intro;
         bool started, audioFinished;
         Vector3 anchor;
-        float repeatAt;
         bool anchorSet;
         public MeleeSelectDisplay(IMeleeSelectSource source, bool intro = true)
         { this.source = source ?? throw new ArgumentNullException(nameof(source)); this.intro = intro; }
@@ -37,7 +36,6 @@ namespace Ror2Common
         public void Step(float dt, Transform display)
         {
             if (source == null) return;
-            if(intro&&audioFinished){repeatAt+=dt;if(repeatAt>=1f){started=false;audioFinished=false;repeatAt=0;}}
             if (!started)
             {
                 started = true;

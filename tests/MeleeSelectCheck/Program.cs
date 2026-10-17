@@ -69,8 +69,9 @@ class Program
         PcmStream.fail=true;repeat.Step(1f/60,null);repeat.Step(1f/60,null);repeat.Release();
         Check(selectedAgain.begun==1&&selectedAgain.stepped==2&&selectedAgain.released==1,"reselection/audio failure must preserve animation and cleanup");
         PcmStream.fail=false;var loopSource=new Source();var loop=new MeleeSelectDisplay(loopSource);
-        loop.Step(1f/60,null);loopSource.UpSpecialFinished=true;loop.Step(1f/60,null);loop.Step(1.1f,null);
-        Check(loopSource.begun==2&&!loopSource.UpSpecialFinished,"up-special preview must repeat rather than freeze");loop.Release();
+        loop.Step(1f/60,null);loopSource.UpSpecialFinished=true;
+        for(int i=0;i<600;i++)loop.Step(1f/60,null);
+        Check(loopSource.begun==1&&loopSource.UpSpecialFinished&&loopSource.stepped==601,"completed preview must continue idling without replaying up-special");loop.Release();
         Console.WriteLine("PASS: shared up-B selection, one-shot sound, pause, idle portrait, reselection and cleanup");
     }
 }
