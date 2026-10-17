@@ -34,6 +34,24 @@ namespace Ror2Common
         /// Metres below its last standing spot at which a body is rescued even outside every map
         /// zone (a stage without them; 150 m is past any drop RoR2's stages ask of a player).
         public const float AnyDrop = 150f;
+        /// Mario's early TOO BAD point: a clear void, not a descent onto lower terrain.
+        public const float VoidDrop = 20f;
+        public const float VoidReach = 2000f;
+
+        public bool Lost(Vector3 feet, float drop = VoidDrop) =>
+            hasSafeFeet && safeFeet.y - feet.y > drop && !WorldProbe.Ground(feet, VoidReach, out _);
+
+        /// Start recovery at the shared early-void point, or at a valid stage zone.
+        /// Ground far below prevents the distance fallback, just as for Mario.
+        public bool FellEarly(Vector3 feet, float height, GroundProbe probe, out Vector3 destination)
+        {
+            if (Lost(feet))
+            {
+                destination = probe(safeFeet, height * 0.25f, height * 0.5f, out var clear) ? clear : safeFeet;
+                return true;
+            }
+            return Fell(feet, height, probe, out destination, float.PositiveInfinity);
+        }
 
         /// Fall-off-the-map recovery, like RoR2's own for its characters, for a body a native sim
         /// moves (its motor is off, so the stage's zones don't bring it back reliably). Call every

@@ -110,7 +110,27 @@ static class Program
         Step(m, Origin);
         Check(searches == 74, "Failed search did not retry after three seconds");
 
-        Console.WriteLine("PASS: timeout at 30/60/120 Hz, motion, jitter, idle, crowd control, reset, " +
+        // The exact Mario TOO BAD onset is now shared with Melee/Olimar.
+        m.Reset();probe=Floor;
+        Step(m,new Vector3(0,.03f,0),fallen:false,grounded:true,dt:.25f);
+        Check(m.TryGetSafe(out var safe),"missing safe origin for early void");
+        Check(!m.Lost(safe+new Vector3(0,-19.99f,0)),"early void before Mario threshold");
+        Check(!m.Lost(safe+new Vector3(0,-20f,0)),"early void at inclusive threshold");
+        Check(m.Lost(safe+new Vector3(0,-20.01f,0)),"early void after Mario threshold");
+        Check(m.FellEarly(safe+new Vector3(0,-20.01f,0),Height,Floor,out target),"early fall recovery missing");
+        Check(WorldProbe.lastReach==2000f&&target.y==safe.y,"wrong void reach or safe destination");
+        WorldProbe.groundBelow=true;
+        Check(!m.FellEarly(safe+new Vector3(0,-200f,0),Height,Floor,out _),"long descent onto lower ground mistaken for void");
+        WorldProbe.inZone=true;
+        Check(m.FellEarly(safe+new Vector3(0,-5f,0),Height,Floor,out _),"stage return zone ignored before early void");
+        WorldProbe.zoneAtSafe=true;
+        Check(!m.FellEarly(safe+new Vector3(0,-5f,0),Height,Floor,out _),"unsafe repeating map zone used");
+        WorldProbe.inZone=WorldProbe.zoneAtSafe=WorldProbe.groundBelow=false;
+        Check(!m.Lost(safe+new Vector3(0,-25f,0),30f),"Mario custom TOO BAD threshold lost");
+        Check(m.Lost(safe+new Vector3(0,-31f,0),30f),"Mario custom threshold ignored");
+        m.Reset();Check(!m.FellEarly(new Vector3(0,-200f,0),Height,Floor,out _),"early recovery used stale ground after teleport");
+
+        Console.WriteLine("PASS: shared Mario 20m clear-void trigger, lower terrain/zone safeguards and timeout at 30/60/120 Hz, motion, jitter, idle, crowd control, reset, " +
             "nearby escape, fallback revalidation, failed-search retry");
     }
 }
@@ -119,6 +139,7 @@ static class Program
 // safety remains UnityHost.RecoveryGround's responsibility and needs an in-game check.
 namespace UnityEngine
 {
+    public struct RaycastHit {}
     public struct Vector3
     {
         public float x, y, z;
@@ -146,11 +167,13 @@ namespace RoR2
 
 namespace Ror2Common
 {
-    // These timeout tests do not simulate map-zone recovery.
     static class WorldProbe
     {
-        public static bool InMapZone(Vector3 point, out RoR2.MapZone zone) { zone = null; return false; }
-        public static bool Triggers(RoR2.MapZone zone, Vector3 point) => false;
+        public static bool groundBelow,inZone,zoneAtSafe;public static float lastReach;
+        static readonly RoR2.MapZone testZone=new RoR2.MapZone();
+        public static bool Ground(Vector3 point,float reach,out UnityEngine.RaycastHit hit){hit=default;lastReach=reach;return groundBelow;}
+        public static bool InMapZone(Vector3 point, out RoR2.MapZone zone) { zone = testZone; return inZone; }
+        public static bool Triggers(RoR2.MapZone zone, Vector3 point) => zoneAtSafe;
     }
     static class CommonLog { public static void Info(string message) { } }
 }
