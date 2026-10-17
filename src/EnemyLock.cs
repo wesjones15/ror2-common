@@ -5,7 +5,8 @@ namespace Ror2Common
 {
     // Locking onto an enemy while a button is held (Pikmin's RT, Mario's LT): the one nearest
     // the camera's heading within `Range` (25 m) with a clear line, kept until released or lost;
-    // `cycle` steps to the next in `direction` on screen.
+    // `cycle` steps to the next in `direction` on screen. Enemies on screen come first, but one
+    // off screen can still be locked (and stepped to) when nothing on screen is in reach.
     public sealed class EnemyLock
     {
         CharacterBody target;
@@ -19,8 +20,53 @@ namespace Ror2Common
                 || !candidate.teamComponent || candidate.teamComponent.teamIndex == TeamIndex.None
                 || (owner.teamComponent && candidate.teamComponent.teamIndex == owner.teamComponent.teamIndex)) return false;
             var delta = candidate.corePosition - owner.corePosition;
-            return delta.sqrMagnitude <= Range * Range
-                && !Physics.Linecast(owner.corePosition, candidate.corePosition, WorldProbe.Mask, QueryTriggerInteraction.Ignore);
+            return delta.sqrMagnitude <= Range * Range && Clear(owner, candidate);
+        }
+
+        // Line of sight is the level's geometry only. The movement probes' mask includes enemy bodies,
+        // and the line ends inside the target's own hull: that could count the target, or any other
+        // enemy in between, as a wall, most often with the flying ones.
+        static bool Clear(CharacterBody owner, CharacterBody candidate) =>
+            !Physics.Linecast(owner.corePosition, candidate.corePosition, LayerIndex.world.mask, QueryTriggerInteraction.Ignore);
+
+        /// What an enemy off screen adds to its score: more than any on-screen enemy's, so they come
+        /// first, but finite, so with none on screen the best of the rest is still taken.
+        const float OffScreen = 8f;
+
+        static bool OnScreen(Camera camera, Vector3 point)
+        {
+            if (!camera) return true;
+            var v = camera.WorldToViewportPoint(point);
+            return v.z > 0f && v.x > 0f && v.x < 1f && v.y > 0f && v.y < 1f;
+        }
+
+        float reported;
+
+        // Why a held lock found nothing, at most every few seconds: for telling a range or line of
+        // sight problem from a camera one.
+        void Report(CharacterBody owner)
+        {
+            if (Time.unscaledTime < reported) return;
+            reported = Time.unscaledTime + 4f;
+            int enemies = 0, far = 0, blocked = 0;
+            string by = "";
+            foreach (var b in CharacterBody.readOnlyInstancesList)
+            {
+                if (!b || b == owner || !b.healthComponent || !b.healthComponent.alive || !b.teamComponent
+                    || b.teamComponent.teamIndex == TeamIndex.None
+                    || (owner.teamComponent && b.teamComponent.teamIndex == owner.teamComponent.teamIndex)) continue;
+                enemies++;
+                if ((b.corePosition - owner.corePosition).sqrMagnitude > Range * Range) { far++; continue; }
+                if (!Clear(owner, b))
+                {
+                    blocked++;
+                    if (by.Length == 0 && Physics.Linecast(owner.corePosition, b.corePosition, out var hit,
+                        LayerIndex.world.mask, QueryTriggerInteraction.Ignore))
+                        by = $" (first behind {hit.collider.name})";
+                }
+            }
+            if (enemies == 0) return;
+            CommonLog.Info($"Lock-on found nothing: {enemies} enemies, {far} beyond {Range:0} m, {blocked} out of line of sight{by}");
         }
 
         public CharacterBody Update(CharacterBody owner, bool held, bool cycle, Vector2 direction)
@@ -32,6 +78,7 @@ namespace Ror2Common
             var forward = camera ? camera.forward : owner.transform.forward;
             var right = camera ? camera.right : owner.transform.right;
             var up = camera ? camera.up : Vector3.up;
+            var view = camera ? camera.GetComponent<Camera>() : null;
             if (direction.sqrMagnitude < .2f) direction = Vector2.right;
             direction.Normalize();
             CharacterBody best = null, wrap = null;
@@ -42,7 +89,8 @@ namespace Ror2Common
                 var delta = b.corePosition - owner.corePosition;
                 if (!target)
                 {
-                    float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * .01f;
+                    float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * .01f
+                        + (OnScreen(view, b.corePosition) ? 0f : OffScreen);
                     if (s < score) { best = b; score = s; }
                     continue;
                 }
@@ -52,11 +100,12 @@ namespace Ror2Common
                 if (along < wrapScore) { wrap = b; wrapScore = along; }
                 float alignment = Vector2.Dot(screen.normalized, direction);
                 if (alignment <= .1f) continue;
-                float rank = screen.magnitude / alignment;
+                float rank = screen.magnitude / alignment + (OnScreen(view, b.corePosition) ? 0f : OffScreen * 1000f);
                 if (rank < score) { best = b; score = rank; }
             }
             if (best) target = best;
             else if (wrap) target = wrap;
+            if (!target) Report(owner);
             return target;
         }
     }
