@@ -1,4 +1,6 @@
 MeleeArrival owns the first-spawn figurine gate for IMeleeArrival fighters.
+This policy applies only to Melee fighters. Mario and Olimar keep their own
+startup states and sequences.
 Register it as the initial/preferred body state and clear preferredPodPrefab.
 The fighter supplies its source platform, pose, transformation effects and audio.
 
