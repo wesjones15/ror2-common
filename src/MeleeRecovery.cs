@@ -20,7 +20,7 @@ namespace Ror2Common
         public bool CheckFall(Unstuck guard,Vector3 feet,float height,Unstuck.GroundProbe probe)
         {
             if(!isActiveAndEnabled||actor==null||actor.Recovering||!body||!body.healthComponent||!body.healthComponent.alive||!body.hasEffectiveAuthority||!NetworkServer.active)return false;
-            if(!guard.Fell(feet,height,probe,out var safe))return false;
+            if(!guard.FellEarly(feet,height,probe,out var safe))return false;
             actor.BeginFallRecovery(safe);Refresh();return true;
         }
         void FixedUpdate(){Refresh();}

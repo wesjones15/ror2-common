@@ -7,28 +7,21 @@ using RoR2;
 static class Program
 {
     sealed class Fighter:MonoBehaviour,IMeleeArrival {
-        public bool Arriving{get;set;}public bool ArrivalWaiting{get;set;}public int released;
-        public void ReleaseArrival(){ArrivalWaiting=false;released++;}
+        public bool Arriving{get;set;}
     }
     static void Check(bool value,string text){if(!value)throw new Exception(text);}
     static void Main(){
         var go=new GameObject();var body=go.AddComponent<CharacterBody>();var fighter=go.AddComponent<Fighter>();
         var arrival=new MeleeArrival{gameObject=go,characterBody=body};arrival.OnEnter();
-        fighter.ArrivalWaiting=true;arrival.fixedAge=2;arrival.FixedUpdate();
-        Check(fighter.released==0,"late player assignment mistaken for AI arrival");
-        // Both player flag and InteractionDriver arrive after OnEnter.
+        arrival.fixedAge=2;arrival.FixedUpdate();Check(fighter.Arriving&&!arrival.outer.ended,"arrival did not wait for native return");
+        // Player/authority timing must not gate native automatic release or own Interact.
         body.isPlayerControlled=true;var interaction=go.AddComponent<InteractionDriver>();arrival.Update();
-        var prompt=interaction.interactableOverride?.GetComponent<InteractTarget>();
-        var interactor=go.AddComponent<Interactor>();
-        Check(prompt&&prompt.GetContextString(interactor)=="Start"&&prompt.GetInteractability(interactor)==Interactability.Available,"late player did not receive vanilla Start target");
-        Check(prompt.GetInteractability(new GameObject().AddComponent<Interactor>())==Interactability.Disabled,"other player can release this figurine");
-        prompt.OnInteractionBegin(interactor);arrival.FixedUpdate();
-        Check(fighter.released==1&&interaction.interactableOverride==null,"Interact did not release or clear prompt");
+        Check(interaction.interactableOverride==null,"automatic arrival stole Interact");
         fighter.Arriving=false;arrival.FixedUpdate();Check(arrival.outer.ended,"arrival did not finish");arrival.OnExit();
         Check(body.buffs==0,"arrival protection leaked");
         // Authority can arrive after the state as well.
         arrival=new MeleeArrival{gameObject=go,characterBody=body,isAuthority=false};arrival.OnEnter();
-        fighter.ArrivalWaiting=true;arrival.isAuthority=true;arrival.FixedUpdate();Check(interaction.interactableOverride,"late authority missed prompt");
+        arrival.isAuthority=true;arrival.FixedUpdate();Check(fighter.Arriving&&interaction.interactableOverride==null,"late authority required an interaction");
         var other=new GameObject();interaction.interactableOverride=other;arrival.OnExit();Check(interaction.interactableOverride==other,"cleanup cleared another interaction override");
 
         var input=go.AddComponent<InputBankTest>();input.ray=new Ray(new Vector3(0,1,0),Vector3.forward);
@@ -48,7 +41,7 @@ static class Program
         body.shouldAim=true;MeleeAim.FacingTarget(body,facing,move,aim,false,default);Check(facing.moveVector.z==1,"aim facing must use real CharacterBody.shouldAim");
         MeleeAim.FacingTarget(body,facing,move,aim,true,move);Check(facing.moveVector.x==1,"authored action lost locked heading");
         MeleeAim.BeginAttack(body,facing,aim);Check(body.aimTimer==3&&facing.moveVector.z==1&&facing.forward.x==1,"attack must set real aim timer/target without snapping vanilla yaw");
-        Console.WriteLine("PASS: delayed player/authority/interaction binding, native Start target/release/cleanup, corrected camera ray, owner filtering, crosshair convergence and near-camera obstruction");
+        Console.WriteLine("PASS: native-driven automatic arrival, protection/cleanup without owning Interact, corrected camera ray, owner filtering, crosshair convergence and near-camera obstruction");
     }
 }
 

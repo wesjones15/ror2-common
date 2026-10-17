@@ -6,13 +6,15 @@ selection creates a new actor. UI time drives the preview.
 
 Set `CharacterBody.preferredPodPrefab = null` and register `MeleeArrival` as the
 preferred/initial body state. The driver's `IMeleeArrival` implementation renders
-its extracted Entry pose/platform, waits for Interact, then plays the original
-entry transformation. The state supplies arrival invincibility until completion.
+its extracted Entry pose/platform using native `begin_arrival`: this enters the
+same Figurine phase as falloff return, skipping the KO. Movement releases after
+the source minimum arrival; otherwise the source timeout releases it. Both paths
+play the original entry transformation and post-release flashing protection.
+There is no initial Interact prompt. The state protects loading/placement too.
 Set `Arriving=false` on errors/cleanup so a failed native startup cannot trap the
 body in arrival. Map a safe standing position before disabling the vanilla motor.
-Local player control, authority and InteractionDriver can appear after OnEnter.
-MeleeArrival retries prompt binding in Update/FixedUpdate while waiting. The
-target remains RoR2's normal InteractTarget with "Start" and the bound glyph.
+Clear Arriving when native Recovering clears; the state can then go to main.
+The native protection flag continues afterward through common MeleeRecovery.
 
 Use `MeleeAim.CameraRay` for directional attack input and live projectile
 convergence. It invokes RoR2 CameraRigController.ModifyAimRayIfApplicable for the
@@ -39,15 +41,19 @@ raw Melee axes. Run tests/MeleeHostCheck and the native camera/input regressions
 
 For subsequent falloff recovery, add `MeleeRecovery` and implement
 `IMeleeRecovery`. Call `CheckFall` with the same Unstuck instance, feet, height
-and standing probe used by the driver. This reuses `Unstuck.Fell` exactly; keep
+and standing probe used by the driver. This uses `Unstuck.FellEarly`; keep
 ordinary `Unstuck.Step` and `WallGuard` corrections outside the KO sequence.
 The native fighter owns the KO, figurine/transform, movement/timeout release,
 source flash and invulnerability timing. Expose its flags through Recovering
 and RecoveryInvulnerable, and call Refresh immediately on a trigger/flag change.
 The component balances its own HiddenInvincibility buff, preserving other owners.
 Recreate source platform presentation when the KO phase returns to safe ground;
-reset smoothing and wall placement there. Initial arrival retains its Start
-prompt; fall recovery needs no interaction. Mario/Olimar use their own sequences.
+reset smoothing and wall placement there. Initial arrival and falloff share the
+automatic figurine phase. Mario/Olimar keep their own initial sequences.
+`Unstuck.Lost` owns Mario's early TOO BAD predicate: >20m below safe ground with
+no floor within 2000m. Melee/Olimar FellEarly uses that same point plus valid stage
+zones. Lower terrain prevents early distance recovery, even on drops over 150m.
+Mario's configurable early-screen threshold and later teleport stay intact.
 Run `tests/MeleeRecoveryCheck` and `tests/UnstuckCheck`, plus the native boundary
 and rendered checks; compilation alone does not establish in-game behavior.
 

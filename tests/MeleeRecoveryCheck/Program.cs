@@ -19,8 +19,9 @@ static class Program
         var components=new List<MonoBehaviour>();var body=new RoR2.CharacterBody();var fighter=new Fighter();var recovery=new MeleeRecovery();
         components.AddRange(new MonoBehaviour[]{body,fighter,recovery});foreach(var c in components)c.components=components;
         Call(recovery,"Awake");var guard=new Unstuck();guard.Step(default,false,true,false,.25f,1.8f,Floor,out _);
-        Check(!recovery.CheckFall(guard,new Vector3(0,-149.9f,0),1.8f,Floor),"common drop threshold changed");
-        Check(recovery.CheckFall(guard,new Vector3(0,-150,0),1.8f,Floor),"common fall threshold not routed");
+        Check(!recovery.CheckFall(guard,new Vector3(0,-20f,0),1.8f,Floor),"early void before Mario onset");
+        WorldProbe.groundBelow=true;Check(!recovery.CheckFall(guard,new Vector3(0,-200,0),1.8f,Floor),"long descent onto lower ground triggered recovery");WorldProbe.groundBelow=false;
+        Check(recovery.CheckFall(guard,new Vector3(0,-20.01f,0),1.8f,Floor),"Mario early void not routed");
         Check(fighter.starts==1&&fighter.destination.y==0&&body.buffs==1,"recovery and immediate protection");
         recovery.Refresh();Check(body.buffs==1,"protection stacked each tick");
         Check(!recovery.CheckFall(guard,new Vector3(0,-200,0),1.8f,Floor)&&fighter.starts==1,"duplicate falloff during KO");
@@ -38,6 +39,7 @@ static class Program
     }
 }
 namespace UnityEngine {
+    public struct RaycastHit {}
     public class Object {public static implicit operator bool(Object obj)=>obj!=null;}
     public class MonoBehaviour:Object {
         public bool isActiveAndEnabled=true;
@@ -62,6 +64,6 @@ namespace RoR2 {
     public class MapZone {public string name,zoneType,triggerType;}
 }
 namespace Ror2Common {
-    static class WorldProbe {public static bool InMapZone(Vector3 point,out RoR2.MapZone zone){zone=null;return false;}public static bool Triggers(RoR2.MapZone zone,Vector3 point)=>false;}
+    static class WorldProbe {public static bool groundBelow;public static bool Ground(Vector3 point,float reach,out UnityEngine.RaycastHit hit){hit=default;return groundBelow;}public static bool InMapZone(Vector3 point,out RoR2.MapZone zone){zone=null;return false;}public static bool Triggers(RoR2.MapZone zone,Vector3 point)=>false;}
     static class CommonLog {public static void Info(string text){}}
 }
