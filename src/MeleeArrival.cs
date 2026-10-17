@@ -20,7 +20,7 @@ namespace Ror2Common
             if(NetworkServer.active&&characterBody){characterBody.AddBuff(RoR2Content.Buffs.HiddenInvincibility);protectedBody=true;}}
         public override void FixedUpdate(){base.FixedUpdate();
             if(actor==null){if(isAuthority)outer.SetNextStateToMain();return;}
-            if(isAuthority&&actor.ArrivalWaiting&&inputBank&&inputBank.interact.justPressed)actor.ReleaseArrival();
+            if(isAuthority&&actor.ArrivalWaiting&&((inputBank&&inputBank.interact.justPressed)||(fixedAge>1f&&characterBody&&!characterBody.isPlayerControlled)))actor.ReleaseArrival();
             if(isAuthority&&!actor.Arriving)outer.SetNextStateToMain();}
         public override void OnExit(){if(protectedBody&&characterBody)characterBody.RemoveBuff(RoR2Content.Buffs.HiddenInvincibility);if(actor!=null)actor.Arriving=false;base.OnExit();}
         public override InterruptPriority GetMinimumInterruptPriority()=>InterruptPriority.Death;

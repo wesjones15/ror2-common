@@ -29,7 +29,7 @@ namespace Ror2Common
         }
         public bool Step(Vector3 forward,float dt,Vector3? anchor=null)
         {
-            if(!Target||!Target.alive||!Target.body||!owner||!owner.healthComponent.alive||owner.currentVehicle||((age+=dt)>8f)){Dispose();return false;}
+            if(!Target||!Target.alive||!Target.body||!owner||!owner.healthComponent||!owner.healthComponent.alive||owner.currentVehicle||((age+=dt)>8f)){Dispose();return false;}
             var body=Target.body;
             var center=anchor??(owner.corePosition+forward.normalized*(owner.radius+body.radius+0.35f));
             var position=body.transform.position+center-body.corePosition;
