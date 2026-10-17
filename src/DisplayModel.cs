@@ -73,11 +73,13 @@ namespace Ror2Common
             // Every frame: the display's animation turns parts and effects on as it plays.
             GameSettings.HideRenderers(transform, true);
             Silence();
-            actor.Step(Mathf.Min(Time.deltaTime, 0.1f), transform);
+            // Lobby previews are UI: a paused/ended run must not freeze them.
+            actor.Step(Mathf.Min(Time.unscaledDeltaTime, 0.1f), transform);
             var at = transform;
             actor.Models.Update(actor.Scale, d => (
                 at.position + at.rotation * (new Vector3(d.pos.x, d.pos.y, d.pos.z) * actor.Scale),
                 at.rotation * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)));
+            if(actor is IDisplayEffects effects)effects.Draw(transform);
         }
 
         // A survivor's display plays a one-off intro clip when picked (Commando's "Display",
@@ -113,4 +115,5 @@ namespace Ror2Common
             catch (Exception e) { CommonLog.Error($"lobby display {actorId}: {e}"); }
         }
     }
+    public interface IDisplayEffects { void Draw(Transform display); }
 }

@@ -21,13 +21,15 @@ namespace Ror2Common
 
     /// Plays up-special once per selection and releases its PCM device on exit.
     /// Portraits use the same source with intro=false: idle pose, no sound device.
-    public sealed class MeleeSelectDisplay : IDisplayActor
+    public sealed class MeleeSelectDisplay : IDisplayActor, IDisplayEffects
     {
         IMeleeSelectSource source;
         PcmStream audio;
         readonly bool intro;
         bool started, audioFinished;
         Vector3 anchor;
+        float repeatAt;
+        bool anchorSet;
         public MeleeSelectDisplay(IMeleeSelectSource source, bool intro = true)
         { this.source = source ?? throw new ArgumentNullException(nameof(source)); this.intro = intro; }
         public ModelView Models => source?.Models;
@@ -35,12 +37,13 @@ namespace Ror2Common
         public void Step(float dt, Transform display)
         {
             if (source == null) return;
+            if(intro&&audioFinished){repeatAt+=dt;if(repeatAt>=1f){started=false;audioFinished=false;repeatAt=0;}}
             if (!started)
             {
                 started = true;
                 if (intro)
                 {
-                    anchor = source.PoseAnchor;
+                    if(!anchorSet){anchor = source.PoseAnchor;anchorSet=true;}
                     source.BeginUpSpecial();
                     try { audio = new PcmStream(source.AudioRate); }
                     catch (Exception e) { CommonLog.Warn("Melee selection audio unavailable: " + e.Message); }
@@ -57,13 +60,14 @@ namespace Ror2Common
                 return;
             }
             if (audio != null)
-                try { audio.Pump(source.RenderAudio, GameSettings.SfxVolume(), Time.timeScale <= 0); }
+                try { audio.Pump(source.RenderAudio, GameSettings.SfxVolume(), false); }
                 catch (Exception e)
                 {
                     CommonLog.Warn("Melee selection audio stopped: " + e.Message);
                     audio.Dispose(); audio = null; audioFinished = true;
                 }
         }
+        public void Draw(Transform display){if(source is IDisplayEffects effects)effects.Draw(display);}
         public void Release()
         {
             audio?.Dispose(); audio = null;

@@ -67,7 +67,7 @@ namespace Ror2Common
             if((flags&(1<<28))!=0)material.SetFloat("_ZTest",(float)CompareFunction.Always);
             variants.Add(key,(tex,material,Time.unscaledTime));return material;
         }
-        public void Draw()
+        public void Draw(Matrix4x4? placement=null)
         {
             if(source==null)return;
             uint n=source.Draws(null,0);if(n>4096)throw new InvalidOperationException("Native particle budget exceeded");
@@ -76,6 +76,7 @@ namespace Ror2Common
             var camera=GameSettings.PlayerCamera();if(!camera)return;
             for(int i=0;i<n;i++) {
                 var p=sprites[i];var point=new Vector3(p.position.x,p.position.y,p.position.z)*scale;
+                if(placement.HasValue)point=placement.Value.MultiplyPoint3x4(point);
                 var look=camera.position-point;
                 if(look.sqrMagnitude<0.00001f)continue;
                 var rotation=Quaternion.LookRotation(look,camera.up)*Quaternion.AngleAxis(-p.rotation*Mathf.Rad2Deg,Vector3.forward);

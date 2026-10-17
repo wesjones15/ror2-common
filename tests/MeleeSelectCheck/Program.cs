@@ -16,6 +16,7 @@ namespace Ror2Common
 {
     public class ModelView {}
     public interface IDisplayActor { ModelView Models {get;} float Scale {get;} void Step(float dt,UnityEngine.Transform display); void Release(); }
+    public interface IDisplayEffects { void Draw(UnityEngine.Transform display); }
     public static class CommonLog { public static void Warn(string text) {} }
     public static class GameSettings { public static float SfxVolume()=>0.25f; }
     public class PcmStream : IDisposable
@@ -43,9 +44,9 @@ class Program
         public UnityEngine.Vector3 PoseAnchor=>new UnityEngine.Vector3(0,stepped*10,0);
         public UnityEngine.Vector3 DrawOffset {get;set;}
         public int begun,stepped,released,sounded;
-        public void BeginUpSpecial(){begun++;}
+        public void BeginUpSpecial(){begun++;UpSpecialFinished=false;}
         public void Step(float dt){stepped++;}
-        public bool RenderAudio(float[] stereo){sounded++;return begun==1;}
+        public bool RenderAudio(float[] stereo){sounded++;return begun>0;}
         public void Dispose(){released++;}
     }
     static void Check(bool ok,string what){if(!ok)throw new Exception(what);}
@@ -56,9 +57,9 @@ class Program
         Check(source.begun==1&&source.sounded==10,"selection must play one up-special and its PCM");
         Check(source.DrawOffset.y==-100,"jumping intro must stay anchored in the display camera");
         UnityEngine.Time.timeScale=0;display.Step(0,null);
-        Check(PcmStream.paused&&source.sounded==10,"pause must pause sound");UnityEngine.Time.timeScale=1;
+        Check(!PcmStream.paused&&source.sounded==11,"paused world must not freeze lobby audio");UnityEngine.Time.timeScale=1;
         source.UpSpecialFinished=true;display.Step(1f/60,null);display.Step(1f/60,null);
-        Check(PcmStream.disposed==1&&source.sounded==10,"completed attack must stop its sound device");
+        Check(PcmStream.disposed==1&&source.sounded==11,"completed attack must stop its sound device");
         display.Release();display.Release();display.Step(0,null);
         Check(source.released==1&&PcmStream.disposed==1,"release must be idempotent");
         var portrait=new Source();var idle=new MeleeSelectDisplay(portrait,intro:false);
@@ -67,6 +68,9 @@ class Program
         var selectedAgain=new Source();var repeat=new MeleeSelectDisplay(selectedAgain);
         PcmStream.fail=true;repeat.Step(1f/60,null);repeat.Step(1f/60,null);repeat.Release();
         Check(selectedAgain.begun==1&&selectedAgain.stepped==2&&selectedAgain.released==1,"reselection/audio failure must preserve animation and cleanup");
+        PcmStream.fail=false;var loopSource=new Source();var loop=new MeleeSelectDisplay(loopSource);
+        loop.Step(1f/60,null);loopSource.UpSpecialFinished=true;loop.Step(1f/60,null);loop.Step(1.1f,null);
+        Check(loopSource.begun==2&&!loopSource.UpSpecialFinished,"up-special preview must repeat rather than freeze");loop.Release();
         Console.WriteLine("PASS: shared up-B selection, one-shot sound, pause, idle portrait, reselection and cleanup");
     }
 }
