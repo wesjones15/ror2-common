@@ -19,6 +19,7 @@ namespace Ror2Common
     {
         readonly IViewSource src;
         readonly Transform root;
+        readonly float translucentOpacity;
         // One material for every part, in place of the baked ones (Create's `skin`).
         Material skin;
         readonly Dictionary<Material, Material> skinCopies = new Dictionary<Material, Material>();
@@ -78,11 +79,12 @@ namespace Ror2Common
         public int DrawCount => drawCount;
         public ViewDraw DrawAt(int i) => draws[i];
 
-        ModelView(IViewSource src, Transform root, string name, Material skin)
+        ModelView(IViewSource src, Transform root, string name, Material skin, float translucentOpacity)
         {
             this.src = src;
             this.skin = skin;
             this.root = root;
+            this.translucentOpacity = Mathf.Clamp01(translucentOpacity);
             Name = name;
         }
 
@@ -90,7 +92,8 @@ namespace Ror2Common
         /// its stand-in. `parent` null keeps the objects across scenes. `skin`, if given, is drawn
         /// on every part instead of their textures (a copy, both sides, with the part's alpha
         /// and hit flash; the game's gummy clone material, say).
-        public static ModelView Create(IViewSource src, string name, Transform parent = null, Material skin = null)
+        public static ModelView Create(IViewSource src, string name, Transform parent = null, Material skin = null,
+            float translucentOpacity = Shaders.SurfaceTintOpacity)
         {
             var root = new GameObject(name).transform;
             if (parent) root.SetParent(parent, false);
@@ -101,7 +104,7 @@ namespace Ror2Common
                 // The mirror flip turns the winding around.
                 skin.SetFloat("_Cull", 0f);
             }
-            var mv = new ModelView(src, root, name, skin);
+            var mv = new ModelView(src, root, name, skin, translucentOpacity);
             try
             {
                 mv.Build();
@@ -232,7 +235,7 @@ namespace Ror2Common
             bool blended = b.blend == ViewBlend.Translucent || b.blend == ViewBlend.Additive;
             if (blended && Shaders.CloudRemap())
                 return Shaders.SeeThrough($"{Name} glass", tex, b.blend == ViewBlend.Additive, b.lit != 0,
-                    b.blend == ViewBlend.Translucent ? Shaders.SurfaceTintOpacity : 1f);
+                    b.blend == ViewBlend.Translucent ? translucentOpacity : 1f);
             var m = new Material(Shaders.HgStandard()) { name = Name };
             if (tex) m.SetTexture("_MainTex", tex);
             m.SetColor("_Color", Color.white);
