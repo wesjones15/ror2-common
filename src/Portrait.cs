@@ -23,6 +23,7 @@ namespace Ror2Common
             public Func<IDisplayActor> make;
             public int size;
             public Func<ViewDraw, bool> hide;
+            public Func<Texture2D> texture;
         }
 
         static readonly List<Job> pending = new List<Job>();
@@ -34,6 +35,31 @@ namespace Ror2Common
         public static void Request(GameObject bodyPrefab, Func<IDisplayActor> make, Func<ViewDraw, bool> hide = null, int size = 256)
         {
             pending.Add(new Job { body = bodyPrefab, make = make, size = size, hide = hide });
+            EnsureRunner();
+        }
+
+        /// Prefer the game's existing portrait artwork when available. The factory
+        /// returns null while first-run extraction is pending; the shared queue
+        /// retries and refreshes already-visible survivor icons as with model renders.
+        public static void RequestTexture(GameObject bodyPrefab, Func<Texture2D> make)
+        {
+            pending.Add(new Job { body = bodyPrefab, texture = make });
+            EnsureRunner();
+        }
+        /// Top-first decoded artwork, padded to square without changing its
+        /// aspect ratio. Native GX images and other source UI photos can share it.
+        public static Texture2D FromRgba(string name, int width, int height, byte[] rgba)
+        {
+            if(width<=0||height<=0||width>2048||height>2048||rgba==null||rgba.Length!=checked(width*height*4))
+                throw new ArgumentException("Invalid portrait RGBA dimensions");
+            int side=Math.Max(width,height),left=(side-width)/2,bottom=(side-height)/2;
+            var square=new byte[checked(side*side*4)];
+            for(int y=0;y<height;y++)Buffer.BlockCopy(rgba,y*width*4,square,((bottom+height-1-y)*side+left)*4,width*4);
+            var texture=new Texture2D(side,side,TextureFormat.RGBA32,false) {name=name,wrapMode=TextureWrapMode.Clamp,filterMode=FilterMode.Bilinear};
+            texture.LoadRawTextureData(square);texture.Apply(false,true);return texture;
+        }
+        static void EnsureRunner()
+        {
             if (!runner)
             {
                 var go = new GameObject("Ror2CommonPortraits");
@@ -70,7 +96,7 @@ namespace Ror2Common
                 {
                     var job = pending[i];
                     Texture2D tex = null;
-                    try { tex = Render(job); }
+                    try { tex = job.texture != null ? job.texture() : Render(job); }
                     catch (Exception e) { CommonLog.Error($"portrait for {(job.body ? job.body.name : "?")}: {e}"); }
                     if (!tex) continue;
                     var cb = job.body ? job.body.GetComponent<CharacterBody>() : null;
@@ -81,7 +107,7 @@ namespace Ror2Common
                         if (icon.survivorDef && icon.survivorDef.bodyPrefab == job.body && icon.survivorIcon)
                             icon.survivorIcon.texture = tex;
                     pending.RemoveAt(i);
-                    CommonLog.Info($"portrait for {job.body.name} rendered");
+                    CommonLog.Info($"portrait for {job.body.name} ready");
                 }
                 retryAt = Time.unscaledTime + 2f;
                 rendering = false;
