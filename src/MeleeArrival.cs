@@ -16,7 +16,7 @@ namespace Ror2Common
     {
         IMeleeArrival actor;bool protectedBody;
         public override void OnEnter(){base.OnEnter();foreach(var component in gameObject.GetComponents<MonoBehaviour>())if(component is IMeleeArrival source){actor=source;break;}
-            if(actor!=null)actor.Arriving=true;
+            if(actor!=null){actor.Arriving=true;if(characterBody&&characterBody.modelLocator&&characterBody.modelLocator.modelTransform){var model=characterBody.modelLocator.modelTransform;GameSettings.HideRenderers(model,true);var animator=model.GetComponent<Animator>();if(animator)animator.enabled=false;}}
             if(NetworkServer.active&&characterBody){characterBody.AddBuff(RoR2Content.Buffs.HiddenInvincibility);protectedBody=true;}}
         public override void FixedUpdate(){base.FixedUpdate();
             if(actor==null){if(isAuthority)outer.SetNextStateToMain();return;}
