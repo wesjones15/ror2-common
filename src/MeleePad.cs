@@ -56,7 +56,7 @@ namespace Ror2Common
             uint buttons=held|pending;pending=0;
             if(locked&&((buttons&MeleeControls.Attack)!=0))attackBuffer=90;
             if(!locked&&attackBuffer>0&&(allowed&2)!=0){buttons|=MeleeControls.Attack;attackBuffer=0;}
-            else if(attackBuffer>0)attackBuffer--;
+            else if(!locked&&attackBuffer>0)attackBuffer--;
             // Captured throws use raw Melee axes; other movement stays in world space.
             return new MeleePadState { movement=new Vector3(move.x,grabbing?move.y:0,move.z),aim=new Vector3(aim.x,aim.y,aim.z),buttons=buttons,allowed=grabbing?31u:allowed };
         }
