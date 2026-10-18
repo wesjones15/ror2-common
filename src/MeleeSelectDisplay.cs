@@ -3,23 +3,23 @@ using UnityEngine;
 
 namespace Ror2Common
 {
-    /// A Melee fighter supplies its native view and up-special execution. The
-    /// shared character-select rule is up-B (the LB skill in RoR2), with sounds.
+    /// A Melee fighter supplies its native view and chosen selection move.
+    /// Each character owns the move; the shared presenter owns one-shot timing.
     public interface IMeleeSelectSource : IDisposable
     {
         ModelView Models { get; }
         float Scale { get; }
         int AudioRate { get; }
-        bool UpSpecialFinished { get; }
+        bool IntroFinished { get; }
         /// Posed body anchor in display space, excluding the current draw offset.
         Vector3 PoseAnchor { get; }
         Vector3 DrawOffset { set; }
-        void BeginUpSpecial();
+        void BeginIntro();
         void Step(float dt);
         bool RenderAudio(float[] stereo);
     }
 
-    /// Plays up-special once, then lets the fighter idle on the UI clock. Releases
+    /// Plays the fighter's intro once, then lets it idle on the UI clock. Releases
     /// PCM on completion/exit. A silent idle source can use intro=false.
     public sealed class MeleeSelectDisplay : IDisplayActor, IDisplayEffects
     {
@@ -39,17 +39,17 @@ namespace Ror2Common
                 started = true;
                 if (intro)
                 {
-                    source.BeginUpSpecial();
+                    source.BeginIntro();
                     try { audio = new PcmStream(source.AudioRate); }
                     catch (Exception e) { CommonLog.Warn("Melee selection audio unavailable: " + e.Message); }
                 }
             }
             source.Step(dt);
             // Leave the authored vertical root motion visible. The fighter starts
-            // and finishes on its floor; its up-special is free to rise between.
+            // and finishes on its floor; an airborne intro may rise between.
             if (intro) source.DrawOffset = Vector3.zero;
             if (!intro || audioFinished) return;
-            if (source.UpSpecialFinished)
+            if (source.IntroFinished)
             {
                 audio?.Dispose(); audio = null; audioFinished = true;
                 return;
