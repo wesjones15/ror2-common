@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Ror2Common
 {
     /// A Melee fighter supplies its native view and up-special execution. The
-    /// shared character-select rule is up-B (LB+B), including its source sounds.
+    /// shared character-select rule is up-B (the LB skill in RoR2), with sounds.
     public interface IMeleeSelectSource : IDisposable
     {
         ModelView Models { get; }
@@ -27,8 +27,6 @@ namespace Ror2Common
         PcmStream audio;
         readonly bool intro;
         bool started, audioFinished;
-        Vector3 anchor;
-        bool anchorSet;
         public MeleeSelectDisplay(IMeleeSelectSource source, bool intro = true)
         { this.source = source ?? throw new ArgumentNullException(nameof(source)); this.intro = intro; }
         public ModelView Models => source?.Models;
@@ -41,16 +39,15 @@ namespace Ror2Common
                 started = true;
                 if (intro)
                 {
-                    if(!anchorSet){anchor = source.PoseAnchor;anchorSet=true;}
                     source.BeginUpSpecial();
                     try { audio = new PcmStream(source.AudioRate); }
                     catch (Exception e) { CommonLog.Warn("Melee selection audio unavailable: " + e.Message); }
                 }
             }
             source.Step(dt);
-            // Source jump/root translation must not take the intro out of the
-            // lobby camera. Keep its body anchor at the initial idle location.
-            if (intro) source.DrawOffset = anchor - source.PoseAnchor;
+            // Leave the authored vertical root motion visible. The fighter starts
+            // and finishes on its floor; its up-special is free to rise between.
+            if (intro) source.DrawOffset = Vector3.zero;
             if (!intro || audioFinished) return;
             if (source.UpSpecialFinished)
             {

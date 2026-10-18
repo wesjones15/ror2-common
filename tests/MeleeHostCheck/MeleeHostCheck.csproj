@@ -4,5 +4,7 @@
     <Compile Include="../../src/MeleeArrival.cs" Link="MeleeArrival.cs" />
     <Compile Include="../../src/InteractTarget.cs" Link="InteractTarget.cs" />
     <Compile Include="../../src/MeleeAim.cs" Link="MeleeAim.cs" />
+    <Compile Include="../../src/MeleeGrapple.cs" Link="MeleeGrapple.cs" />
+    <Compile Include="../../src/EnemyCapture.cs" Link="EnemyCapture.cs" />
   </ItemGroup>
 </Project>

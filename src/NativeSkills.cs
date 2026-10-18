@@ -77,16 +77,26 @@ namespace Ror2Common
                 CommonLog.Warn($"NativeSkills: {(body ? body.name : "null")} has no {slot} slot");
                 return false;
             }
-            var family = ScriptableObject.CreateInstance<SkillFamily>();
-            ((ScriptableObject)family).name = body.name + slot + "Family";
-            family.variants = new[]
-            {
-                new SkillFamily.Variant
-                {
-                    skillDef = def,
-                    viewableNode = new ViewablesCatalog.Node(def.skillNameToken, false, null),
-                },
-            };
+            return SetFamily(skill, body.name + slot + "Family", pack, def);
+        }
+
+        /// Additional GenericSkills are included by RoR2's loadout panel and skill catalog.
+        /// Add to the inactive content prefab before its runtime SkillLocator.Awake caches them.
+        public static GenericSkill AddExtra(GameObject body, string name, string titleToken,
+            ContentPack pack, params SkillDef[] variants)
+        {
+            var skill = body.AddComponent<GenericSkill>();
+            skill.skillName = name;
+            skill.loadoutTitleToken = titleToken;
+            skill.hideInCharacterSelect = skill.hideInLoadoutSelect = false;
+            if (!SetFamily(skill, body.name + name + "Family", pack, variants))
+                throw new InvalidOperationException("Cannot register extra native skill " + name);
+            return skill;
+        }
+
+        public static bool SetFamily(GenericSkill skill, string name, ContentPack pack, params SkillDef[] variants)
+        {
+            if (!skill || variants == null || variants.Length == 0) return false;
             if (familyField == null)
                 familyField = typeof(GenericSkill).GetField("_skillFamily", BindingFlags.Instance | BindingFlags.NonPublic);
             if (familyField == null)
@@ -94,9 +104,15 @@ namespace Ror2Common
                 CommonLog.Error("NativeSkills: GenericSkill._skillFamily is gone in this RoR2; skills stay as they were");
                 return false;
             }
+            var family = ScriptableObject.CreateInstance<SkillFamily>();
+            ((ScriptableObject)family).name = name;
+            family.variants = new SkillFamily.Variant[variants.Length];
+            for (int i = 0; i < variants.Length; i++)
+                family.variants[i] = new SkillFamily.Variant { skillDef = variants[i],
+                    viewableNode = new ViewablesCatalog.Node(variants[i].skillNameToken, false, null) };
             familyField.SetValue(skill, family);
             pack.skillFamilies.Add(new[] { family });
-            pack.skillDefs.Add(new[] { def });
+            pack.skillDefs.Add(variants);
             return true;
         }
 

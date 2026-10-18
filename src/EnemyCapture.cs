@@ -19,6 +19,7 @@ namespace Ror2Common
             if(Target)return Target==target;
             if(!NetworkServer.active||!owner||!target||!target.alive||!target.body||target==owner.healthComponent)return false;
             var body=target.body;
+            if(MeleeGrapple.IsBoss(body))return false;
             if(!body.teamComponent||body.teamComponent.teamIndex==owner.teamComponent.teamIndex||body.isPlayerControlled)return false;
             // Stationary encounter structures have no safe movable body.
             if(!body.characterMotor&&!body.GetComponent<Rigidbody>())return false;
