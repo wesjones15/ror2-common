@@ -76,6 +76,11 @@ namespace Ror2Common
         uint VertexAlphas(uint model, float[] output, uint max);
     }
 
+    /// Opt-in for rigid sources: all instances of a model have identical vertex positions,
+    /// normals and frame UVs for this source's entire lifetime. Transforms, textures and
+    /// material colours may still change. Animated sources must not implement this.
+    public interface IStaticGeometrySource { }
+
     public interface IViewSource
     {
         uint ModelCount();

@@ -2,6 +2,17 @@
 
 # ror2-common
 
+`ModelView` caches unchanged material property blocks and avoids sunlight searches
+for models without native vertex lighting. A rigid `IViewSource` may additionally
+implement `IStaticGeometrySource` to share one mesh per model and upload its geometry
+once. This promises identical positions, normals and frame UVs across all instances
+for the source's entire lifetime; animated sources must leave it off. Models requiring
+rotation-dependent vertex lighting automatically retain separate dynamic meshes.
+Transforms, materials, tint, fade, hit flash and freeze sheen still update normally.
+
+Run `dotnet run --project tests/ModelViewCheck -c Release` to check mesh sharing,
+ownership, dynamic fallback and material-state updates with a recording host.
+
 C# shared by the Risk of Rain 2 hosts: `../ror2-mario` (libsms) and `../ror2-olimar`
 (libpikmin). It targets RoR2 1.2.4.4 (Unity 2019.4, BepInEx 5, no R2API).
 
@@ -25,6 +36,8 @@ Set `Ror2Common.CommonLog.Log = Logger;` first thing in the plugin's `Awake`.
 | `WorldProbe.cs` | Ground, roof and wall queries against the world layer. |
 | `ViewSource.cs` | The model-view structs both native libraries share, and `IViewSource` over them. |
 | `ModelView.cs` | A native view's models in Unity. Meshes are built once; each frame takes skinned vertices and per-batch texture and colour. Uses HGStandard, plus Cloud Remap for see-through and additive parts. Also has `Shaders`. |
+| `MaterialAlpha.cs` | Shared source alpha handling for future ports: texture multiply/blend/replace without erasing zero-material-alpha effects. `MaterialAlphaBuffer` adapts native RGBA plus animated alpha metadata for `IViewSource.Colors`. Preserves texture masks and intentional fades. See [material-alpha.md](docs/material-alpha.md). |
+| `MeleeRecovery.cs` | Melee-only return adapter: `IMeleeRecovery`, common `Unstuck.FellEarly` at Mario's early clear-void point and owned invulnerability buffs. Native Melee shares figurine/automatic release/flashing protection between initial spawn and falloff; only falloff plays KO. See [MELEE.md](MELEE.md). |
 | `GameSettings.cs` | RoR2's SFX volume, the player's camera, hiding a body's own model (or any hierarchy's renderers). |
 | `CameraPivot.cs` | Puts a body's camera on a pivot of our own (a plain child of the body), for plugins that hide the body's model: the stock pivot hangs off that still-animated model and sways the camera. Its comment lists what the driver should do too (run before RoR2's camera; never leave the body ahead of the drawn position). |
 | `StepSmoother.cs` | A body that a native sim moves each physics step, drawn smoothly between steps, plus `LagTicks`: how many sim ticks behind the sim that drawing is. `Smooth(alpha)` accepts a native clock, such as Pikmin's 30 Hz ticks within RoR2's 60 Hz physics. Hand the same lag to the native view so it poses the character that far back too; otherwise fast moves show as stacked "ghost" copies at high refresh rates. The view half is each native library's own (`SmsViewFrame.lag`, `PikViewFrame.lag`). |

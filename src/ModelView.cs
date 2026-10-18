@@ -19,6 +19,7 @@ namespace Ror2Common
     {
         readonly IViewSource src;
         readonly Transform root;
+        readonly float translucentOpacity;
         // One material for every part, in place of the baked ones (Create's `skin`).
         Material skin;
         readonly Dictionary<Material, Material> skinCopies = new Dictionary<Material, Material>();
@@ -31,6 +32,7 @@ namespace Ror2Common
             public bool hasEnv;
             public bool lightsVertices;
             public float[] vertexAlpha;
+            public bool sharedGeometry, geometryReady;
         }
 
         /// `ViewBatch.lit` bit 4: the batch fades by its vertices' alpha (`IVertexAlphaSource`).
@@ -46,9 +48,24 @@ namespace Ror2Common
             public int[] textures;
             public Material[] materials;
             public Material skin;
+            public BlockState[] blocks;
+        }
+
+        // Unity copies a property block on every submission. Most native batches keep the
+        // same tint/fade for many frames; submit again only when their actual inputs change.
+        struct BlockState
+        {
+            public bool set;
+            public byte mode;
+            public Color color, flash;
+            public float alpha;
+            static bool Same(Color a, Color b) => a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
+            public bool Matches(BlockState other) => set && mode == other.mode && alpha == other.alpha
+                && Same(color, other.color) && Same(flash, other.flash);
         }
 
         Model[] models;
+        bool needsVertexLighting;
         readonly Dictionary<ulong, Instance> instances = new Dictionary<ulong, Instance>();
         readonly Dictionary<int, Texture2D> textures = new Dictionary<int, Texture2D>();
         readonly Dictionary<(int, byte, byte), Material> materials = new Dictionary<(int, byte, byte), Material>();
@@ -78,11 +95,12 @@ namespace Ror2Common
         public int DrawCount => drawCount;
         public ViewDraw DrawAt(int i) => draws[i];
 
-        ModelView(IViewSource src, Transform root, string name, Material skin)
+        ModelView(IViewSource src, Transform root, string name, Material skin, float translucentOpacity)
         {
             this.src = src;
             this.skin = skin;
             this.root = root;
+            this.translucentOpacity = Mathf.Clamp01(translucentOpacity);
             Name = name;
         }
 
@@ -90,7 +108,8 @@ namespace Ror2Common
         /// its stand-in. `parent` null keeps the objects across scenes. `skin`, if given, is drawn
         /// on every part instead of their textures (a copy, both sides, with the part's alpha
         /// and hit flash; the game's gummy clone material, say).
-        public static ModelView Create(IViewSource src, string name, Transform parent = null, Material skin = null)
+        public static ModelView Create(IViewSource src, string name, Transform parent = null, Material skin = null,
+            float translucentOpacity = Shaders.SurfaceTintOpacity)
         {
             var root = new GameObject(name).transform;
             if (parent) root.SetParent(parent, false);
@@ -101,7 +120,7 @@ namespace Ror2Common
                 // The mirror flip turns the winding around.
                 skin.SetFloat("_Cull", 0f);
             }
-            var mv = new ModelView(src, root, name, skin);
+            var mv = new ModelView(src, root, name, skin, translucentOpacity);
             try
             {
                 mv.Build();
@@ -171,6 +190,10 @@ namespace Ror2Common
                     lightsVertices = Array.Exists(batches, x => (x.blend == ViewBlend.Translucent && (x.lit & 3) != 0) || (x.lit & FadesByVertex) != 0),
                     vertexAlpha = alphas,
                 };
+                // Vertex lighting depends on each instance's rotation: those meshes must
+                // remain separate even when the source's positions are rigid.
+                models[m].sharedGeometry = src is IStaticGeometrySource && !models[m].lightsVertices;
+                needsVertexLighting |= models[m].lightsVertices;
             }
         }
 
@@ -232,7 +255,7 @@ namespace Ror2Common
             bool blended = b.blend == ViewBlend.Translucent || b.blend == ViewBlend.Additive;
             if (blended && Shaders.CloudRemap())
                 return Shaders.SeeThrough($"{Name} glass", tex, b.blend == ViewBlend.Additive, b.lit != 0,
-                    b.blend == ViewBlend.Translucent ? Shaders.SurfaceTintOpacity : 1f);
+                    b.blend == ViewBlend.Translucent ? translucentOpacity : 1f);
             var m = new Material(Shaders.HgStandard()) { name = Name };
             if (tex) m.SetTexture("_MainTex", tex);
             m.SetColor("_Color", Color.white);
@@ -268,7 +291,7 @@ namespace Ror2Common
             var tid = (int*)src.TextureIds(out uint tc);
             var uvs = (Vector2*)src.FrameUvs(out uint uc);
             if (pos == null || nrm == null || col == null || tid == null) drawCount = 0;
-            FindSun();
+            if (needsVertexLighting) FindSun();
 
             foreach (var inst in instances.Values) inst.seen = false;
             for (int i = 0; i < drawCount; i++)
@@ -299,34 +322,37 @@ namespace Ror2Common
                 t.localScale = new Vector3(-scale, scale, scale);
 
                 int vn = model.vertexCount;
-                if (vbuf.Length < vn)
+                if (!model.sharedGeometry || !model.geometryReady)
                 {
-                    vbuf = new Vector3[vn];
-                    nbuf = new Vector3[vn];
-                    ubuf = new Vector2[vn];
-                    cbuf = new Color[vn];
-                }
-                fixed (Vector3* vd = vbuf)
-                fixed (Vector3* nd = nbuf)
-                {
-                    long bytes = (long)vn * sizeof(Vector3);
-                    Buffer.MemoryCopy(pos + d.first_vertex, vd, bytes, bytes);
-                    Buffer.MemoryCopy(nrm + d.first_vertex, nd, bytes, bytes);
-                }
-                inst.mesh.SetVertices(vbuf, 0, vn);
-                inst.mesh.SetNormals(nbuf, 0, vn);
-                // Parts posed away from their own origin (a cap at the head, hands at the
-                // wrists, all in the body's space) leave the bind-pose box behind, and Unity
-                // culls them when that box leaves the view: box what's drawn.
-                inst.mesh.RecalculateBounds();
-                if (model.hasEnv && uvs != null && d.first_vertex + vn <= uc)
-                {
-                    fixed (Vector2* ud = ubuf)
+                    if (vbuf.Length < vn)
                     {
-                        long bytes = (long)vn * sizeof(Vector2);
-                        Buffer.MemoryCopy(uvs + d.first_vertex, ud, bytes, bytes);
+                        vbuf = new Vector3[vn];
+                        nbuf = new Vector3[vn];
+                        ubuf = new Vector2[vn];
+                        cbuf = new Color[vn];
                     }
-                    inst.mesh.SetUVs(0, ubuf, 0, vn);
+                    fixed (Vector3* vd = vbuf)
+                    fixed (Vector3* nd = nbuf)
+                    {
+                        long bytes = (long)vn * sizeof(Vector3);
+                        Buffer.MemoryCopy(pos + d.first_vertex, vd, bytes, bytes);
+                        Buffer.MemoryCopy(nrm + d.first_vertex, nd, bytes, bytes);
+                    }
+                    inst.mesh.SetVertices(vbuf, 0, vn);
+                    inst.mesh.SetNormals(nbuf, 0, vn);
+                    // Parts posed away from their own origin leave the bind-pose box behind:
+                    // box the posed vertices. Rigid sources keep this box with the shared mesh.
+                    inst.mesh.RecalculateBounds();
+                    if (model.hasEnv && uvs != null && d.first_vertex + vn <= uc)
+                    {
+                        fixed (Vector2* ud = ubuf)
+                        {
+                            long bytes = (long)vn * sizeof(Vector2);
+                            Buffer.MemoryCopy(uvs + d.first_vertex, ud, bytes, bytes);
+                        }
+                        inst.mesh.SetUVs(0, ubuf, 0, vn);
+                    }
+                    model.geometryReady = true;
                 }
                 if (model.lightsVertices)
                 {
@@ -351,13 +377,25 @@ namespace Ror2Common
                     inst.materials[b] = wanted ? wanted : MaterialFor(model.batches[b], tex);
                     changed = true;
                 }
-                if (changed) inst.renderer.sharedMaterials = inst.materials;
+                if (changed)
+                {
+                    inst.renderer.sharedMaterials = inst.materials;
+                    Array.Clear(inst.blocks, 0, inst.blocks.Length);
+                }
 
                 for (int b = 0; b < bn; b++)
                 {
-                    block.Clear();
                     var c = col[d.first_color + b];
                     var mb = model.batches[b];
+                    bool cloud = !wanted && (mb.blend == ViewBlend.Translucent || mb.blend == ViewBlend.Additive) && Shaders.CloudRemap();
+                    var state = new BlockState
+                    {
+                        set = true, mode = wanted ? (byte)1 : cloud ? (byte)2 : (byte)0,
+                        color = c, alpha = Mathf.Clamp01(d.alpha),
+                        flash = (d.flags & 1) != 0 ? FlashColor : (d.flags & 2) != 0 ? FrozenColor : default,
+                    };
+                    if (inst.blocks[b].Matches(state)) continue;
+                    block.Clear();
                     if (wanted)
                     {
                         // Its own colour; only the fade and the flash.
@@ -365,7 +403,7 @@ namespace Ror2Common
                         if ((d.flags & 1) != 0) block.SetColor(FlashId, FlashColor);
                         else if ((d.flags & 2) != 0) block.SetColor(FlashId, FrozenColor);
                     }
-                    else if ((mb.blend == ViewBlend.Translucent || mb.blend == ViewBlend.Additive) && Shaders.CloudRemap())
+                    else if (cloud)
                         block.SetColor(TintId, c);
                     else
                     {
@@ -375,6 +413,7 @@ namespace Ror2Common
                         else if ((d.flags & 2) != 0) block.SetColor(FlashId, FrozenColor);
                     }
                     inst.renderer.SetPropertyBlock(block, b);
+                    inst.blocks[b] = state;
                 }
             }
             foreach (var inst in instances.Values)
@@ -467,9 +506,8 @@ namespace Ror2Common
             if (instances.TryGetValue(key, out var inst) && inst.go)
             {
                 if (inst.model == model) return inst;
-                UnityEngine.Object.Destroy(inst.mesh);
-                inst.mesh = UnityEngine.Object.Instantiate(models[model].template);
-                inst.mesh.MarkDynamic();
+                if (!models[inst.model].sharedGeometry) UnityEngine.Object.Destroy(inst.mesh);
+                inst.mesh = InstanceMesh(models[model]);
                 inst.go.GetComponent<MeshFilter>().sharedMesh = inst.mesh;
                 inst.model = model;
                 ResetMaterials(inst);
@@ -477,8 +515,7 @@ namespace Ror2Common
             }
             var go = new GameObject($"{Name} {key >> 56}/{key & 0xFFFFFFFF}");
             go.transform.SetParent(root, false);
-            var mesh = UnityEngine.Object.Instantiate(models[model].template);
-            mesh.MarkDynamic();
+            var mesh = InstanceMesh(models[model]);
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             var r = go.AddComponent<MeshRenderer>();
             r.shadowCastingMode = ShadowCastingMode.On;
@@ -489,11 +526,20 @@ namespace Ror2Common
             return inst;
         }
 
+        static Mesh InstanceMesh(Model model)
+        {
+            if (model.sharedGeometry) return model.template;
+            var mesh = UnityEngine.Object.Instantiate(model.template);
+            mesh.MarkDynamic();
+            return mesh;
+        }
+
         void ResetMaterials(Instance inst)
         {
             var batches = models[inst.model].batches;
             inst.textures = new int[batches.Length];
             inst.materials = new Material[batches.Length];
+            inst.blocks = new BlockState[batches.Length];
             for (int b = 0; b < batches.Length; b++)
             {
                 inst.textures[b] = batches[b].texture;
@@ -505,7 +551,7 @@ namespace Ror2Common
         public void Dispose()
         {
             foreach (var inst in instances.Values)
-                if (inst.mesh) UnityEngine.Object.Destroy(inst.mesh);
+                if (inst.mesh && !models[inst.model].sharedGeometry) UnityEngine.Object.Destroy(inst.mesh);
             instances.Clear();
             if (models != null)
                 foreach (var m in models)
