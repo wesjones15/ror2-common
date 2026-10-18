@@ -24,6 +24,7 @@ namespace Ror2Common
         {
             if(source==null)return;
             var go=new GameObject("Melee fall and KO");
+            DontDestroyOnLoad(go);
             go.AddComponent<MeleeDeathSequence>().source=source;
         }
         void Update()
@@ -52,6 +53,7 @@ namespace Ror2Common
         public static void Show(IMeleeRoundSound sound)
         {
             var go=new GameObject("Melee GAME banner");
+            DontDestroyOnLoad(go);
             go.AddComponent<MeleeGameBanner>().sound=sound;
         }
         void Update()

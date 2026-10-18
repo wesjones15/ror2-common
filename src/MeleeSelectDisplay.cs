@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Ror2Common
 {
     /// A Melee fighter supplies its native view and up-special execution. The
-    /// shared character-select rule is up-B (LB+B), including its source sounds.
+    /// shared character-select rule is up-B (the LB skill in RoR2), with sounds.
     public interface IMeleeSelectSource : IDisposable
     {
         ModelView Models { get; }
