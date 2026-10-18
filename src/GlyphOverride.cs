@@ -166,6 +166,26 @@ namespace Ror2Common
             return null;
         }
 
+        /// The same device-specific glyph markup RoR2 puts on its skill bar, for a
+        /// physical pad button used outside a skill slot (such as Olimar's Onion menu).
+        public static string PhysicalGlyph(Player player, PadButton button)
+        {
+            if (glyphMapField == null || keyType == null) return null;
+            try
+            {
+                var joystick = Pad(player);
+                var gamepad = joystick != null && joystick.ImplementsTemplate<IGamepadTemplate>()
+                    ? joystick.GetTemplate<IGamepadTemplate>() : null;
+                return gamepad == null ? null : Glyph(joystick, gamepad, button);
+            }
+            catch (Exception e)
+            {
+                if (!warned) CommonLog.Warn($"GlyphOverride: physical button glyph unavailable ({e.Message})");
+                warned = true;
+                return null;
+            }
+        }
+
         static IControllerTemplateButton Element(IGamepadTemplate g, PadButton b)
         {
             switch (b)
