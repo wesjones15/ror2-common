@@ -37,6 +37,17 @@ namespace Ror2Common
                 icons.Add(hud,icon);
             }
         }
+        void LateUpdate()
+        {
+            // HUD layout groups may place the stock row after the clone was made.
+            // Follow its current rect instead of retaining an unlaid-out position.
+            foreach(var pair in icons){
+                if(!pair.Key||!pair.Value||pair.Key.skillIcons==null||pair.Key.skillIcons.Length<4||!pair.Key.skillIcons[3])continue;
+                var original=pair.Key.skillIcons[3].GetComponent<RectTransform>();
+                var rect=pair.Value.GetComponent<RectTransform>();
+                rect.anchoredPosition=original.anchoredPosition+Vector2.up*(original.rect.height+12f);
+            }
+        }
         void OnDisable(){foreach(var icon in icons.Values)if(icon)Destroy(icon.gameObject);icons.Clear();}
     }
 }
