@@ -6,7 +6,11 @@ namespace Ror2Common
 {
     public static class MeleeNative
     {
-        public const uint AbiVersion = 4;
+        public const uint AbiVersion = 5;
+        /// Fighter kinds shared with the native `FighterKind`. A survivor's
+        /// driver/view passes its own kind so the shared FFI resolves its assets.
+        public const uint FighterSamus = 0;
+        public const uint FighterFox = 1;
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
         public static bool HasMaterialAlpha {get;private set;}
@@ -102,12 +106,12 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_draws(IntPtr handle,[Out]ViewParticle[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_texture(IntPtr handle,uint id,out ViewTexture info,[Out]byte[] rgba,uint len);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_abi_version();
-        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_announce_sound();
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_announce_sound(uint kind);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_struct_sizes([Out]uint[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] static extern IntPtr ssbm_last_error();
-        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_assets_complete(byte[] dir);
-        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_portrait(byte[] dir,uint costume,out ViewTexture info,[Out]byte[] rgba,uint len);
-        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_extract(byte[] disc,byte[] dir);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_assets_complete(byte[] dir,uint kind);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_portrait(byte[] dir,uint kind,uint costume,out ViewTexture info,[Out]byte[] rgba,uint len);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_extract(byte[] disc,byte[] dir,uint kind);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_sim_new(byte[] dir,Vec3 position);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_free(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_step(IntPtr sim,in Host host,in Pad pad,double dt);
@@ -130,13 +134,13 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_hurt(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_hold_knockdown(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_launch_pad(IntPtr sim,Vec3 velocity,Vec3 gravity);
-        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new(byte[] dir,uint costume);
-        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_article_new(byte[] dir,uint kind,uint state);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new(byte[] dir,uint kind,uint costume);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_article_new(byte[] dir,uint fighterKind,uint articleKind,uint state);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_update(IntPtr view,float frame);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_article_cues(uint kind,uint state,uint previous,uint frame,uint fullCharge,[Out]uint[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern int ssbm_effect_target(uint id);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_effect_flags(uint id);
-        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_effect_new(byte[] dir,uint id);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_effect_new(byte[] dir,uint kind,uint id);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_entry_platform_new(byte[] dir);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_game_new(byte[] dir);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_entry_platform_update(IntPtr view,IntPtr sim);
