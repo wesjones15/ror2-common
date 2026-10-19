@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 using Ror2Common;
 
 namespace Ror2Common
 {
-    internal static class MeleeNative
+    public static class MeleeNative
     {
         public const uint AbiVersion = 4;
         const string Dll = "ssbm";
