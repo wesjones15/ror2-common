@@ -19,6 +19,9 @@ namespace Ror2Common
         public DamageColorIndex color;
         /// What hit, as a projectile would be; null for the attacker itself.
         public GameObject inflictor;
+        /// Seconds to stun the victim (0 = no stagger). Melee A attacks use this to
+        /// briefly lock trash enemies out of attacking; bosses/elites are exempt.
+        public float staggerDuration;
     }
 
     // Damage from a native sim, landing as RoR2 damage from a character, so its items, crits
@@ -53,6 +56,18 @@ namespace Ror2Common
                 damageColorIndex = spec.color,
             };
             victim.TakeDamage(info);
+            if (spec.staggerDuration > 0f)
+            {
+                // Melee stagger: interrupt the victim so it cannot attack back while
+                // being hit. RoR2's own SetStateOnHurt path (the one the grapple uses
+                // to keep captures still); bosses and elites are exempt.
+                var target = victim ? victim.body : null;
+                if (target && !MeleeGrapple.IsBoss(target))
+                {
+                    var stun = target.GetComponent<SetStateOnHurt>();
+                    if (stun) stun.SetStun(spec.staggerDuration);
+                }
+            }
             if (attacker && GlobalEventManager.instance)
             {
                 GlobalEventManager.instance.OnHitEnemy(info, victim.gameObject);
