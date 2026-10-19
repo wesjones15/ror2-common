@@ -19,7 +19,10 @@ namespace Ror2Common
         float age;
         bool vanished;
         const float FallSeconds=0.5f;
-        const float Lifetime=2.2f;
+        // Keep the fall + KO VFX alive as long as the end-of-run GAME! banner, so
+        // the blast-zone effect the rebirth plays is not cut off when game over
+        // arrives while the fighter is still falling.
+        const float Lifetime=3.2f;
         public static void Begin(IMeleeDeathSource source)
         {
             if(source==null)return;

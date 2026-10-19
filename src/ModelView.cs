@@ -100,6 +100,11 @@ namespace Ror2Common
         /// A native source schedules its own retained poses; never throttle its fresh uploads
         /// a second time on an unrelated frame counter (which can starve them indefinitely).
         public bool NativePoseBudget;
+        /// Mirror each model across its own X to convert the source's right-handed
+        /// geometry to Unity's left-handed world. Screen-space elements authored in
+        /// the viewer's own handedness (the results-screen GAME! burst) disable this
+        /// so their text is not flipped.
+        public bool MirrorX = true;
         /// Native sources may skip distant skinning under the same pressure as mesh uploads.
         public float PoseBudgetDistance => AdaptiveCulling && slowGame ? FarMetres : 0f;
         const float SlowFrameSeconds = 0.036f, RecoveredFrameSeconds = 0.030f, FarMetres = 35f;
@@ -379,7 +384,7 @@ namespace Ror2Common
                 }
                 // The models are right-handed and Unity is left-handed: mirroring each across its
                 // own X puts the right hand back on the right without moving or turning it.
-                t.localScale = new Vector3(-scale, scale, scale);
+                t.localScale = new Vector3(MirrorX ? -scale : scale, scale, scale);
 
                 int vn = model.vertexCount;
                 bool keepMesh = retainedPose;
