@@ -4,14 +4,23 @@ using Ror2Common;
 // Engine/device stand-ins: exercise the production display policy without
 // launching Unity or opening an actual Windows sound device.
 namespace UnityEngine {
-    public class Transform {}
+    public class Transform { public Vector3 position; public static implicit operator bool(Transform t)=>t!=null; }
+    public class Camera { public Transform transform=new Transform(); public static Camera main=>null; public static implicit operator bool(Camera c)=>c!=null; }
     public struct Vector3 {
         public float x,y,z;
         public Vector3(float x,float y,float z){this.x=x;this.y=y;this.z=z;}
         public static Vector3 zero=>default;
+        public static Vector3 up=>new Vector3(0,1,0);
         public static Vector3 operator -(Vector3 a,Vector3 b)=>new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);
+        public static Vector3 operator +(Vector3 a,Vector3 b)=>new Vector3(a.x+b.x,a.y+b.y,a.z+b.z);
+        public static Vector3 operator *(Vector3 a,float b)=>new Vector3(a.x*b,a.y*b,a.z*b);
     }
-    public static class Time { public static float timeScale=1; }
+    public static class Mathf {
+        public static float Lerp(float a,float b,float t)=>a+(b-a)*t;
+        public static float Max(float a,float b)=>a>b?a:b;
+        public static float Clamp01(float v)=>v<0?0:v>1?1:v;
+    }
+    public static class Time { public static float timeScale=1; public static float unscaledDeltaTime=1f/60f; }
 }
 namespace Ror2Common
 {
@@ -44,6 +53,7 @@ class Program
         public bool IntroFinished {get;set;}
         public UnityEngine.Vector3 PoseAnchor=>new UnityEngine.Vector3(0,stepped*10,0);
         public UnityEngine.Vector3 DrawOffset {get;set;}
+        public float RiseMetres=>stepped>0?stepped:0f;
         public int begun,stepped,released,sounded;
         public void BeginIntro(){begun++;IntroFinished=false;}
         public void Step(float dt){stepped++;}

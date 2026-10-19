@@ -14,6 +14,10 @@ namespace Ror2Common
         /// Posed body anchor in display space, excluding the current draw offset.
         Vector3 PoseAnchor { get; }
         Vector3 DrawOffset { set; }
+        /// Current vertical rise of the posed fighter above its resting floor in
+        /// metres, for the presenter to pan the preview camera and keep an
+        /// airborne intro on screen. Zero for grounded/idle fighters.
+        float RiseMetres { get; }
         void BeginIntro();
         void Step(float dt);
         bool RenderAudio(float[] stereo);
@@ -27,6 +31,9 @@ namespace Ror2Common
         PcmStream audio;
         readonly bool intro;
         bool started, audioFinished;
+        Camera frameCamera;
+        float appliedRise;
+        bool frameActive;
         public MeleeSelectDisplay(IMeleeSelectSource source, bool intro = true)
         { this.source = source ?? throw new ArgumentNullException(nameof(source)); this.intro = intro; }
         public ModelView Models => source?.Models;
@@ -48,6 +55,7 @@ namespace Ror2Common
             // Leave the authored vertical root motion visible. The fighter starts
             // and finishes on its floor; an airborne intro may rise between.
             if (intro) source.DrawOffset = Vector3.zero;
+            if (intro) FramePreview(source.RiseMetres);
             if (!intro || audioFinished) return;
             if (source.IntroFinished)
             {
@@ -62,9 +70,31 @@ namespace Ror2Common
                     audio.Dispose(); audio = null; audioFinished = true;
                 }
         }
+        // Pan the menu preview camera up as an airborne intro rises and back down
+        // as it returns, so the fighter stays on screen for the whole move. The
+        // offset is applied additively and undone on release, so it never fights
+        // RoR2's own camera placement.
+        void FramePreview(float riseMetres)
+        {
+            if (!frameCamera) frameCamera = Camera.main;
+            if (!frameCamera) return;
+            float next = Mathf.Lerp(appliedRise, Mathf.Max(0f, riseMetres),
+                Mathf.Clamp01(Time.unscaledDeltaTime * 18f));
+            frameCamera.transform.position += Vector3.up * (next - appliedRise);
+            appliedRise = next;
+            frameActive = true;
+        }
+        void RestoreCamera()
+        {
+            if (frameCamera && frameActive && appliedRise != 0f)
+                frameCamera.transform.position -= Vector3.up * appliedRise;
+            appliedRise = 0f;
+            frameActive = false;
+        }
         public void Draw(Transform display){if(source is IDisplayEffects effects)effects.Draw(display);}
         public void Release()
         {
+            RestoreCamera();
             audio?.Dispose(); audio = null;
             var old = source; source = null; old?.Dispose();
         }
