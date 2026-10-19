@@ -11,6 +11,7 @@ namespace Ror2Common
         /// driver/view passes its own kind so the shared FFI resolves its assets.
         public const uint FighterSamus = 0;
         public const uint FighterFox = 1;
+        public const uint FighterPikachu = 2;
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
         public static bool HasMaterialAlpha {get;private set;}
