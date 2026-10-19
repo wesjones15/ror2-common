@@ -29,7 +29,6 @@ namespace Ror2Common
             public Mesh template;
             public ViewBatch[] batches;
             public int vertexCount;
-            public bool hasEnv;
             public bool lightsVertices;
             public float[] vertexAlpha;
             public bool sharedGeometry, geometryReady;
@@ -68,6 +67,8 @@ namespace Ror2Common
         bool needsVertexLighting;
         readonly Dictionary<ulong, Instance> instances = new Dictionary<ulong, Instance>();
         readonly Dictionary<int, Texture2D> textures = new Dictionary<int, Texture2D>();
+        sealed class AnimatedTexture { public uint version; public byte[] pixels; }
+        readonly Dictionary<int, AnimatedTexture> animatedTextures = new Dictionary<int, AnimatedTexture>();
         readonly Dictionary<(int, byte, byte), Material> materials = new Dictionary<(int, byte, byte), Material>();
         ViewDraw[] draws = new ViewDraw[64];
         int drawCount;
@@ -186,7 +187,6 @@ namespace Ror2Common
                     template = mesh,
                     batches = batches,
                     vertexCount = (int)info.vertex_count,
-                    hasEnv = Array.Exists(batches, x => x.env != 0),
                     lightsVertices = Array.Exists(batches, x => (x.blend == ViewBlend.Translucent && (x.lit & 3) != 0) || (x.lit & FadesByVertex) != 0),
                     vertexAlpha = alphas,
                 };
@@ -225,12 +225,30 @@ namespace Ror2Common
             if (!src.Texture(id, out var t, null, 0)) return null;
             var px = new byte[t.width * t.height * 4];
             if (!src.Texture(id, out t, px, (uint)px.Length)) return null;
-            return MakeTexture($"{Name} texture {id}", t, px);
+            uint version = (src as IAnimatedTextureSource)?.TextureVersion(id) ?? 0;
+            if (version != 0) animatedTextures[(int)id] = new AnimatedTexture { version = version, pixels = px };
+            return MakeTexture($"{Name} texture {id}", t, px, version != 0);
+        }
+
+        void RefreshTextures()
+        {
+            if (!(src is IAnimatedTextureSource animated)) return;
+            foreach (var entry in animatedTextures)
+            {
+                var state = entry.Value;
+                uint version = animated.TextureVersion((uint)entry.Key);
+                if (version == state.version) continue;
+                if (!src.Texture((uint)entry.Key, out _, state.pixels, (uint)state.pixels.Length)) continue;
+                var texture = textures[entry.Key];
+                texture.SetPixelData(state.pixels, 0);
+                texture.Apply(true, false);
+                state.version = version;
+            }
         }
 
         /// A mipmapped texture from a native view's RGBA8 pixels (rows top first, as Unity's
         /// v = 0 is the first row: GX's v = 0 is the top). Not readable afterwards.
-        public static Texture2D MakeTexture(string name, ViewTexture t, byte[] px)
+        public static Texture2D MakeTexture(string name, ViewTexture t, byte[] px, bool keepReadable = false)
         {
             var tex = new Texture2D((int)t.width, (int)t.height, TextureFormat.RGBA32, true)
             {
@@ -242,7 +260,7 @@ namespace Ror2Common
             // Only the top level: Apply builds the smaller mips (LoadRawTextureData would want
             // the whole chain).
             tex.SetPixelData(px, 0);
-            tex.Apply(true, true);
+            tex.Apply(true, !keepReadable);
             return tex;
         }
 
@@ -290,6 +308,7 @@ namespace Ror2Common
             var col = (Color*)src.Colors(out uint cc);
             var tid = (int*)src.TextureIds(out uint tc);
             var uvs = (Vector2*)src.FrameUvs(out uint uc);
+            RefreshTextures();
             if (pos == null || nrm == null || col == null || tid == null) drawCount = 0;
             if (needsVertexLighting) FindSun();
 
@@ -343,7 +362,9 @@ namespace Ror2Common
                     // Parts posed away from their own origin leave the bind-pose box behind:
                     // box the posed vertices. Rigid sources keep this box with the shared mesh.
                     inst.mesh.RecalculateBounds();
-                    if (model.hasEnv && uvs != null && d.first_vertex + vn <= uc)
+                    // Frame UVs also carry texture animation on ordinary effect meshes.
+                    // Environment mapping is only one producer of changing coordinates.
+                    if (uvs != null && d.first_vertex + vn <= uc)
                     {
                         fixed (Vector2* ud = ubuf)
                         {
@@ -568,6 +589,7 @@ namespace Ror2Common
             foreach (var tex in textures.Values)
                 if (tex) UnityEngine.Object.Destroy(tex);
             textures.Clear();
+            animatedTextures.Clear();
             if (root) UnityEngine.Object.Destroy(root.gameObject);
         }
     }

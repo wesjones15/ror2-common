@@ -89,7 +89,7 @@ namespace UnityEngine
         public void SetTriangles(int[] indices, int sub, bool recalc) { }
         public void SetVertices(Vector3[] v, int first, int count) { uploads++; vertices = new Vector3[count]; Array.Copy(v, first, vertices, 0, count); }
         public void SetNormals(Vector3[] v, int first, int count) { normalUploads++; }
-        public void SetUVs(int channel, Vector2[] v, int first, int count) { uvUploads++; }
+        public void SetUVs(int channel, Vector2[] v, int first, int count) { uvUploads++; uv = new Vector2[count]; Array.Copy(v, first, uv, 0, count); }
         public void SetColors(Color[] v, int first, int count) { colorUploads++; }
         public void RecalculateBounds() { boxes++; }
     }
@@ -111,12 +111,14 @@ namespace UnityEngine
     public enum TextureWrapMode { Clamp, Mirror, Repeat }
     public class Texture2D : Texture
     {
+        public static int uploads;
+        bool readable = true;
         public FilterMode filterMode;
         public TextureWrapMode wrapModeU, wrapModeV;
         public static Texture2D whiteTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
         public Texture2D(int w, int h, TextureFormat format, bool mip) { }
-        public void SetPixelData(byte[] pixels, int mip) { }
-        public void Apply(bool mip, bool immutable) { }
+        public void SetPixelData(byte[] pixels, int mip) { if (!readable) throw new Exception("texture is immutable"); uploads++; }
+        public void Apply(bool mip, bool immutable) { readable = !immutable; }
     }
     public class Material : Object
     {

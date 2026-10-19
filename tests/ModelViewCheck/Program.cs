@@ -12,7 +12,10 @@ static class Program
     {
         readonly GCHandle positions, normals, colors, textures, uvs;
         public byte blend, lit;
+        public byte env = 1;
+        public void Uv(Vector2 value) { ((Vector2[])uvs.Target)[0] = value; }
         public uint model;
+        public int texture = -1;
         public float alpha = 1f;
         public byte flags;
         public void Tint(Color color) { ((Color[])colors.Target)[0] = color; }
@@ -28,10 +31,14 @@ static class Program
         public bool Model(uint m, out ViewModelInfo info)
         { info = new ViewModelInfo { vertex_count = 1, index_count = 3, batch_count = 1 }; return true; }
         public uint Batches(uint m, ViewBatch[] o, uint max)
-        { o[0] = new ViewBatch { index_count = 3, vertex_count = 1, texture = -1, blend = blend, lit = lit, env = 1 }; return 1; }
+        { o[0] = new ViewBatch { index_count = 3, vertex_count = 1, texture = texture, blend = blend, lit = lit, env = env }; return 1; }
         public uint Indices(uint m, int[] o, uint max) => 3;
         public uint Uvs(uint m, float[] o, uint max) => 1;
-        public bool Texture(uint id, out ViewTexture info, byte[] rgba, uint len) { info = default; return false; }
+        public virtual bool Texture(uint id, out ViewTexture info, byte[] rgba, uint len) {
+            info = new ViewTexture { width = 1, height = 1 };
+            if (rgba != null) { rgba[0] = 255; rgba[3] = 255; }
+            return texture >= 0;
+        }
         public uint Draws(ViewDraw[] output, uint max)
         {
             if (output != null) for (uint i = 0; i < 2; i++)
@@ -46,6 +53,10 @@ static class Program
         public void Dispose() { positions.Free(); normals.Free(); colors.Free(); textures.Free(); uvs.Free(); }
     }
     sealed class Rigid : Source, IStaticGeometrySource { }
+    sealed class AnimatedTexture : Source, IAnimatedTextureSource {
+        public uint version = 1;
+        public uint TextureVersion(uint id) => version;
+    }
     static object Instance(ModelView view, ulong key)
     {
         var field = typeof(ModelView).GetField("instances", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -91,12 +102,15 @@ static class Program
             Check(first.destroyed && !UnityEngine.Object.doubleDestroyed, "shared mesh disposed exactly once");
             Console.WriteLine("Rigid: one geometry upload for two instances across two frames; animated baseline: four.");
         }
-        using (var source = new Source())
+        using (var source = new Source { env = 0 })
         using (var view = ModelView.Create(source, "animated"))
         {
             Mesh.uploads = 0;
             view.Update(1); view.Update(1);
             Check(Mesh.uploads == 4 && !ReferenceEquals(Field<Mesh>(Instance(view, 1), "mesh"), Field<Mesh>(Instance(view, 2), "mesh")), "animated uploads and independent meshes retained");
+            source.Uv(new Vector2(.25f, .75f)); view.Update(1);
+            var mesh = Field<Mesh>(Instance(view, 1), "mesh");
+            Check(mesh.uv[0].x == .25f && mesh.uv[0].y == .75f, "ordinary effect meshes accept animated frame UVs");
         }
         using (var source = new Rigid { blend = ViewBlend.Translucent, lit = 1 })
         using (var view = ModelView.Create(source, "rotation-lit"))
@@ -107,6 +121,16 @@ static class Program
             Check(UnityEngine.Object.searches == 1, "native vertex lighting retains light lookup");
         }
         Check(!UnityEngine.Object.doubleDestroyed, "all ownership paths dispose once");
+        using (var source = new AnimatedTexture { texture = 0 })
+        using (var view = ModelView.Create(source, "animated pixels"))
+        {
+            int uploads = Texture2D.uploads;
+            view.Update(1); view.Update(1);
+            Check(Texture2D.uploads == uploads, "unchanged texture versions avoid uploads");
+            source.version++;
+            view.Update(1); view.Update(1);
+            Check(Texture2D.uploads == uploads + 1, "two instances refresh one shared texture exactly once");
+        }
         Console.WriteLine("ModelViewCheck: ok");
     }
 }

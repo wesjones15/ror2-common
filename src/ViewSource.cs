@@ -81,6 +81,13 @@ namespace Ror2Common
     /// material colours may still change. Animated sources must not implement this.
     public interface IStaticGeometrySource { }
 
+    /// Baked materials with independently animated texture layers keep a stable ID.
+    /// Zero is immutable; a changing nonzero version requests an in-place pixel upload.
+    public interface IAnimatedTextureSource
+    {
+        uint TextureVersion(uint id);
+    }
+
     public interface IViewSource
     {
         uint ModelCount();
