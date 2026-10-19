@@ -14,14 +14,14 @@ namespace Ror2Common
         const float Delay = 3f;
         Vector3 anchor, safeFeet;
         bool watching, hasSafeFeet;
-        float elapsed, safeAge;
+        float elapsed, safeAge, airborne;
         RoR2.MapZone ignored;
 
         // External teleports, vehicles, death and loss of authority invalidate old ground.
         public void Reset()
         {
             watching = hasSafeFeet = false;
-            elapsed = safeAge = 0f;
+            elapsed = safeAge = airborne = 0f;
         }
 
         /// The last spot the body stood on safely, if it has one.
@@ -40,6 +40,18 @@ namespace Ror2Common
 
         public bool Lost(Vector3 feet, float drop = VoidDrop) =>
             hasSafeFeet && safeFeet.y - feet.y > drop && !WorldProbe.Ground(feet, VoidReach, out _);
+
+        /// A fall that has gone on too long: airborne for `seconds` without touching anything and well
+        /// below the last standing spot, whatever the map zones or ground probes say. Catches a drop
+        /// where no clear void or zone ever fires (the body keeps falling through the world).
+        public bool FellTooLong(Vector3 feet, float height, GroundProbe probe, out Vector3 destination,
+            float seconds = 8f, float below = 40f)
+        {
+            destination = default;
+            if (!hasSafeFeet || airborne < seconds || safeFeet.y - feet.y < below) return false;
+            destination = probe(safeFeet, height * 0.25f, height * 0.5f, out var clear) ? clear : safeFeet;
+            return true;
+        }
 
         /// Start recovery at the shared early-void point, or at a valid stage zone.
         /// Ground far below prevents the distance fallback, just as for Mario.
@@ -90,6 +102,7 @@ namespace Ror2Common
             destination = default;
             float tolerance = Mathf.Max(0.05f, height * 0.08f);
             safeAge += dt;
+            airborne = grounded ? 0f : airborne + dt;
             if (!fallen && grounded && !held && safeAge >= 0.25f)
             {
                 safeAge = 0f;

@@ -48,6 +48,7 @@ namespace Ror2Common
             public Material[] materials;
             public Material skin;
             public BlockState[] blocks;
+            public bool uploaded;
         }
 
         // Unity copies a property block on every submission. Most native batches keep the
@@ -88,6 +89,14 @@ namespace Ror2Common
         /// RoR2's hit flash colour for draws flagged as flashing.
         public Color FlashColor = new Color(1f, 1f, 1f, 0.5f);
         /// The icy sheen for draws flagged frozen (flag 2: a Pikmin caught in a Glacial blast).
+        /// Only while the game runs slowly (a smoothed frame time over about 28 fps): an instance outside
+        /// the camera's view, or far from it, has its animated mesh re-uploaded less often (never when it
+        /// is near and on screen, so a machine that keeps up draws exactly as before).
+        public bool AdaptiveCulling;
+        const float SlowFrameSeconds = 0.036f, RecoveredFrameSeconds = 0.030f, FarMetres = 35f;
+        static float smoothedFrame, smoothedAt = -1f;
+        static bool slowGame;
+        static readonly Plane[] frustum = new Plane[6];
         public Color FrozenColor = new Color(0.55f, 0.8f, 1f, 0.35f);
         public string Name { get; }
         /// The object every model instance hangs under.
@@ -313,6 +322,24 @@ namespace Ror2Common
             if (needsVertexLighting) FindSun();
 
             foreach (var inst in instances.Values) inst.seen = false;
+            Camera culler = null;
+            Vector3 eye = default;
+            if (AdaptiveCulling)
+            {
+                if (smoothedAt != Time.unscaledTime)
+                {
+                    smoothedAt = Time.unscaledTime;
+                    float dt = Mathf.Min(Time.unscaledDeltaTime, 0.25f);
+                    smoothedFrame = smoothedFrame <= 0f ? dt : smoothedFrame + (dt - smoothedFrame) * 0.05f;
+                    if (slowGame ? smoothedFrame < RecoveredFrameSeconds : smoothedFrame > SlowFrameSeconds) slowGame = !slowGame;
+                }
+                if (slowGame && Camera.main)
+                {
+                    culler = Camera.main;
+                    eye = culler.transform.position;
+                    GeometryUtility.CalculateFrustumPlanes(culler, frustum);
+                }
+            }
             for (int i = 0; i < drawCount; i++)
             {
                 var d = draws[i];
@@ -341,7 +368,14 @@ namespace Ror2Common
                 t.localScale = new Vector3(-scale, scale, scale);
 
                 int vn = model.vertexCount;
-                if (!model.sharedGeometry || !model.geometryReady)
+                bool keepMesh = false;
+                if (culler && inst.uploaded && !model.sharedGeometry)
+                {
+                    var centre = t.position;
+                    keepMesh = !GeometryUtility.TestPlanesAABB(frustum, new Bounds(centre, new Vector3(4f, 4f, 4f))) ||
+                        ((centre - eye).sqrMagnitude > FarMetres * FarMetres && (Time.frameCount + (int)(d.key & 7)) % 3 != 0);
+                }
+                if (!keepMesh && (!model.sharedGeometry || !model.geometryReady))
                 {
                     if (vbuf.Length < vn)
                     {
@@ -374,8 +408,9 @@ namespace Ror2Common
                         inst.mesh.SetUVs(0, ubuf, 0, vn);
                     }
                     model.geometryReady = true;
+                    inst.uploaded = true;
                 }
-                if (model.lightsVertices)
+                if (model.lightsVertices && !keepMesh)
                 {
                     Light(model, t.rotation, vn);
                     inst.mesh.SetColors(cbuf, 0, vn);
