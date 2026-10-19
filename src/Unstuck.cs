@@ -14,14 +14,17 @@ namespace Ror2Common
         const float Delay = 3f;
         Vector3 anchor, safeFeet;
         bool watching, hasSafeFeet;
-        float elapsed, safeAge, airborne;
+        float elapsed, safeAge, airborne, noSafe;
+        Vector3 startFeet;
+        bool hasStart;
         RoR2.MapZone ignored;
 
         // External teleports, vehicles, death and loss of authority invalidate old ground.
         public void Reset()
         {
             watching = hasSafeFeet = false;
-            elapsed = safeAge = airborne = 0f;
+            elapsed = safeAge = airborne = noSafe = 0f;
+            hasStart = false;
         }
 
         /// The last spot the body stood on safely, if it has one.
@@ -40,6 +43,32 @@ namespace Ror2Common
 
         public bool Lost(Vector3 feet, float drop = VoidDrop) =>
             hasSafeFeet && safeFeet.y - feet.y > drop && !WorldProbe.Ground(feet, VoidReach, out _);
+
+        /// A body that has never stood anywhere safe since it was placed (a crash pod that landed on a scene
+        /// object and put it out under the map): after a few seconds, falling or inside an out-of-bounds map
+        /// zone, it goes back to the map's nearest player spawn point to where it started. `destination` is
+        /// the ground at the spawn point.
+        bool NoFootingFall(Vector3 feet, float height, GroundProbe probe, out Vector3 destination)
+        {
+            destination = default;
+            if (!hasStart || noSafe < 5f) return false;
+            if (airborne < 3f && !WorldProbe.InMapZone(feet + Vector3.up * (height * 0.5f), out _)) return false;
+            var spawns = RoR2.SpawnPoint.readOnlyInstancesList;
+            Vector3 best = default;
+            float bestDistance = float.PositiveInfinity;
+            for (int i = 0; i < spawns.Count; i++)
+            {
+                if (!spawns[i]) continue;
+                var at = spawns[i].transform.position;
+                float distance = (at - startFeet).sqrMagnitude;
+                if (distance < bestDistance) { bestDistance = distance; best = at; }
+            }
+            if (float.IsInfinity(bestDistance)) return false;
+            destination = probe(best, height * 2f, height * 3f, out var clear) ? clear : best + Vector3.up * 0.5f;
+            noSafe = 0f;
+            CommonLog.Info($"No safe footing since it was placed at {startFeet}: back at the nearest spawn point {destination}");
+            return true;
+        }
 
         /// A fall that has gone on too long: airborne for `seconds` without touching anything and well
         /// below the last standing spot, whatever the map zones or ground probes say. Catches a drop
@@ -76,7 +105,7 @@ namespace Ror2Common
             float anyDrop = AnyDrop)
         {
             destination = default;
-            if (!hasSafeFeet) return false;
+            if (!hasSafeFeet) return NoFootingFall(feet, height, probe, out destination);
             if (safeFeet.y - feet.y < anyDrop)
             {
                 if (!WorldProbe.InMapZone(feet + Vector3.up * (height * 0.5f), out var zone)) return false;
@@ -103,6 +132,8 @@ namespace Ror2Common
             float tolerance = Mathf.Max(0.05f, height * 0.08f);
             safeAge += dt;
             airborne = grounded ? 0f : airborne + dt;
+            if (!hasStart) { startFeet = feet; hasStart = true; }
+            if (!hasSafeFeet) noSafe += dt;
             if (!fallen && grounded && !held && safeAge >= 0.25f)
             {
                 safeAge = 0f;
