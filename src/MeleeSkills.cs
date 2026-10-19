@@ -1,3 +1,4 @@
+using System;
 using RoR2;
 using RoR2.ContentManagement;
 using UnityEngine;
@@ -30,6 +31,11 @@ namespace Ror2Common
         public string extraTitleToken;  // loadout title for that fifth slot
         public string extraTitle;       // displayed loadout title
         public string extraActionName;  // input prompt shown on the extra icon
+        /// Native move id -> skill slot index (0..4). Null uses the shared
+        /// default (neutral->primary, side->utility, up->special, down->extra,
+        /// else secondary). Fighters whose specials sit on different buttons
+        /// supply their own mapping.
+        public Func<uint, int> slotForMove;
     }
 
     /// The built skills for one fighter, plus the shared slot helpers every
@@ -39,14 +45,20 @@ namespace Ror2Common
         public readonly NativeSkillDef[] Stock = new NativeSkillDef[4];
         public NativeSkillDef Extra, ExtraAlt;
         public string ExtraName;
+        readonly Func<uint, int> slotForMove;
         public static readonly SkillSlot[] Slots =
             { SkillSlot.Primary, SkillSlot.Secondary, SkillSlot.Utility, SkillSlot.Special };
 
-        /// Native move id to skill slot index (0..4). Moves 20..24 are the shared
-        /// special slots (neutral, side/super, up, down); every other move is the
-        /// contextual-A secondary slot.
-        public static int Slot(uint move) =>
+        internal MeleeSkillSet(Func<uint, int> slotForMove) { this.slotForMove = slotForMove; }
+
+        /// The shared default mapping: native specials 20..24 sit in the stock
+        /// slot order (neutral->primary, side/super->utility, up->special,
+        /// down->extra); every other move (contextual A, grabs) is the secondary.
+        public static int DefaultSlot(uint move) =>
             move == 20 ? 0 : move == 21 || move == 22 ? 2 : move == 23 ? 3 : move == 24 ? 4 : 1;
+
+        /// This fighter's native move -> skill slot index (0..4).
+        public int Slot(uint move) => slotForMove(move);
 
         public GenericSkill Get(CharacterBody body, int slot) =>
             slot == 4 ? body.skillLocator.FindSkill(ExtraName) : body.skillLocator.GetSkill(Slots[slot]);
@@ -72,7 +84,7 @@ namespace Ror2Common
     {
         public static MeleeSkillSet Build(GameObject body, ContentPack pack, in MeleeSkillLayout layout)
         {
-            var set = new MeleeSkillSet { ExtraName = layout.extraName };
+            var set = new MeleeSkillSet(layout.slotForMove ?? MeleeSkillSet.DefaultSlot) { ExtraName = layout.extraName };
             MeleeSkillInfo[] stock = { layout.primary, layout.secondary, layout.utility, layout.special };
             for (int i = 0; i < 4; i++)
             {
