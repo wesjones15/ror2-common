@@ -41,8 +41,10 @@ namespace Ror2Common
         public const float VoidDrop = 20f;
         public const float VoidReach = 2000f;
 
+        // Only below the stage's lowest ground counts as off the map (StageFloor): a long drop onto lower
+        // ground is not "too bad", and the stage's own out-of-bounds zones above its floor do not send him back.
         public bool Lost(Vector3 feet, float drop = VoidDrop) =>
-            hasSafeFeet && safeFeet.y - feet.y > drop && !WorldProbe.Ground(feet, VoidReach, out _);
+            hasSafeFeet && safeFeet.y - feet.y > drop && StageFloor.Below(feet) && !WorldProbe.Ground(feet, VoidReach, out _);
 
         /// A body that has never stood anywhere safe since it was placed (a crash pod that landed on a scene
         /// object and put it out under the map): after a few seconds, falling or inside an out-of-bounds map
@@ -106,7 +108,13 @@ namespace Ror2Common
         {
             destination = default;
             if (!hasSafeFeet) return NoFootingFall(feet, height, probe, out destination);
-            if (safeFeet.y - feet.y < anyDrop)
+            if (safeFeet.y - feet.y >= anyDrop)
+            {
+                // A far drop is only off the map below the stage's lowest ground (StageFloor). A stage's own
+                // out-of-bounds zones, which also catch a body put under the map, are not held to this.
+                if (!StageFloor.Below(feet)) return false;
+            }
+            else
             {
                 if (!WorldProbe.InMapZone(feet + Vector3.up * (height * 0.5f), out var zone)) return false;
                 // A zone that fires at the last standing spot too is not telling the body it fell:
