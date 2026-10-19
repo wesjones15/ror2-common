@@ -42,44 +42,36 @@ namespace Ror2Common
         void OnDestroy(){source?.Dispose();source=null;}
     }
 
-    public interface IMeleeRoundSound : IDisposable { void Step(); }
-    /// RoR2 end-of-run trigger, with a Melee-style on-screen GAME! burst.
-    /// The fighter supplies the source voice through its extracted audio bank.
+    public interface IMeleeRoundEffect : IDisposable
+    {
+        /// Advance the burst animation and pump the round voice.
+        void Step(float dt);
+        /// Render the burst model after the camera has moved for this frame.
+        void Draw();
+    }
+    /// RoR2 end-of-run trigger, with the original Melee on-screen GAME! burst.
+    /// The fighter supplies the source voice through its extracted audio bank
+    /// and the burst model through its extracted results scene (IfAll.usd).
     public sealed class MeleeGameBanner : MonoBehaviour
     {
-        IMeleeRoundSound sound;
+        IMeleeRoundEffect effect;
         float age;
-        GUIStyle front,shadow;
-        public static void Show(IMeleeRoundSound sound)
+        public static void Show(IMeleeRoundEffect effect)
         {
             var go=new GameObject("Melee GAME banner");
             DontDestroyOnLoad(go);
-            go.AddComponent<MeleeGameBanner>().sound=sound;
+            go.AddComponent<MeleeGameBanner>().effect=effect;
         }
         void Update()
         {
             age+=Time.unscaledDeltaTime;
-            try{sound?.Step();}catch(Exception e){CommonLog.Error("Melee round sound: "+e);sound?.Dispose();sound=null;}
+            try{effect?.Step(Time.unscaledDeltaTime);}catch(Exception e){CommonLog.Error("Melee round effect: "+e);effect?.Dispose();effect=null;}
             if(age>3.2f)Destroy(gameObject);
         }
-        void OnGUI()
+        void LateUpdate()
         {
-            if(age>2.8f)return;
-            if(front==null){
-                front=new GUIStyle(GUI.skin.label){alignment=TextAnchor.MiddleCenter,fontStyle=FontStyle.Bold};
-                shadow=new GUIStyle(front);
-            }
-            float pop=age<0.18f?Mathf.Lerp(2.1f,1f,age/0.18f):1f;
-            int size=Mathf.RoundToInt(Mathf.Min(Screen.width*0.15f,150f)*pop);
-            front.fontSize=shadow.fontSize=size;
-            float alpha=Mathf.Clamp01((3.0f-age)*3f);
-            front.normal.textColor=new Color(1f,0.93f,0.60f,alpha);
-            shadow.normal.textColor=new Color(0.15f,0.08f,0.06f,alpha);
-            var rect=new Rect(0,Screen.height*0.31f,Screen.width,Screen.height*0.28f);
-            for(int x=-4;x<=4;x+=4)for(int y=-4;y<=4;y+=4)
-                if(x!=0||y!=0)GUI.Label(new Rect(rect.x+x,rect.y+y,rect.width,rect.height),"GAME!",shadow);
-            GUI.Label(rect,"GAME!",front);
+            try{effect?.Draw();}catch(Exception e){CommonLog.Error("Melee round draw: "+e);effect?.Dispose();effect=null;}
         }
-        void OnDestroy(){sound?.Dispose();sound=null;}
+        void OnDestroy(){effect?.Dispose();effect=null;}
     }
 }
