@@ -114,6 +114,7 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_portrait(byte[] dir,uint kind,uint costume,out ViewTexture info,[Out]byte[] rgba,uint len);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_extract(byte[] disc,byte[] dir,uint kind);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_sim_new(byte[] dir,Vec3 position);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_sim_new_fighter(byte[] dir,Vec3 position,uint kind);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_free(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_step(IntPtr sim,in Host host,in Pad pad,double dt);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_state(IntPtr sim,out State state);

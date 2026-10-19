@@ -45,6 +45,8 @@ namespace Ror2Common
         // --- Per-fighter seam -------------------------------------------------
         protected abstract string FighterName { get; }
         protected abstract string AssetsDir { get; }
+        /// The fighter's native `FighterKind`, used to construct its sim.
+        protected abstract uint FighterKind { get; }
         protected abstract float MetresPerUnit { get; }
         protected abstract float JumpScale { get; }
         protected abstract bool HoldCharge { get; }
@@ -174,7 +176,7 @@ namespace Ror2Common
             recovery = GetComponent<MeleeRecovery>();
             lastHealth = body.healthComponent.combinedHealth;
             if (RecoveryGround(safe, 0.6f, 0.8f, out var standing)) { safe = standing; transform.position = standing + feetOffset; }
-            sim = MeleeNative.ssbm_sim_new(NativeLib.CString(AssetsDir), ToSim(safe)); if (sim == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
+            sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(AssetsDir), ToSim(safe), FighterKind); if (sim == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
             CreatePresentation();
             self = GCHandle.Alloc(this);
             if (MeleeNative.ssbm_sim_begin_arrival(sim, NativeLib.CString(AssetsDir)) != 1) throw new InvalidOperationException(MeleeNative.Error);
