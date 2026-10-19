@@ -18,6 +18,8 @@ static class Program
         public int texture = -1;
         public float alpha = 1f;
         public byte flags;
+        public uint count = 2;
+        public ulong firstKey = 1;
         public void Tint(Color color) { ((Color[])colors.Target)[0] = color; }
         public Source()
         {
@@ -41,9 +43,9 @@ static class Program
         }
         public uint Draws(ViewDraw[] output, uint max)
         {
-            if (output != null) for (uint i = 0; i < 2; i++)
-                output[i] = new ViewDraw { key = i + 1, model = model, alpha = alpha, flags = flags, rot_w = 1, pos = new ViewVec3(i * 10, 0, 0) };
-            return 2;
+            if (output != null) for (uint i = 0; i < count; i++)
+                output[i] = new ViewDraw { key = i + firstKey, model = model, alpha = alpha, flags = flags, rot_w = 1, pos = new ViewVec3(i * 10, 0, 0) };
+            return count;
         }
         public IntPtr Positions(out uint count) { count = 1; return positions.AddrOfPinnedObject(); }
         public IntPtr Normals(out uint count) { count = 1; return normals.AddrOfPinnedObject(); }
@@ -131,6 +133,42 @@ static class Program
             view.Update(1); view.Update(1);
             Check(Texture2D.uploads == uploads + 1, "two instances refresh one shared texture exactly once");
         }
+        using (var source = new Source())
+        using (var view = ModelView.Create(source, "retirement"))
+        {
+            Time.unscaledTime = 0;
+            view.Update(1);
+            var mesh = Field<Mesh>(Instance(view, 1), "mesh");
+            var go = Field<GameObject>(Instance(view, 1), "go");
+            int uploads = Mesh.uploads;
+            source.flags = 4;
+            view.Update(1);
+            Check(Mesh.uploads == uploads && go.activeSelf, "retained pose draws without uploading geometry");
+            source.count = 0;
+            Time.unscaledTime = 1;
+            view.Update(1);
+            Check(!go.activeSelf && !mesh.destroyed, "temporarily hidden geometry stays warm");
+            Time.unscaledTime = 3;
+            view.Update(1);
+            Check(Instance(view, 1) == null && mesh.destroyed && go.destroyed, "retired objects and owned meshes are freed");
+            source.count = 2;
+            view.Update(1);
+            Check(!Field<GameObject>(Instance(view, 1), "go").activeSelf, "new instance waits for a real pose");
+            source.flags = 0;
+            view.Update(1);
+            Check(Field<GameObject>(Instance(view, 1), "go").activeSelf, "returning geometry uploads and draws");
+        }
+        using (var source = new Rigid())
+        using (var view = ModelView.Create(source, "shared retirement"))
+        {
+            view.Update(1);
+            var mesh = Field<Mesh>(Instance(view, 1), "mesh");
+            source.count = 0;
+            Time.unscaledTime += 3;
+            view.Update(1);
+            Check(!mesh.destroyed, "retiring instances never destroys shared geometry");
+        }
+        Check(!UnityEngine.Object.doubleDestroyed, "retirement and disposal preserve ownership");
         Console.WriteLine("ModelViewCheck: ok");
     }
 }

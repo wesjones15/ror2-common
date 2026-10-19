@@ -59,7 +59,7 @@ namespace Ror2Common
         public ulong key;
         public uint model;
         public byte kind;
-        /// 1: flashing from a hit.
+        /// 1: hit flash; 2: frozen; 4: retain previous mesh (no vertices in this draw).
         public byte flags;
         public byte pad0, pad1;
         public ViewVec3 pos;

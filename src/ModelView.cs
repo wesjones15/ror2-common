@@ -49,6 +49,7 @@ namespace Ror2Common
             public Material skin;
             public BlockState[] blocks;
             public bool uploaded;
+            public float lastSeen;
         }
 
         // Unity copies a property block on every submission. Most native batches keep the
@@ -67,6 +68,9 @@ namespace Ror2Common
         Model[] models;
         bool needsVertexLighting;
         readonly Dictionary<ulong, Instance> instances = new Dictionary<ulong, Instance>();
+        readonly List<ulong> retired = new List<ulong>();
+        // Keep briefly hidden parts warm, but never retain an entire stage's spawn history.
+        const float InstanceGraceSeconds = 2f;
         readonly Dictionary<int, Texture2D> textures = new Dictionary<int, Texture2D>();
         sealed class AnimatedTexture { public uint version; public byte[] pixels; }
         readonly Dictionary<int, AnimatedTexture> animatedTextures = new Dictionary<int, AnimatedTexture>();
@@ -93,6 +97,11 @@ namespace Ror2Common
         /// the camera's view, or far from it, has its animated mesh re-uploaded less often (never when it
         /// is near and on screen, so a machine that keeps up draws exactly as before).
         public bool AdaptiveCulling;
+        /// A native source schedules its own retained poses; never throttle its fresh uploads
+        /// a second time on an unrelated frame counter (which can starve them indefinitely).
+        public bool NativePoseBudget;
+        /// Native sources may skip distant skinning under the same pressure as mesh uploads.
+        public float PoseBudgetDistance => AdaptiveCulling && slowGame ? FarMetres : 0f;
         const float SlowFrameSeconds = 0.036f, RecoveredFrameSeconds = 0.030f, FarMetres = 35f;
         static float smoothedFrame, smoothedAt = -1f;
         static bool slowGame;
@@ -318,7 +327,7 @@ namespace Ror2Common
             var tid = (int*)src.TextureIds(out uint tc);
             var uvs = (Vector2*)src.FrameUvs(out uint uc);
             RefreshTextures();
-            if (pos == null || nrm == null || col == null || tid == null) drawCount = 0;
+            if (col == null || tid == null) drawCount = 0;
             if (needsVertexLighting) FindSun();
 
             foreach (var inst in instances.Values) inst.seen = false;
@@ -333,7 +342,7 @@ namespace Ror2Common
                     smoothedFrame = smoothedFrame <= 0f ? dt : smoothedFrame + (dt - smoothedFrame) * 0.05f;
                     if (slowGame ? smoothedFrame < RecoveredFrameSeconds : smoothedFrame > SlowFrameSeconds) slowGame = !slowGame;
                 }
-                if (slowGame && Camera.main)
+                if (slowGame && !NativePoseBudget && Camera.main)
                 {
                     culler = Camera.main;
                     eye = culler.transform.position;
@@ -347,9 +356,14 @@ namespace Ror2Common
                 if (hide != null && hide(d)) continue;
                 var model = models[d.model];
                 int bn = model.batches.Length;
-                if (d.first_vertex + model.vertexCount > vc || d.first_color + bn > Math.Min(cc, tc)) continue;
+                // Flag 4: native source retained the previous pose, so no vertices accompany
+                // this draw. Transforms/materials still update; a new instance waits for a pose.
+                bool retainedPose = (d.flags & 4) != 0;
+                if ((!retainedPose && (pos == null || nrm == null || d.first_vertex + model.vertexCount > vc)) || d.first_color + bn > Math.Min(cc, tc)) continue;
                 var inst = Get(d.key, d.model);
                 inst.seen = true;
+                inst.lastSeen = Time.unscaledTime;
+                if (retainedPose && !inst.uploaded) { inst.go.SetActive(false); continue; }
                 if (!inst.go.activeSelf) inst.go.SetActive(true);
                 var t = inst.go.transform;
                 var at = place?.Invoke(d);
@@ -368,8 +382,8 @@ namespace Ror2Common
                 t.localScale = new Vector3(-scale, scale, scale);
 
                 int vn = model.vertexCount;
-                bool keepMesh = false;
-                if (culler && inst.uploaded && !model.sharedGeometry)
+                bool keepMesh = retainedPose;
+                if (!keepMesh && culler && inst.uploaded && !model.sharedGeometry)
                 {
                     var centre = t.position;
                     keepMesh = !GeometryUtility.TestPlanesAABB(frustum, new Bounds(centre, new Vector3(4f, 4f, 4f))) ||
@@ -472,8 +486,21 @@ namespace Ror2Common
                     inst.blocks[b] = state;
                 }
             }
-            foreach (var inst in instances.Values)
-                if (!inst.seen && inst.go.activeSelf) inst.go.SetActive(false);
+            retired.Clear();
+            foreach (var pair in instances)
+            {
+                var inst = pair.Value;
+                if (inst.seen) continue;
+                if (inst.go.activeSelf) inst.go.SetActive(false);
+                if (Time.unscaledTime - inst.lastSeen >= InstanceGraceSeconds) retired.Add(pair.Key);
+            }
+            foreach (var key in retired)
+            {
+                var inst = instances[key];
+                if (!models[inst.model].sharedGeometry) UnityEngine.Object.Destroy(inst.mesh);
+                UnityEngine.Object.Destroy(inst.go);
+                instances.Remove(key);
+            }
         }
 
         // The skin for a draw: SkinFor's (a copy drawn both sides), else the view's.
@@ -566,6 +593,7 @@ namespace Ror2Common
                 inst.mesh = InstanceMesh(models[model]);
                 inst.go.GetComponent<MeshFilter>().sharedMesh = inst.mesh;
                 inst.model = model;
+                inst.uploaded = false;
                 ResetMaterials(inst);
                 return inst;
             }

@@ -49,6 +49,7 @@ namespace UnityEngine
         public static Vector3 one => new Vector3(1, 1, 1);
         public static Vector3 up => new Vector3(0, 1, 0);
         public Vector3 normalized => this;
+        public float sqrMagnitude => x * x + y * y + z * z;
         public static Vector3 operator +(Vector3 a, Vector3 b) => new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
         public static Vector3 operator -(Vector3 a, Vector3 b) => new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
         public static Vector3 operator -(Vector3 a) => a * -1;
@@ -70,11 +71,19 @@ namespace UnityEngine
         public static Color operator *(Color c, float f) => new Color(c.r * f, c.g * f, c.b * f, c.a * f);
     }
     public struct Bounds { public Bounds(Vector3 center, Vector3 size) { } }
+    public struct Plane { }
+    public class Camera : Object { public static Camera main; public Transform transform = new Transform(); }
+    public static class GeometryUtility
+    {
+        public static void CalculateFrustumPlanes(Camera camera, Plane[] planes) { }
+        public static bool TestPlanesAABB(Plane[] planes, Bounds bounds) => true;
+    }
     public static class Mathf
     {
         public static float Clamp01(float f) => Math.Clamp(f, 0, 1);
         public static float Clamp(float f, float min, float max) => Math.Clamp(f, min, max);
         public static float Max(float a, float b) => Math.Max(a, b);
+        public static float Min(float a, float b) => Math.Min(a, b);
     }
     public class Mesh : Object
     {
@@ -135,7 +144,7 @@ namespace UnityEngine
     public enum LightType { Directional }
     public class Light : Object { public LightType type; public bool isActiveAndEnabled; public float intensity; public Transform transform = new Transform(); public Color color; }
     public static class RenderSettings { public static Light sun; public static Color ambientLight; }
-    public static class Time { public static float unscaledTime; }
+    public static class Time { public static float unscaledTime, unscaledDeltaTime; public static int frameCount; }
 }
 namespace UnityEngine.Rendering
 {
