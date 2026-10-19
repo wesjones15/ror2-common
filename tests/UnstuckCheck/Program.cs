@@ -130,7 +130,35 @@ static class Program
         Check(m.Lost(safe+new Vector3(0,-31f,0),30f),"Mario custom threshold ignored");
         m.Reset();Check(!m.FellEarly(new Vector3(0,-200f,0),Height,Floor,out _),"early recovery used stale ground after teleport");
 
-        Console.WriteLine("PASS: shared Mario 20m clear-void trigger, lower terrain/zone safeguards and timeout at 30/60/120 Hz, motion, jitter, idle, crowd control, reset, " +
+        // StageFloor gating: a drop is only "off the map" below the stage's lowest
+        // ground, so a descent onto lower terrain above it is not a rescue.
+        m.Reset();probe=Floor;
+        Step(m,new Vector3(0,.03f,0),fallen:false,grounded:true,dt:.25f);
+        Check(m.TryGetSafe(out safe),"missing safe origin for stage-floor gating");
+        StageFloor.found=true;StageFloor.lowest=-50f;
+        Check(!m.Lost(safe+new Vector3(0,-25f,0)),"early void above the stage floor");
+        StageFloor.lowest=-10f;
+        Check(m.Lost(safe+new Vector3(0,-25f,0)),"early void below the stage floor ignored");
+        StageFloor.lowest=-200f;
+        Check(!m.Fell(safe+new Vector3(0,-180f,0),Height,Floor,out _),"far drop above the stage floor triggered recovery");
+        StageFloor.lowest=-150f;
+        Check(m.Fell(safe+new Vector3(0,-180f,0),Height,Floor,out target),"far drop below the stage floor ignored");
+        StageFloor.found=false;
+
+        // No-footing rescue: never stood safely and kept falling, so the nearest
+        // player spawn point to where it started is used.
+        m.Reset();probe=Floor;
+        RoR2.SpawnPoint.readOnlyInstancesList=new System.Collections.Generic.List<RoR2.SpawnPoint>{
+            new RoR2.SpawnPoint{transform=new UnityEngine.Transform{position=new Vector3(80f,0f,0f)}},
+            new RoR2.SpawnPoint{transform=new UnityEngine.Transform{position=new Vector3(12f,0f,0f)}},
+            new RoR2.SpawnPoint{transform=new UnityEngine.Transform{position=new Vector3(40f,0f,0f)}},
+        };
+        for(int i=0;i<6*60;i++)Step(m,new Vector3(0f,-i*0.5f,0f));
+        Check(m.Fell(new Vector3(0f,-50f,0f),Height,Floor,out target),"no-footing fall did not use a spawn point");
+        Check(target.x>11.9f&&target.x<12.1f,"no-footing fall did not pick the nearest spawn point");
+        RoR2.SpawnPoint.readOnlyInstancesList=new System.Collections.Generic.List<RoR2.SpawnPoint>();
+
+        Console.WriteLine("PASS: shared Mario 20m clear-void trigger, stage-floor gating, no-footing spawn rescue, lower terrain/zone safeguards and timeout at 30/60/120 Hz, motion, jitter, idle, crowd control, reset, " +
             "nearby escape, fallback revalidation, failed-search retry");
     }
 }
@@ -158,11 +186,18 @@ namespace UnityEngine
         public static float Sin(float a) => (float)Math.Sin(a);
         public static float Cos(float a) => (float)Math.Cos(a);
     }
+    public class Object { public static implicit operator bool(Object obj) => obj != null; }
+    public class Transform : Object { public Vector3 position; }
 }
 
 namespace RoR2
 {
     public class MapZone { public string name, zoneType, triggerType; }
+    public class SpawnPoint : UnityEngine.Object
+    {
+        public UnityEngine.Transform transform;
+        public static System.Collections.Generic.List<SpawnPoint> readOnlyInstancesList = new System.Collections.Generic.List<SpawnPoint>();
+    }
 }
 
 namespace Ror2Common
@@ -176,4 +211,14 @@ namespace Ror2Common
         public static bool Triggers(RoR2.MapZone zone, Vector3 point) => zoneAtSafe;
     }
     static class CommonLog { public static void Info(string message) { } }
+    // Controllable stand-in for the stage's lowest ground graph node. A stage with
+    // no graph has no floor (found=false), matching StageFloor.TryLowest.
+    static class StageFloor
+    {
+        public const float Margin = 2f;
+        public static bool found;
+        public static float lowest;
+        public static bool TryLowest(out float y) { y = lowest; return found; }
+        public static bool Below(UnityEngine.Vector3 feet) => !TryLowest(out float y) || feet.y < y - Margin;
+    }
 }
