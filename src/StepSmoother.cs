@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace Ror2Common
@@ -41,6 +42,7 @@ namespace Ror2Common
         /// Starts over from where the body is, with nothing to blend.
         public void Reset()
         {
+            kept = 0;
             if (body) prev = cur = written = body.position;
         }
 
@@ -55,6 +57,54 @@ namespace Ror2Common
 
         /// This display frame's position, between the last two steps; moves the body there.
         public Vector3 Smooth() => Smooth(Alpha);
+
+        // Timed mode, for a machine too slow to draw a frame per step: several steps can land
+        // between two drawn frames, and blending only the last pair would skip the ones before
+        // it. Each step is kept with the sim time it was at, and a frame samples the line
+        // through them at the time it wants to show.
+        const int Kept = 8;
+        readonly double[] times = new double[Kept];
+        readonly Vector3[] points = new Vector3[Kept];
+        int kept;
+
+        /// A step as `Stepped(position)`, remembered as the sim's state at `time` (any steady
+        /// unit; ticks are fine).
+        public void Stepped(Vector3 position, double time)
+        {
+            if (kept == 0)
+            {
+                times[0] = time - 1;
+                points[0] = cur;
+                kept = 1;
+            }
+            Stepped(position);
+            if (kept == Kept)
+            {
+                Array.Copy(times, 1, times, 0, Kept - 1);
+                Array.Copy(points, 1, points, 0, Kept - 1);
+                kept--;
+            }
+            times[kept] = time;
+            points[kept++] = position;
+        }
+
+        /// The body at sim time `time` (clamped to the steps it has), moved there.
+        public Vector3 SmoothAt(double time)
+        {
+            if (kept == 0) return Smooth();
+            Vector3 p;
+            if (time <= times[0]) p = points[0];
+            else if (time >= times[kept - 1]) p = points[kept - 1];
+            else
+            {
+                int i = 1;
+                while (times[i] < time) i++;
+                float t = (float)((time - times[i - 1]) / Math.Max(1e-6, times[i] - times[i - 1]));
+                p = Vector3.Lerp(points[i - 1], points[i], t);
+            }
+            Place(p);
+            return p;
+        }
 
         /// A sim with its own clock (for example Pikmin's 30 Hz clock) supplies its alpha.
         public Vector3 Smooth(float alpha)
