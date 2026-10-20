@@ -12,9 +12,15 @@ namespace Ror2Common
         public const uint FighterSamus = 0;
         public const uint FighterFox = 1;
         public const uint FighterLuigi = 2;
+        public const uint FighterPikachu = 3;
+        public const uint FighterCaptain = 4;
+        public const uint FighterLink = 5;
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
         public static bool HasMaterialAlpha {get;private set;}
+        /// Staged-special exports (lock-on steering, hit notification, shot reflection).
+        /// Optional: only Pikachu's Quick Attack / Skull Bash / Thunder Shock use them.
+        public static bool HasStagedSpecials {get;private set;}
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_rebirth(IntPtr sim,byte[] dir,Vec3 destination);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_rebirth_flags(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_camera(IntPtr view,Vec3 camera);
@@ -63,6 +69,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasOverlay=false;}
             try {ssbm_view_alpha_sources(IntPtr.Zero,out _);HasMaterialAlpha=true;}
             catch(EntryPointNotFoundException){HasMaterialAlpha=false;}
+            try {ssbm_sim_lock_target(IntPtr.Zero,default,0);ssbm_sim_connect(IntPtr.Zero);ssbm_projectile_reflect(IntPtr.Zero,default);HasStagedSpecials=true;}
+            catch(EntryPointNotFoundException){HasStagedSpecials=false;}
             var sizes = new uint[14]; uint count=ssbm_struct_sizes(sizes,(uint)sizes.Length);
             error=NativeLib.CompareSizes(sizes,count,new[] {
                 ("Vec3",NativeLib.Size<Vec3>()),("Pad",NativeLib.Size<Pad>()),("State",NativeLib.Size<State>()),
@@ -97,6 +105,9 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_projectile_state(IntPtr projectile,out ProjectileState state);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_projectile_place(IntPtr projectile,Vec3 relative,uint grounded);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_projectile_bounce(IntPtr projectile);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_projectile_reflect(IntPtr projectile,Vec3 normal);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_lock_target(IntPtr sim,Vec3 target,uint valid);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_connect(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_projectile_impact(IntPtr projectile,IntPtr audio);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_projectile_free(IntPtr projectile);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_particles_new(byte[] dir);
