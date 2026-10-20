@@ -21,6 +21,7 @@ namespace Ror2Common
         readonly bool logEffects;
         readonly Func<uint, IMeleeObjectView> effectView;
         readonly Func<IMeleeObjectView> chargeView;
+        readonly MeleeNative.Vec3 introAim;
 
         MeleeFighterView view;
         uint shownCostume;
@@ -64,10 +65,15 @@ namespace Ror2Common
 
         /// <param name="effectView">Optional fighter effect view factory (source model id -> view).</param>
         /// <param name="chargeView">Optional charge-shot article view factory (Samus only).</param>
+        /// <param name="introUp">Aim straight up during the intro (a fighter whose up special follows the aim,
+        /// like Pikachu's Quick Attack, would otherwise zip sideways out of the preview).</param>
+        /// <param name="speedScale">Sim speed scale for the preview (1 = source tuning).</param>
         public MeleeSelectSource(string assetsDir, uint kind, Func<uint> costume, float scale,
             bool idleOnly = false, bool logEffects = false,
-            Func<uint, IMeleeObjectView> effectView = null, Func<IMeleeObjectView> chargeView = null)
+            Func<uint, IMeleeObjectView> effectView = null, Func<IMeleeObjectView> chargeView = null,
+            bool introUp = false, float speedScale = 1f)
         {
+            introAim = introUp ? new MeleeNative.Vec3(0, 1, 0) : new MeleeNative.Vec3(0, 0, 1);
             this.assetsDir = assetsDir;
             this.kind = kind;
             this.costume = costume;
@@ -79,6 +85,8 @@ namespace Ror2Common
 
             sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(assetsDir), default, kind);
             if (sim == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
+            if (speedScale != 1f)
+                MeleeNative.ssbm_sim_tuning(sim, new MeleeNative.Tuning { speed_scale = speedScale, jump_scale = 1f, extra_jumps = 0, hold_charge = 0, smash_max_frames = 60 });
             try
             {
                 shownCostume = costume();
@@ -110,7 +118,7 @@ namespace Ror2Common
             uint selected = costume();
             if (selected != shownCostume) { var replacement = new MeleeFighterView(assetsDir, kind, selected); view.Dispose(); view = replacement; shownCostume = selected; }
             if (idleOnly) { view.IdlePose(); view.LocalPosition = drawOffset; view.LocalRotation = previewRotation; return; }
-            var pad = new MeleeNative.Pad { aim = new MeleeNative.Vec3(0, 0, 1), allowed = 0 };
+            var pad = new MeleeNative.Pad { aim = introAim, allowed = 0 };
             if (requestIntro)
             {
                 Advance(in pad, 1f / 60);

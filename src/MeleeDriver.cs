@@ -76,6 +76,9 @@ namespace Ror2Common
         protected abstract void OnEventHit(MeleeNative.Event e);
         protected abstract void FallbackSkills();
         protected virtual void OnSimStarted() { }
+        /// Runs each fixed tick after input is read and before the sim steps: a fighter
+        /// feeds the sim host-side context here (Pikachu's lock-on target).
+        protected virtual void BeforeStep(in MeleeNative.Pad pad) { }
 
         // --- Generic core -----------------------------------------------------
         protected void FaceTarget()
@@ -134,6 +137,7 @@ namespace Ror2Common
                 MeleeNative.ssbm_sim_jump_height(sim, MeleeControls.JumpHeight(body.jumpPower, Physics.gravity.y, motor.jumpPowerPenaltyCoefficient) / scale);
                 FaceTarget();
                 if (direction) { var facing = direction.forward; MeleeNative.ssbm_sim_facing(sim, new MeleeNative.Vec3(facing.x, 0, facing.z)); }
+                BeforeStep(in p);
                 MeleeNative.ssbm_sim_step(sim, in host, in p, Time.fixedDeltaTime);
                 uint previousRecovery = recoveryFlags; recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim);
                 recovery?.Refresh();
