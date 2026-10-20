@@ -34,6 +34,7 @@ namespace Ror2Common
         static readonly Quaternion previewRotation = Quaternion.identity;
 
         public bool IntroFinished { get; private set; }
+        public bool AudioActive => MeleeNative.ssbm_sim_audio_active(sim) == 1;
         public int AudioRate => 32000;
         public Vector3 DrawOffset { set { drawOffset = value; } }
         public ModelView Models => view.Models;

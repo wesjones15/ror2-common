@@ -11,6 +11,10 @@ namespace Ror2Common
         float Scale { get; }
         int AudioRate { get; }
         bool IntroFinished { get; }
+        /// Whether any intro audio (the announcer name call, the up-B cue) is
+        /// still playing. The presenter keeps its stream alive until this is
+        /// false so a name call is never cut off by the intro finishing first.
+        bool AudioActive { get; }
         /// Posed body anchor in display space, excluding the current draw offset.
         Vector3 PoseAnchor { get; }
         Vector3 DrawOffset { set; }
@@ -57,7 +61,10 @@ namespace Ror2Common
             if (intro) source.DrawOffset = Vector3.zero;
             if (intro) FramePreview(source.RiseMetres);
             if (!intro || audioFinished) return;
-            if (source.IntroFinished)
+            // The intro move can finish before the announcer name call does (a
+            // short up-B); keep the stream alive until the mixer is silent so the
+            // name plays its full length.
+            if (source.IntroFinished && !source.AudioActive)
             {
                 audio?.Dispose(); audio = null; audioFinished = true;
                 return;

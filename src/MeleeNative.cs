@@ -122,6 +122,7 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_hitboxes(IntPtr sim,[Out]HitboxSample[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_audio(IntPtr sim,[Out]float[] stereo,uint frames);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_play_sound(IntPtr sim,uint sound);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_audio_active(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_tuning(IntPtr sim,Tuning tuning);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_mobile_moves(IntPtr sim,ulong mask);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_place(IntPtr sim,Vec3 vector,uint kind);
