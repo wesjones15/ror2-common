@@ -29,6 +29,10 @@ namespace Ror2Common
 
     public static class MeleeSurvivor
     {
+        // The shared arrival state is registered once per plugin; every fighter
+        // reuses the same type, so a per-fighter Add would collide on the second
+        // survivor and abort its skill/skin registration.
+        static bool arrivalRegistered;
         /// Clones the Commando body/display, applies the fighter's stats and
         /// layouts, registers its skills/skins/survivor, and returns the built
         /// skill set for the driver to read charges from.
@@ -78,7 +82,12 @@ namespace Ror2Common
             survivor.desiredSortPosition = def.sortPosition;
             pack.bodyPrefabs.Add(new[] { body });
             pack.survivorDefs.Add(new[] { survivor });
-            pack.entityStateTypes.Add(new[] { def.mainStateType, typeof(MeleeArrival) });
+            pack.entityStateTypes.Add(new[] { def.mainStateType });
+            if (!arrivalRegistered)
+            {
+                pack.entityStateTypes.Add(new[] { typeof(MeleeArrival) });
+                arrivalRegistered = true;
+            }
             GlyphOverride.Set(body.name, () => true, def.glyphs);
             return skills;
         }
