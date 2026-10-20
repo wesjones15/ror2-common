@@ -15,6 +15,8 @@ namespace Ror2Common
         public const uint FighterPikachu = 3;
         public const uint FighterCaptain = 4;
         public const uint FighterLink = 5;
+        public const uint FighterYoshi = 6;
+        public const uint FighterDonkey = 7;
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
         public static bool HasMaterialAlpha {get;private set;}
