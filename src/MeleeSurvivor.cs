@@ -60,7 +60,10 @@ namespace Ror2Common
             body.AddComponent<MeleeDefense>();
             var skills = MeleeSkills.Build(body, pack, def.skills);
             var lobby = Prefabs.Clone(display, def.displayName, guid);
-            DisplayModel.Attach(lobby, guid, def.displayFactory);
+            // The display factory id must be per-fighter: it is the key in the
+            // shared DisplayModel factory table, so a shared guid would let one
+            // fighter overwrite another's lobby display.
+            DisplayModel.Attach(lobby, def.bodyName, def.displayFactory);
             Portrait.RequestTexture(body, def.portraitFactory);
             MeleeSkins.Add(body, pack, def.skins);
             var survivor = ScriptableObject.CreateInstance<SurvivorDef>();

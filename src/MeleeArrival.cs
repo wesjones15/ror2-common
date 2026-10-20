@@ -19,7 +19,11 @@ namespace Ror2Common
             if(NetworkServer.active&&characterBody){characterBody.AddBuff(RoR2Content.Buffs.HiddenInvincibility);protectedBody=true;}}
         public override void FixedUpdate(){base.FixedUpdate();
             if(isAuthority&&(actor==null||!actor.Arriving))outer.SetNextStateToMain();}
-        public override void OnExit(){if(protectedBody&&characterBody)characterBody.RemoveBuff(RoR2Content.Buffs.HiddenInvincibility);if(actor!=null)actor.Arriving=false;base.OnExit();}
+        public override void OnExit(){if(protectedBody&&characterBody)characterBody.RemoveBuff(RoR2Content.Buffs.HiddenInvincibility);if(actor!=null)actor.Arriving=false;
+            // Undo the OnEnter hide so a fallback (assets missing) leaves the stock
+            // model visible; the active driver re-hides it in LateUpdate.
+            if(characterBody&&characterBody.modelLocator&&characterBody.modelLocator.modelTransform){var model=characterBody.modelLocator.modelTransform;GameSettings.HideRenderers(model,false);var animator=model.GetComponent<Animator>();if(animator)animator.enabled=true;}
+            base.OnExit();}
         public override InterruptPriority GetMinimumInterruptPriority()=>InterruptPriority.Death;
     }
 }
