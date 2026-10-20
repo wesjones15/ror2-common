@@ -15,10 +15,27 @@ namespace Ror2Common
     // One render, by hand, of the character alone on RoR2's ManualRender layer with a light
     // of its own, framed on the upper body and seen from the front; done over a black and a
     // white background so the difference gives the alpha.
+    /// How a portrait is framed. All zero is the default, a front view as before.
+    public struct PortraitFraming
+    {
+        /// Turns the character this many degrees toward the left of the picture (the camera orbits the
+        /// other way), for a three-quarter view.
+        public float TurnLeftDegrees;
+        /// Closer by this factor (1.15 is 15% closer); 0 or 1 is as before. The head stays where it was in
+        /// the frame, so the lower body is what is cropped.
+        public float Zoom;
+        /// Pans the frame up by this fraction of its height (positive moves the view up, the character down).
+        public float PanUp;
+
+        /// Turned 45 degrees to the left, a little closer, the head kept in frame.
+        public static PortraitFraming ThreeQuarter => new PortraitFraming { TurnLeftDegrees = 45f, Zoom = 1.14f, PanUp = 0.02f };
+    }
+
     public static class Portrait
     {
         sealed class Job
         {
+            public PortraitFraming framing;
             public GameObject body;
             public Func<IDisplayActor> make;
             public int size;
@@ -32,9 +49,10 @@ namespace Ror2Common
         /// Gives `bodyPrefab` a `size`-pixel square portrait of what `make` lends out (the same
         /// factory as DisplayModel.Attach), leaving out the draws `hide` picks (company standing
         /// beside the character). Call at content load.
-        public static void Request(GameObject bodyPrefab, Func<IDisplayActor> make, Func<ViewDraw, bool> hide = null, int size = 256)
+        public static void Request(GameObject bodyPrefab, Func<IDisplayActor> make, Func<ViewDraw, bool> hide = null, int size = 256,
+            PortraitFraming framing = default)
         {
-            pending.Add(new Job { body = bodyPrefab, make = make, size = size, hide = hide });
+            pending.Add(new Job { body = bodyPrefab, make = make, size = size, hide = hide, framing = framing });
             EnsureRunner();
         }
 
@@ -173,10 +191,20 @@ namespace Ror2Common
                     else slice = new Bounds(p, Vector3.zero);
                     any = true;
                 }
-                float view = Mathf.Max(h * 0.5f, Mathf.Max(slice.size.x, slice.size.z)) * 1.08f;
-                var centre = new Vector3(slice.center.x, top + view * 0.04f - view * 0.5f, slice.center.z);
+                var framing = job.framing;
+                float turn = framing.TurnLeftDegrees;
+                float zoom = framing.Zoom > 0f ? framing.Zoom : 1f;
+                float turned = turn * Mathf.Deg2Rad;
+                // Seen from an angle the width across the picture is a mix of the two horizontal sizes.
+                float across = Mathf.Max(slice.size.x, slice.size.z, Mathf.Abs(Mathf.Cos(turned)) * slice.size.x + Mathf.Abs(Mathf.Sin(turned)) * slice.size.z);
+                float view = Mathf.Max(h * 0.5f, across) * 1.08f / zoom;
+                var centre = new Vector3(slice.center.x, top + view * 0.04f - view * 0.5f + view * framing.PanUp, slice.center.z);
                 const float fov = 20f;
-                float dist = view * 0.5f / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) + slice.extents.z;
+                float depth = turn == 0f ? slice.extents.z : Mathf.Max(slice.extents.x, slice.extents.z);
+                float dist = view * 0.5f / Mathf.Tan(fov * 0.5f * Mathf.Deg2Rad) + depth;
+                // The camera orbits the opposite way to the turn: the character turns left in the picture.
+                var orbit = Quaternion.AngleAxis(-turn, Vector3.up);
+                var toCamera = orbit * stage.forward;
 
                 camGo = new GameObject("portrait camera");
                 var cam = camGo.AddComponent<Camera>();
@@ -190,8 +218,8 @@ namespace Ror2Common
                 cam.allowMSAA = false;
                 // HGStandard supplies a deferred pass; a standalone camera must use it too.
                 cam.renderingPath = RenderingPath.DeferredShading;
-                camGo.transform.position = centre + stage.forward * dist;
-                camGo.transform.rotation = Quaternion.LookRotation(-stage.forward, Vector3.up);
+                camGo.transform.position = centre + toCamera * dist;
+                camGo.transform.rotation = Quaternion.LookRotation(-toCamera, Vector3.up);
 
                 lightGo = new GameObject("portrait light");
                 var light = lightGo.AddComponent<Light>();
@@ -199,7 +227,7 @@ namespace Ror2Common
                 light.intensity = 1.1f;
                 light.color = new Color(1f, 0.97f, 0.92f);
                 light.cullingMask = 1 << layer;
-                lightGo.transform.rotation = Quaternion.LookRotation(-stage.forward + Vector3.down * 0.6f + stage.right * 0.4f);
+                lightGo.transform.rotation = orbit * Quaternion.LookRotation(-stage.forward + Vector3.down * 0.6f + stage.right * 0.4f);
 
                 rt = new RenderTexture(job.size, job.size, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
