@@ -195,6 +195,7 @@ namespace Ror2Common
             subtitle.enableWordWrapping = true;
             controls = Label("Controls", window, new Vector2(24f, -186f), new Vector2(Width - 48f, Height - 250f), 21f, Color.white);
             controls.richText = true;
+            controls.enableWordWrapping = true;
             controls.overflowMode = TMPro.TextOverflowModes.Truncate;
             footer = Label("Footer", window, new Vector2(24f, -(Height - 56f)), new Vector2(Width - 48f, 44f), 18f, new Color(.7f, .78f, .84f));
             footer.enableWordWrapping = true;
