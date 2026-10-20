@@ -50,6 +50,8 @@ class Program
         public ModelView Models {get;}=new ModelView();
         public float Scale=>0.1f;
         public int AudioRate=>32000;
+        public bool Speaking;
+        public bool AudioActive=>Speaking||!IntroFinished;
         public bool IntroFinished {get;set;}
         public UnityEngine.Vector3 PoseAnchor=>new UnityEngine.Vector3(0,stepped*10,0);
         public UnityEngine.Vector3 DrawOffset {get;set;}
@@ -83,6 +85,13 @@ class Program
         loop.Step(1f/60,null);loopSource.IntroFinished=true;
         for(int i=0;i<600;i++)loop.Step(1f/60,null);
         Check(loopSource.begun==1&&loopSource.IntroFinished&&loopSource.stepped==601,"completed preview must continue idling without replaying its intro");loop.Release();
+        // A name call that outlives the intro keeps the stream open until it ends.
+        int disposedBefore=PcmStream.disposed;
+        var talking=new Source{Speaking=true};var talk=new MeleeSelectDisplay(talking);
+        talk.Step(1f/60,null);talking.IntroFinished=true;talk.Step(1f/60,null);talk.Step(1f/60,null);
+        Check(PcmStream.disposed==disposedBefore&&talking.sounded>=3,"the announcer name call must play to its end after the intro finishes");
+        talking.Speaking=false;talk.Step(1f/60,null);
+        Check(PcmStream.disposed==disposedBefore+1,"the sound device must close once the name call ends");talk.Release();
         Console.WriteLine("PASS: shared selection intro, one-shot sound, pause, idle portrait, reselection and cleanup");
     }
 }
