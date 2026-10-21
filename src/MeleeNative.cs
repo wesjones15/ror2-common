@@ -20,6 +20,8 @@ namespace Ror2Common
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
         public static bool HasLight {get;private set;}
+        /// A hurt that carries the hit's size, so a big hit plays the fighter's hurt voice.
+        public static bool HasHurtScaled {get;private set;}
         public static bool HasMaterialAlpha {get;private set;}
         /// Staged-special exports (lock-on steering, hit notification, shot reflection).
         /// Optional: only Pikachu's Quick Attack / Skull Bash / Thunder Shock use them.
@@ -72,6 +74,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasOverlay=false;}
             try {ssbm_sim_light(IntPtr.Zero,null);HasLight=true;}
             catch(EntryPointNotFoundException){HasLight=false;}
+            try {ssbm_sim_hurt_scaled(IntPtr.Zero,0f);HasHurtScaled=true;}
+            catch(EntryPointNotFoundException){HasHurtScaled=false;}
             try {ssbm_view_alpha_sources(IntPtr.Zero,out _);HasMaterialAlpha=true;}
             catch(EntryPointNotFoundException){HasMaterialAlpha=false;}
             try {ssbm_sim_lock_target(IntPtr.Zero,default,0);ssbm_sim_connect(IntPtr.Zero);ssbm_projectile_reflect(IntPtr.Zero,default);HasStagedSpecials=true;}
@@ -156,6 +160,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_facing_locked(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_interrupt(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_hurt(IntPtr sim);
+        /// ssbm_sim_hurt for a hit that took `severity` (a fraction of the fighter's health); returns 0 for a null handle.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_hurt_scaled(IntPtr sim,float severity);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_hold_knockdown(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_launch_pad(IntPtr sim,Vec3 velocity,Vec3 gravity);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new(byte[] dir,uint kind,uint costume);

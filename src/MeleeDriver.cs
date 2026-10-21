@@ -183,7 +183,14 @@ namespace Ror2Common
                     else MeleeNative.ssbm_sim_place(sim, velocity, 1);
                 }
                 float health = body.healthComponent.combinedHealth;
-                if (health < lastHealth - 0.001f && !armored && (hitImpulse || native.Control() == NativeBody.Hold.All)) MeleeNative.ssbm_sim_hurt(sim);
+                if (health < lastHealth - 0.001f && !armored && (hitImpulse || native.Control() == NativeBody.Hold.All))
+                {
+                    // The size of the hit as a fraction of health picks the hurt voice (the
+                    // source thresholds knockback); an older native build only gets the hurt.
+                    float severity = (lastHealth - health) / Mathf.Max(1f, body.healthComponent.fullCombinedHealth);
+                    if (MeleeNative.HasHurtScaled) MeleeNative.ssbm_sim_hurt_scaled(sim, severity);
+                    else MeleeNative.ssbm_sim_hurt(sim);
+                }
                 lastHealth = health;
                 var control = native.Control();
                 var ps = pad.Take(AllowedButtons, control == NativeBody.Hold.All);
