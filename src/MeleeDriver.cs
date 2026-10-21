@@ -101,6 +101,35 @@ namespace Ror2Common
         /// Runs each fixed tick after input is read and before the sim steps: a fighter
         /// feeds the sim host-side context here (Pikachu's lock-on target).
         protected virtual void BeforeStep(in MeleeNative.Pad pad) { }
+        /// The effects this fighter spawns hit sparks with (null: none).
+        protected virtual MeleeEffects EffectsForSparks => null;
+        /// A hit of this fighter landed at `world`: the spark Melee draws for the hitbox's element
+        /// (ftColl_8007A06C picks the effect id per element; a hard normal hit gets the bigger burst).
+        /// Safe to call from the hit samplers; does nothing before the sim is running.
+        public void HitSpark(uint element, float damage, Vector3 world)
+        {
+            var effects = EffectsForSparks;
+            if (effects == null || !active || failed || scale <= 0f) return;
+            uint cue;
+            switch (element)
+            {
+                case 1: cue = 1002; break;   // fire
+                case 2: cue = 1001; break;   // electric
+                case 3: cue = 1004; break;   // slash
+                case 4: cue = 1145; break;   // coin
+                case 5: cue = 1005; break;   // ice
+                case 13: cue = 1046; break;  // dark
+                case 6: case 7: case 8: case 11: case 12: return; // nap, sleep, catch, inert, disable
+                default: cue = damage >= 12f ? 1011u : 1000u; break; // normal, ground, cape
+            }
+            try
+            {
+                var facing = new Vector3(state.facing.x, 0, state.facing.z);
+                var rotation = facing.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(facing) : Quaternion.identity;
+                effects.Spawn(cue, Matrix4x4.TRS(world / scale, rotation, new Vector3(-1, 1, 1)));
+            }
+            catch (Exception e) { CommonLog.Error("Hit spark: " + e.Message); }
+        }
         static GameObject featherEffect;
         /// The sim jumped; `jumpsUsed` counts the ground jump and the mid-air ones. A third jump
         /// or later is a Hopoo Feather's, which in RoR2 makes its feather burst and "hooo"; the

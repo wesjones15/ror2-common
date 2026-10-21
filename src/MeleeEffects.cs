@@ -53,7 +53,15 @@ namespace Ror2Common
 
         public void Spawn(uint id, Matrix4x4 transform, ulong serial = 0, uint bone = 0, bool stop = false, IntPtr sim = default)
         {
-            int target = MeleeNative.ssbm_effect_target(id);
+            Spawn(id, MeleeNative.ssbm_effect_target(id), transform, serial, bone, stop, sim);
+            // Some source effects spawn a second one with them (Falcon Punch's two flames, the
+            // child slash of Link's Spin Attack).
+            int second = MeleeNative.ssbm_effect_companion(id);
+            if (second != int.MinValue) Spawn(id, second, transform, serial, bone, stop, sim);
+        }
+
+        void Spawn(uint id, int target, Matrix4x4 transform, ulong serial, uint bone, bool stop, IntPtr sim)
+        {
             if (target == int.MaxValue) { CommonLog.Error("Unresolved Melee effect " + id); return; }
             if (target == int.MinValue) return;
             if (target < int.MinValue + 1000)

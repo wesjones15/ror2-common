@@ -287,6 +287,7 @@ namespace Ror2Common
                     coefficient = state.damage / cfg.PercentPerCoefficient, position = hurt.transform.position, force = Vector3.zero,
                     procCoefficient = 1f, damageType = DamageType.Generic, color = DamageColorIndex.Default,
                 });
+                owner.GetComponent<MeleeDriver>()?.HitSpark(state.element, state.damage, hurt.transform.position);
             }
             Puff(cfg.ImpactPuff, at);
             End(false);

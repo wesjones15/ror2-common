@@ -67,7 +67,7 @@ namespace Ror2Common
                         color = DamageColorIndex.Default, staggerDuration = hit.element == 2 ? Stagger : 0f,
                     }))
                     {
-                        seen.Add(hurt.healthComponent);
+                        seen.Add(hurt.healthComponent);                        owner.GetComponent<MeleeDriver>()?.HitSpark(hit.element,hit.damage,hurt.collider.ClosestPoint(point));
                         Connected?.Invoke(hurt.healthComponent, at);
                     }
                 }
