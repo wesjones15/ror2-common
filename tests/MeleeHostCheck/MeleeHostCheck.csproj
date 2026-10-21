@@ -6,5 +6,6 @@
     <Compile Include="../../src/MeleeAim.cs" Link="MeleeAim.cs" />
     <Compile Include="../../src/MeleeGrapple.cs" Link="MeleeGrapple.cs" />
     <Compile Include="../../src/EnemyCapture.cs" Link="EnemyCapture.cs" />
+    <Compile Include="../MeleeNetStub.cs" Link="MeleeNetStub.cs" />
   </ItemGroup>
 </Project>

@@ -26,7 +26,7 @@ namespace Ror2Common
 
         public void Apply(CharacterBody owner, MeleeNative.HitboxSample[] samples, int count, float scale)
         {
-            if (!NetworkServer.active) return;
+            if (!MeleeNet.Acts(owner)) return;
             for (int i = 0; i < count; i++)
             {
                 var hit = samples[i];

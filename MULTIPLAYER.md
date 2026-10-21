@@ -107,3 +107,59 @@ game on both; check each `BepInEx/LogOutput.log` shows `libsms ABI 20` and `libp
 
 If something is off, send both machines' `LogOutput.log`. Useful switches: Olimar `Debug.LogNet`,
 `Net.SnapshotHz`, `Net.ReliableSnapshots`; Mario `Debug.LogStatus`.
+
+# Melee
+
+Status: **implemented, never run in a real two-player game.** The native record and replay are tested headless for all eight
+fighters (`libssbm-ffi/tests/replay.rs`, NativeCheck); the network messages are not.
+
+Every Melee fighter works the same way, through the shared `MeleeDriver` and `MeleeNet`:
+
+- **The owner runs the real sim.** The machine that owns a player's body (a client for its own player, the server for the rest)
+  runs the fighter exactly as in single player, so a client's fighter feels no lag. With other players in the game it records
+  the calls it makes on the sim (`ssbm_sim_record`: each step's pad and time, placements, hurts, grabs, tuning, the lock-on
+  target and so on, plus where the sim ended up after each step) and sends them three steps at a time (about 20 messages a
+  second, reliable) to the server (`MeleeNet.FramesMsg`, `0x4C01`), which relays them to everyone else.
+- **Everyone else runs a shadow sim** (`ssbm_sim_replay`) of that fighter on those calls, a few steps behind, and draws it with
+  the same code as the owner's own fighter: model, animation, sounds (fading with distance), effects, KO and recovery.
+  The shadow makes no attacks, reads no pad and moves no body; RoR2's own network transform still moves the Commando body,
+  which stays hidden under it. It has no enemies of its own, so the recorded position pulls it back when it drifts more than
+  1.5 sim units (0.15 m). Settings the owner repeats every step are logged when they change and again every two seconds, so a
+  late joiner catches up.
+- **What only the server may do** is a message from the owner (`MeleeNet`): damage (`HitMsg` `0x4C02`, landed by the server
+  as that fighter's, with his damage stat, crits, on-hit items and kill credit), holding an enemy helpless (`HoldMsg`: Yoshi's
+  egg, Donkey Kong's bury and slap), capturing and carrying one (`CaptureMsg`: every grab and Samus's grapple), turning enemy
+  projectiles back (`ReflectMsg`: Fox's Reflector), pulling an enemy (`PushMsg`: Luigi's Cyclone) and the fighter's
+  protection buff after a KO (`ProtectMsg`). The server checks that the sender is a Melee fighter that is not its own and
+  clamps what it is told (damage, force, reach, hold time).
+- The attacks, shots and sparks a fighter makes are made on the owner's machine: the fighters' combat code now asks
+  `MeleeNet.Acts(body)` (this machine owns the body) where it used to ask whether it was the server.
+
+Not done:
+- **Shots and other move objects are drawn only on the machine that fired them**: Fox's Blaster, Link's arrows, boomerang and
+  bombs, Samus's shots and missiles, Yoshi's eggs and stars, Pikachu's Thunder bolt and Thunder Jolt, Luigi's fireballs.
+  Other players see the fighter throw, but not the object (its damage is real). The move effects the sim itself
+  spawns (glows, body particles, sounds) show for everyone; hit sparks and the explosions a combat class spawns show on the
+  owner's machine, and everyone's only when the server spawned them.
+- A shield's meter is each machine's own: the server's shadow decides whether a hit is blocked, and the owner's shield does
+  not drain from it.
+- The feather jump burst, and a client fighter's grab/throw knockback strength, are best effort.
+- Late joiners see a fighter from the next batch, without its arrival.
+- A player who does not have the Melee plugin sees a Commando; a different build is refused and logged once.
+
+Test plan (two machines, the same Melee build and each its own Melee disc extracted):
+
+1. **Plain join.** Host a game, the second player joins, both pick Commando. Nothing about MeleeNet or a mismatch in either log.
+2. **Host fighter seen by the client.** The host picks a fighter, the client Commando. The client should see the fighter
+   (not Commando) walk, jump, attack, take damage and hear it. Log: `<Fighter>: showing another player's fighter`.
+3. **Client fighter seen by the host.** Swap roles. The client plays every fighter in turn: it should feel normal (no lag).
+4. **Client hits.** The client's fighter hits an enemy with a jab, a smash, a special: the enemy takes damage and shows
+   damage numbers; kills credit the client.
+5. **Holds and grabs.** Client Yoshi lays an egg on an enemy, Donkey Kong buries and slaps, any fighter's grab carries an
+   enemy and throws it, Luigi's Cyclone pulls, Fox's Reflector turns a shot.
+6. **Recovery.** Fall off the map as the client: the Melee KO plays for both and the client is invulnerable while it recovers.
+7. **Death.** The other player sees the fall and KO.
+8. **Two Melee players**, then Melee with Mario or Olimar.
+9. **Stage change.** Advance a stage; both fighters come back without errors in the log.
+
+If something is off, send both machines' `LogOutput.log`.

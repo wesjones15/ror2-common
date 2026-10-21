@@ -18,7 +18,9 @@ namespace Ror2Common
         /// are the source's ReflectDesc multipliers. Returns how many were turned.
         public static int Reflect(CharacterBody owner, Vector3 centre, float radius, float damageMul, float speedMul)
         {
-            if (!NetworkServer.active || !owner || !owner.teamComponent) return 0;
+            if (!owner || !owner.teamComponent) return 0;
+            // A client fighter asks the server to turn them (it cannot say how many).
+            if (!NetworkServer.active) { if (MeleeNet.Acts(owner)) MeleeNet.SendReflect(owner, centre, radius, damageMul, speedMul); return 0; }
             int n = Physics.OverlapSphereNonAlloc(centre, radius, buffer, LayerIndex.projectile.mask, QueryTriggerInteraction.Collide);
             seen.Clear();
             int turned = 0;

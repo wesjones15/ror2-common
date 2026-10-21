@@ -33,12 +33,14 @@ namespace Ror2Common
     {
         static bool warned;
 
-        /// Deals `spec` to `victim` from `attacker`. Server only; returns whether it landed (a
-        /// live victim on the server).
+        /// Deals `spec` to `victim` from `attacker`. Server only, except that a client Melee fighter
+        /// sends it to the server; returns whether it landed (a live victim on the server) or was sent.
         public static bool Deal(CharacterBody attacker, HealthComponent victim, in NativeHitSpec spec)
         {
             if (!NetworkServer.active)
             {
+                // A client's Melee fighter asks the server to land its hit (MeleeNet.RemoteDeal).
+                if (MeleeNet.RemoteDeal(attacker, victim, spec)) return true;
                 if (!warned) CommonLog.Warn("NativeHit.Deal on a client; hits are the server's");
                 warned = true;
                 return false;

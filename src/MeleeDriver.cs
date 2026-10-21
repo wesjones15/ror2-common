@@ -38,6 +38,15 @@ namespace Ror2Common
         protected MeleeNative.HitboxSample[] hitboxes = new MeleeNative.HitboxSample[64];
         protected readonly HashSet<string> presentationErrors = new HashSet<string>();
         protected readonly MeleePad pad = new MeleePad();
+        // --- Multiplayer (MeleeNet) -------------------------------------------------
+        // The machine that owns the body runs the real sim; every other machine runs a view-only
+        // shadow of it (`puppet`) on the owner's recorded calls. A shadow draws and sounds the
+        // fighter but makes no attacks, reads no pad and moves no body.
+        protected bool puppet;
+        MeleeNet.Stream stream; int puppetWait, recordedSteps; bool recording, puppetBroken;
+        readonly byte[] opsBuffer = new byte[1 << 15];
+        /// This machine owns the body, so it runs the real sim and makes the fighter's attacks.
+        public bool IsOwner => body && body.hasEffectiveAuthority;
 
         public bool MeleeInvulnerable => active && !Recovering && (MeleeNative.ssbm_sim_defense_flags(sim) & (2 | 64 | 128)) != 0;
         public bool BlockMeleeDamage(float amount) { if (!active || Recovering) return false; uint flags = MeleeNative.ssbm_sim_defense_flags(sim); return (flags & 1) != 0 && MeleeNative.ssbm_sim_shield_hit(sim, amount) != 0; }
@@ -154,6 +163,13 @@ namespace Ror2Common
         protected void Update()
         {
             if (failed || !body) return;
+            if (puppet || !IsOwner)
+            {
+                // Another player's fighter: no pad, no camera. Its sound fades with distance.
+                if (puppet) { MeleeAudio.SetGain(sim, PuppetGain()); UpdateAudio(); }
+                if (body.healthComponent && !body.healthComponent.alive) BeginDeath();
+                return;
+            }
             pad.Read(body, input, GrabHolding, MeleeAim.CameraRay(body, input).direction, ShieldSelected, Layout);
             UpdateAudio();
             if (body.healthComponent && !body.healthComponent.alive) { BeginDeath(); return; }
@@ -162,9 +178,9 @@ namespace Ror2Common
         protected void FixedUpdate()
         {
             if (failed || !body || !body.healthComponent || !body.healthComponent.alive) return;
-            if (!body.hasEffectiveAuthority) return;
+            if (!body.hasEffectiveAuthority) { StepPuppet(); return; }
+            if (puppet) EndPuppet();
             if (body.currentVehicle) { if (active) Cleanup(); return; }
-            if (!NetworkServer.active) { Fallback("Remote-player native simulation is not supported by this offline prototype."); return; }
             if (!active) {
                 if (AssetsBusy) return;
                 if (!AssetsReady) { Fallback("Assets missing. Set the fighter's disc config."); return; }
@@ -212,6 +228,7 @@ namespace Ror2Common
                 if (direction) { var facing = direction.forward; MeleeNative.ssbm_sim_facing(sim, new MeleeNative.Vec3(facing.x, 0, facing.z)); }
                 BeforeStep(in p);
                 MeleeNative.ssbm_sim_step(sim, in host, in p, Time.fixedDeltaTime);
+                FlushOps();
                 uint previousRecovery = recoveryFlags; recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim);
                 recovery?.Refresh();
                 if (Arriving && !Recovering) Arriving = false;
@@ -252,7 +269,7 @@ namespace Ror2Common
         // Native moves 25..27 are the three grabs, 28 the pummel, 29..32 the throws.
         void StepGrab(float dt)
         {
-            if (!GenericGrab || !NetworkServer.active) return;
+            if (!GenericGrab || !IsOwner || puppet) return;
             if (capture == null) capture = new EnemyCapture(body);
             if (pendingThrow.HasValue)
             {
@@ -322,6 +339,8 @@ namespace Ror2Common
             sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(AssetsDir), ToSim(safe), FighterKind); if (sim == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
             CreatePresentation();
             self = GCHandle.Alloc(this);
+            // Other players' machines replay these calls on a shadow sim (see MeleeNet).
+            if (MeleeNative.HasReplay && MeleeNative.ssbm_sim_record(sim, 1) == 1) { recording = true; recordedSteps = 0; }
             if (MeleeNative.ssbm_sim_begin_arrival(sim, NativeLib.CString(AssetsDir)) != 1) throw new InvalidOperationException(MeleeNative.Error);
             recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim); recovery?.Refresh();
             host = new MeleeNative.Host { user = GCHandle.ToIntPtr(self), collide = Marshal.GetFunctionPointerForDelegate(collideFn), evt = Marshal.GetFunctionPointerForDelegate(eventFn) };
@@ -337,7 +356,7 @@ namespace Ror2Common
             try {
                 GameSettings.HideRenderers(body.modelLocator.modelTransform, true);
                 var animator = body.modelLocator.modelTransform.GetComponent<Animator>(); if (animator) animator.enabled = false;
-                var at = transform.position - feetOffset;
+                var at = puppet ? ToWorld(state.position) : transform.position - feetOffset;
                 var facing = new Vector3(state.facing.x, 0, state.facing.z);
                 var rotation = facing.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(facing) : Quaternion.identity;
                 DrawPresentation(at, rotation);
@@ -368,6 +387,82 @@ namespace Ror2Common
             MeleeNative.ssbm_sim_place(sim, ToSim(feet), 2); MeleeNative.ssbm_sim_state(sim, out state);
             smoother.Reset(); native.ForgetVelocity(); unstuck.Reset(); wallGuard.Placed(feet);
         }
+        // The owner's calls on its sim, recorded natively, go out three steps at a time (about 20 a second) when
+        // other players are in the game; alone they are dropped.
+        void FlushOps()
+        {
+            if (!recording || ++recordedSteps < 3) return;
+            recordedSteps = 0;
+            uint length = MeleeNative.ssbm_sim_ops_take(sim, null, 0);
+            if (length == 0) return;
+            var bytes = length <= opsBuffer.Length ? opsBuffer : new byte[length];
+            if (MeleeNative.ssbm_sim_ops_take(sim, bytes, (uint)bytes.Length) != length) return;
+            if (!MeleeNet.Networked) return;
+            var ops = new byte[length];
+            Buffer.BlockCopy(bytes, 0, ops, 0, (int)length);
+            MeleeNet.SendFrames(body, MeleeNative.AbiVersion, ops);
+        }
+
+        // --- Another player's fighter ----------------------------------------------------
+        void StepPuppet()
+        {
+            if (puppetBroken || !MeleeNative.HasReplay) return;
+            if (!active)
+            {
+                if (AssetsBusy || !AssetsReady) return;
+                stream = MeleeNet.StreamFor(body.netId.Value);
+                if (stream == null || stream.Batches.Count == 0) return;
+                try { StartPuppet(); }
+                catch (Exception e) { puppetBroken = true; CommonLog.Error(FighterName + " could not show another player's fighter: " + e.Message); Cleanup(); return; }
+            }
+            try
+            {
+                if (stream == null) stream = MeleeNet.StreamFor(body.netId.Value);
+                if (stream != null)
+                {
+                    // Play the owner's calls a few steps behind, catching up when a burst arrives.
+                    puppetWait++;
+                    while (stream.Batches.Count > 4) Replay(stream.Batches.Dequeue());
+                    if (puppetWait >= 3 && stream.Batches.Count > 0) { Replay(stream.Batches.Dequeue()); puppetWait = 0; }
+                }
+                recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim);
+                StepPresentation(Time.fixedDeltaTime);
+                if (MeleeNative.ssbm_sim_state(sim, out state) != 1) throw new InvalidOperationException(MeleeNative.Error);
+            }
+            catch (Exception e) { puppetBroken = true; CommonLog.Error(FighterName + " stopped showing another player's fighter: " + e.Message); Cleanup(); }
+        }
+
+        void Replay(byte[] ops)
+        {
+            if (MeleeNative.ssbm_sim_replay(sim, in host, ops, (uint)ops.Length) == uint.MaxValue)
+                throw new InvalidOperationException("the other player's calls do not replay (different Melee builds?)");
+        }
+
+        void StartPuppet()
+        {
+            scale = MetresPerUnit; feetOffset = transform.position - body.footPosition;
+            sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(AssetsDir), ToSim(body.footPosition), FighterKind);
+            if (sim == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
+            CreatePresentation();
+            self = GCHandle.Alloc(this);
+            host = new MeleeNative.Host { user = GCHandle.ToIntPtr(self), collide = Marshal.GetFunctionPointerForDelegate(collideFn), evt = Marshal.GetFunctionPointerForDelegate(eventFn) };
+            MeleeNative.ssbm_sim_state(sim, out state);
+            puppet = true; active = true; permitDamage = false; puppetWait = 0;
+            CommonLog.Info(FighterName + ": showing another player's fighter");
+        }
+
+        // The body became ours (or the shadow is no longer needed): drop it so the real sim can start.
+        void EndPuppet() { Cleanup(); }
+
+        /// How loud another player's fighter is from here, by distance to the camera (full within 12 m, silent past 60 m).
+        float PuppetGain()
+        {
+            var camera = GameSettings.PlayerCamera();
+            if (!camera) return 1f;
+            float d = Vector3.Distance(camera.position, ToWorld(state.position));
+            return Mathf.Clamp01(1f - (d - 12f) / 48f);
+        }
+
         static void Collide(IntPtr user, in MeleeNative.Vec3 from, in MeleeNative.Vec3 desired, out MeleeNative.Collision result)
         {
             result = new MeleeNative.Collision { position = from };
@@ -398,6 +493,8 @@ namespace Ror2Common
         }
         void Receive(MeleeNative.Event e)
         {
+            // A shadow only shows the fighter: the owner makes its attacks and moves its body.
+            if (puppet) { if (e.kind == 3) OnJump(e.strength); return; }
             if (e.kind == 1) { OnEventStarted(e); NativeBody.MarkCombat(body); MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction); }
             else if (e.kind == 2) { if (permitDamage) OnEventHit(e); }
             else if (e.kind == 6) GrabThrow(e);
@@ -414,7 +511,7 @@ namespace Ror2Common
         {
             if (deathStarted || !active) return; deathStarted = true;
             try {
-                var feet = transform.position - feetOffset;
+                var feet = puppet ? ToWorld(state.position) : transform.position - feetOffset;
                 var facing = new Vector3(state.facing.x, 0, state.facing.z);
                 var rotation = facing.sqrMagnitude > 0.001f ? Quaternion.LookRotation(facing) : transform.rotation;
                 BeginDeathPresentation(feet, rotation);
@@ -426,6 +523,9 @@ namespace Ror2Common
             capture?.Dispose(); pendingThrow = null;
             pad.ReleaseInteraction();
             DisposePresentation();
+            if (body && body.netId.Value != 0 && puppet) MeleeNet.Drop(body.netId.Value);
+            if (sim != IntPtr.Zero) MeleeAudio.SetGain(sim, 1f);
+            recording = false; stream = null; puppet = false;
             Arriving = false; recoveryFlags = 0; recovery?.Refresh();
             active = false; cameraPivot?.Use(false);
             if (sim != IntPtr.Zero) { MeleeNative.ssbm_sim_free(sim); sim = IntPtr.Zero; } if (self.IsAllocated) self.Free();

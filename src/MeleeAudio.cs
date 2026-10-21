@@ -19,10 +19,20 @@ namespace Ror2Common
             catch (Exception e) { CommonLog.Error("Melee audio unavailable: " + e.Message); }
         }
 
+        static readonly Dictionary<IntPtr, float> gains = new Dictionary<IntPtr, float>();
+
+        /// How loud a sim's sound is (1 is the game's SFX volume); another player's fighter fades with distance.
+        public static void SetGain(IntPtr sim, float gain)
+        {
+            if (sim == IntPtr.Zero) return;
+            if (gain >= 0.999f) gains.Remove(sim); else gains[sim] = Mathf.Max(0f, gain);
+        }
+
         public void Update()
         {
             if (stream == null) return;
-            try { stream.Pump(Render, GameSettings.SfxVolume(), Time.timeScale <= 0); }
+            float gain = gains.TryGetValue(sim, out var g) ? g : 1f;
+            try { stream.Pump(Render, GameSettings.SfxVolume() * gain, Time.timeScale <= 0); }
             catch (Exception e) { CommonLog.Error("Melee audio stopped: " + e.Message + "; " + MeleeNative.Error); Dispose(); }
         }
 

@@ -138,5 +138,15 @@ static class Program
         bool threw = false;
         try { Fragments.Pack(new byte[Fragments.MaxPayload + 1], 1); } catch (ArgumentException) { threw = true; }
         Check(threw, "too large is refused");
+
+        // Raw byte runs (a recorded sim log inside a Melee frame).
+        var bw = new ByteWriter();
+        bw.U16(3); bw.Bytes(new byte[] { 9, 8, 7 }, 0, 3); bw.U8(5);
+        var br = new ByteReader(bw.ToArray());
+        int n = br.U16(); var run = br.Bytes(n);
+        Check(run.Length == 3 && run[0] == 9 && run[2] == 7 && br.U8() == 5 && br.Done && !br.Failed, "byte run");
+        var shortRead = new ByteReader(new byte[] { 1, 2 });
+        Check(shortRead.Bytes(3).Length == 0 && shortRead.Failed, "byte run past the end fails");
+        Check(new ByteReader(new byte[] { 1 }).Bytes(-1).Length == 0, "negative run is empty");
     }
 }

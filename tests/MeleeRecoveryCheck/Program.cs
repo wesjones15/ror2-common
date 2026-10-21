@@ -33,8 +33,13 @@ static class Program
         fighter.RecoveryInvulnerable=true;recovery.Refresh();body.healthComponent.alive=false;recovery.Refresh();Check(body.buffs==1,"death cleanup leaked own protection");
         body.healthComponent.alive=true;body.hasEffectiveAuthority=false;
         Check(!recovery.CheckFall(guard,new Vector3(0,-200,0),1.8f,Floor),"remote body started authoritative recovery");
+        // A client fighter owns its body: it runs its own recovery and asks the server for the protection buff.
         body.hasEffectiveAuthority=true;UnityEngine.Networking.NetworkServer.active=false;
-        Check(!recovery.CheckFall(guard,new Vector3(0,-200,0),1.8f,Floor),"client started server-only recovery");
+        int starts=fighter.starts,buffs=body.buffs;fighter.Recovering=false;fighter.RecoveryInvulnerable=false;recovery.Refresh();
+        var clientGuard=new Unstuck();clientGuard.Step(default,false,true,false,.25f,1.8f,Floor,out _);
+        Check(recovery.CheckFall(clientGuard,new Vector3(0,-20.01f,0),1.8f,Floor)&&fighter.starts==starts+1,"client with authority did not run its own recovery");
+        Check(body.buffs==buffs&&MeleeNet.ProtectOn>=1,"client protection was not requested from the server");
+        fighter.RecoveryInvulnerable=false;fighter.Recovering=false;recovery.Refresh();Check(MeleeNet.ProtectOff>=1,"client protection was not released through the server");
         Console.WriteLine("PASS: common fall threshold/safe point, duplicate prevention, timed protection ownership and death/disable cleanup");
     }
 }

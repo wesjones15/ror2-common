@@ -120,6 +120,16 @@ namespace Ror2Common
         public bool Bool() => U8() != 0;
         public sbyte I8() => (sbyte)U8();
 
+        /// The next `count` bytes as a new array (empty, and the reader failed, when they are not there).
+        public byte[] Bytes(int count)
+        {
+            if (count < 0 || !Take(count)) return new byte[0];
+            var copy = new byte[count];
+            Buffer.BlockCopy(data, pos, copy, 0, count);
+            pos += count;
+            return copy;
+        }
+
         public ushort U16()
         {
             if (!Take(2)) return 0;

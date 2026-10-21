@@ -22,6 +22,8 @@ namespace Ror2Common
         public static bool HasLight {get;private set;}
         /// A hurt that carries the hit's size, so a big hit plays the fighter's hurt voice.
         public static bool HasHurtScaled {get;private set;}
+        /// Recording a sim's calls and replaying them on a shadow sim (multiplayer).
+        public static bool HasReplay {get;private set;}
         public static bool HasMaterialAlpha {get;private set;}
         /// Staged-special exports (lock-on steering, hit notification, shot reflection).
         /// Optional: only Pikachu's Quick Attack / Skull Bash / Thunder Shock use them.
@@ -76,6 +78,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasLight=false;}
             try {ssbm_sim_hurt_scaled(IntPtr.Zero,0f);HasHurtScaled=true;}
             catch(EntryPointNotFoundException){HasHurtScaled=false;}
+            try {ssbm_sim_record(IntPtr.Zero,0);HasReplay=true;}
+            catch(EntryPointNotFoundException){HasReplay=false;}
             try {ssbm_view_alpha_sources(IntPtr.Zero,out _);HasMaterialAlpha=true;}
             catch(EntryPointNotFoundException){HasMaterialAlpha=false;}
             try {ssbm_sim_lock_target(IntPtr.Zero,default,0);ssbm_sim_connect(IntPtr.Zero);ssbm_projectile_reflect(IntPtr.Zero,default);HasStagedSpecials=true;}
@@ -163,6 +167,12 @@ namespace Ror2Common
         /// ssbm_sim_hurt for a hit that took `severity` (a fraction of the fighter's health); returns 0 for a null handle.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_hurt_scaled(IntPtr sim,float severity);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_hold_knockdown(IntPtr sim);
+        /// Starts (1) or stops (0) recording the calls made on a sim; returns 0 for a null handle.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_record(IntPtr sim,uint on);
+        /// Moves the recorded calls into `bytes`; returns their length (the length needed when `bytes` is null or too small).
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_ops_take(IntPtr sim,[Out]byte[] bytes,uint capacity);
+        /// Replays recorded calls on a shadow sim; returns how many ran, or uint.MaxValue when the bytes are not a log.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_replay(IntPtr sim,in Host host,byte[] bytes,uint length);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_launch_pad(IntPtr sim,Vec3 velocity,Vec3 gravity);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new(byte[] dir,uint kind,uint costume);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_article_new(byte[] dir,uint fighterKind,uint articleKind,uint state);

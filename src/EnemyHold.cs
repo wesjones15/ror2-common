@@ -33,7 +33,8 @@ namespace Ror2Common
         /// not on the server.
         public static bool Hold(CharacterBody victim, float seconds)
         {
-            if (!NetworkServer.active || !victim || victim.isPlayerControlled || seconds <= 0f) return false;
+            if (!NetworkServer.active) return MeleeNet.RemoteHold(victim, seconds);
+            if (!victim || victim.isPlayerControlled || seconds <= 0f) return false;
             var hold = victim.GetComponent<EnemyHold>();
             if (!hold) hold = victim.gameObject.AddComponent<EnemyHold>();
             hold.until = Mathf.Max(hold.until, Time.time + seconds);

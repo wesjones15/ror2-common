@@ -17,13 +17,16 @@ namespace Ror2Common
         public bool TryCapture(HealthComponent target)
         {
             if(Target)return Target==target;
-            if(!NetworkServer.active||!owner||!target||!target.alive||!target.body||target==owner.healthComponent)return false;
+            // A client fighter checks the same things and leaves the carrying to the server (MeleeNet).
+            if(!owner||!target||!target.alive||!target.body||target==owner.healthComponent)return false;
+            if(!NetworkServer.active&&!MeleeNet.Acts(owner))return false;
             var body=target.body;
             if(MeleeGrapple.IsBoss(body))return false;
             if(!body.teamComponent||body.teamComponent.teamIndex==owner.teamComponent.teamIndex||body.isPlayerControlled)return false;
             // Stationary encounter structures have no safe movable body.
             if(!body.characterMotor&&!body.GetComponent<Rigidbody>())return false;
             Target=target;age=0;
+            if(!NetworkServer.active){MeleeNet.SendCapture(owner,1,body,Vector3.zero,0f,null);return true;}
             brains=body.master?body.master.GetComponents<BaseAI>():Array.Empty<BaseAI>();enabled=new bool[brains.Length];
             for(int i=0;i<brains.Length;i++){enabled[i]=brains[i].enabled;brains[i].enabled=false;}
             return true;
@@ -32,6 +35,7 @@ namespace Ror2Common
         {
             if(!Target||!Target.alive||!Target.body||!owner||!owner.healthComponent||!owner.healthComponent.alive||owner.currentVehicle||((age+=dt)>8f)){Dispose();return false;}
             var body=Target.body;
+            if(!NetworkServer.active){MeleeNet.SendCapture(owner,2,body,forward,dt,anchor);return true;}
             var center=anchor??(owner.corePosition+forward.normalized*(owner.radius+body.radius+0.35f));
             var position=body.transform.position+center-body.corePosition;
             var hurt=body.GetComponent<SetStateOnHurt>();if(hurt)hurt.SetStun(0.2f);
@@ -41,6 +45,7 @@ namespace Ror2Common
         }
         public void Dispose()
         {
+            if(Target&&!NetworkServer.active)MeleeNet.SendCapture(owner,3,Target.body,Vector3.zero,0f,null);
             for(int i=0;i<brains.Length;i++)if(brains[i])brains[i].enabled=enabled[i];
             brains=Array.Empty<BaseAI>();enabled=Array.Empty<bool>();Target=null;
         }

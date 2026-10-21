@@ -11,7 +11,7 @@ namespace Ror2Common
     /// `Projectile`) owns speed, gravity, the ground-bounce budget and the damage it deals;
     /// this host half sweeps the world, calls back into the sim on contact
     /// (`ssbm_projectile_bounce` on ground, `ssbm_projectile_reflect` on walls and ceilings),
-    /// damages an enemy it touches, and draws the article. Server only.
+    /// damages an enemy it touches, and draws the article. The machine that owns the fighter only.
     public sealed class MeleeBouncingShot : MonoBehaviour
     {
         public sealed class Config
@@ -66,7 +66,7 @@ namespace Ror2Common
 
         public static MeleeBouncingShot Spawn(CharacterBody owner, Vector3 point, Vector3 direction, Config cfg)
         {
-            if (!NetworkServer.active) return null;
+            if (!MeleeNet.Acts(owner)) return null;
             var go = new GameObject("Melee bouncing shot");
             go.transform.position = point;
             var shot = go.AddComponent<MeleeBouncingShot>();
