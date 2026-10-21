@@ -101,6 +101,19 @@ namespace Ror2Common
         /// Runs each fixed tick after input is read and before the sim steps: a fighter
         /// feeds the sim host-side context here (Pikachu's lock-on target).
         protected virtual void BeforeStep(in MeleeNative.Pad pad) { }
+        static GameObject featherEffect;
+        /// The sim jumped; `jumpsUsed` counts the ground jump and the mid-air ones. A third jump
+        /// or later is a Hopoo Feather's, which in RoR2 makes its feather burst and "hooo"; the
+        /// sim's jump never runs that code, so it is spawned here. The fighter's own jump voice
+        /// is played by the sim, so a feather jump has both.
+        protected virtual void OnJump(float jumpsUsed)
+        {
+            if (jumpsUsed < 3f || !NetworkServer.active) return;
+            try {
+                if (!featherEffect) featherEffect = LegacyResourcesAPI.Load<GameObject>("Prefabs/Effects/FeatherEffect");
+                if (featherEffect) EffectManager.SpawnEffect(featherEffect, new EffectData { origin = body.footPosition }, true);
+            } catch (Exception) { }
+        }
 
         // --- Generic core -----------------------------------------------------
         protected void FaceTarget()
@@ -132,14 +145,16 @@ namespace Ror2Common
             try {
                 if (smoother.MovedElsewhere) { var moved = transform.position - feetOffset; MeleeNative.ssbm_sim_place(sim, ToSim(moved), 0); smoother.Reset(); native.ForgetVelocity(); unstuck.Reset(); wallGuard.Placed(moved); }
                 bool hitImpulse = false;
-                if (native.TakeExternalVelocity(out var external) && !Recovering) {
+                // A fluttering jump's armor (Yoshi): hits do not move him.
+                bool armored = (MeleeNative.ssbm_sim_defense_flags(sim) & 256) != 0;
+                if (native.TakeExternalVelocity(out var external) && !Recovering && !armored) {
                     hitImpulse = !native.JumpPadLaunch && external.sqrMagnitude > 0.01f;
                     var velocity = new MeleeNative.Vec3(external.x / (scale * 60), external.y / (scale * 60), external.z / (scale * 60));
                     if (native.JumpPadLaunch) { var g = Physics.gravity / (scale * 3600); MeleeNative.ssbm_sim_launch_pad(sim, velocity, new MeleeNative.Vec3(g.x, g.y, g.z)); }
                     else MeleeNative.ssbm_sim_place(sim, velocity, 1);
                 }
                 float health = body.healthComponent.combinedHealth;
-                if (health < lastHealth - 0.001f && (hitImpulse || native.Control() == NativeBody.Hold.All)) MeleeNative.ssbm_sim_hurt(sim);
+                if (health < lastHealth - 0.001f && !armored && (hitImpulse || native.Control() == NativeBody.Hold.All)) MeleeNative.ssbm_sim_hurt(sim);
                 lastHealth = health;
                 var control = native.Control();
                 var ps = pad.Take(AllowedButtons, control == NativeBody.Hold.All);
@@ -350,7 +365,7 @@ namespace Ror2Common
             if (e.kind == 1) { OnEventStarted(e); NativeBody.MarkCombat(body); MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction); }
             else if (e.kind == 2) { if (permitDamage) OnEventHit(e); }
             else if (e.kind == 6) GrabThrow(e);
-            else if (e.kind == 3) native.Jumped();
+            else if (e.kind == 3) { native.Jumped(); OnJump(e.strength); }
             else if (e.kind == 4) native.Landed(Vector3.down * e.strength * scale * 60f);
         }
         void Fallback(string reason)
