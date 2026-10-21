@@ -54,6 +54,10 @@ namespace Ror2Common
         protected abstract uint FighterKind { get; }
         protected abstract float MetresPerUnit { get; }
         protected abstract float JumpScale { get; }
+        /// RoR2 calibration multiplier on walk/run speed; the Samus survivors
+        /// override this with their `SpeedScale` config so the slowest fighter
+        /// stays competitive with Commando.
+        protected virtual float SpeedScale => 1.37f;
         protected abstract bool HoldCharge { get; }
         protected abstract bool AssetsReady { get; }
         protected abstract bool AssetsBusy { get; }
@@ -149,7 +153,7 @@ namespace Ror2Common
                 if (sprint) p.buttons |= 32;
                 if (!IsChargeMove(state.move_id) && (p.buttons & 256) != 0 && sprint) { native.UpdateSprint(false, false); p.buttons &= ~32u; }
                 uint extra = (uint)Math.Max(0, body.maxJumpCount - 2);
-                float speedScale = body.moveSpeed / Mathf.Max(0.1f, body.baseMoveSpeed);
+                float speedScale = body.moveSpeed / Mathf.Max(0.1f, body.baseMoveSpeed) * SpeedScale;
                 if (body.isSprinting) speedScale /= Mathf.Max(0.1f, body.sprintingSpeedMultiplier);
                 MeleeNative.ssbm_sim_tuning(sim, new MeleeNative.Tuning { speed_scale = speedScale, jump_scale = JumpScale * NativeBody.JumpScale(body), extra_jumps = extra, hold_charge = HoldCharge ? 1u : 0u, smash_max_frames = 60 });
                 MeleeNative.ssbm_sim_jump_height(sim, MeleeControls.JumpHeight(body.jumpPower, Physics.gravity.y, motor.jumpPowerPenaltyCoefficient) / scale);
