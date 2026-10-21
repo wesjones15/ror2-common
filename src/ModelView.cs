@@ -59,9 +59,9 @@ namespace Ror2Common
             public bool set;
             public byte mode;
             public Color color, flash;
-            public float alpha;
+            public float alpha, rim;
             static bool Same(Color a, Color b) => a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a;
-            public bool Matches(BlockState other) => set && mode == other.mode && alpha == other.alpha
+            public bool Matches(BlockState other) => set && mode == other.mode && alpha == other.alpha && rim == other.rim
                 && Same(color, other.color) && Same(flash, other.flash);
         }
 
@@ -84,6 +84,7 @@ namespace Ror2Common
         static readonly int ColorId = Shader.PropertyToID("_Color");
         static readonly int FadeId = Shader.PropertyToID("_Fade");
         static readonly int FlashId = Shader.PropertyToID("_FlashColor");
+        static readonly int FresnelBoostId = Shader.PropertyToID("_FresnelBoost");
         static readonly int TintId = Shader.PropertyToID("_TintColor");
 
         /// A skin for particular draws (a Goobo Jr. clone's captain among a shared view's), or
@@ -92,6 +93,16 @@ namespace Ror2Common
 
         /// RoR2's hit flash colour for draws flagged as flashing.
         public Color FlashColor = new Color(1f, 1f, 1f, 0.5f);
+        /// The rim light the source's colour programs set (the additive light of ftmaterial.c):
+        /// rgb is its colour, a its intensity (0 turns it off). Drawn as the standard shader's
+        /// Fresnel emission, so it needs the model created with `rim` set. The source lights the
+        /// materials from a direction; this glows along the silhouette instead.
+        public Color RimColor;
+        const float RimPower = 2f, RimBoost = 2.5f;
+        readonly bool rim;
+        Texture2D rimRamp;
+        Color32[] rimPixels;
+        Color rimShown;
         /// The icy sheen for draws flagged frozen (flag 2: a Pikmin caught in a Glacial blast).
         /// Only while the game runs slowly (a smoothed frame time over about 28 fps): an instance outside
         /// the camera's view, or far from it, has its animated mesh re-uploaded less often (never when it
@@ -119,8 +130,9 @@ namespace Ror2Common
         public int DrawCount => drawCount;
         public ViewDraw DrawAt(int i) => draws[i];
 
-        ModelView(IViewSource src, Transform root, string name, Material skin, float translucentOpacity)
+        ModelView(IViewSource src, Transform root, string name, Material skin, float translucentOpacity, bool rim)
         {
+            this.rim = rim;
             this.src = src;
             this.skin = skin;
             this.root = root;
@@ -133,7 +145,7 @@ namespace Ror2Common
         /// on every part instead of their textures (a copy, both sides, with the part's alpha
         /// and hit flash; the game's gummy clone material, say).
         public static ModelView Create(IViewSource src, string name, Transform parent = null, Material skin = null,
-            float translucentOpacity = Shaders.SurfaceTintOpacity)
+            float translucentOpacity = Shaders.SurfaceTintOpacity, bool rim = false)
         {
             var root = new GameObject(name).transform;
             if (parent) root.SetParent(parent, false);
@@ -144,7 +156,7 @@ namespace Ror2Common
                 // The mirror flip turns the winding around.
                 skin.SetFloat("_Cull", 0f);
             }
-            var mv = new ModelView(src, root, name, skin, translucentOpacity);
+            var mv = new ModelView(src, root, name, skin, translucentOpacity, rim);
             try
             {
                 mv.Build();
@@ -314,7 +326,43 @@ namespace Ror2Common
             m.SetFloat("_SpecularExponent", 10f);
             m.SetFloat("_Smoothness", 0f);
             m.SetFloat("_Fade", 1f);
+            if (rim)
+            {
+                // Fresnel emission, off until a rim light is set (boost 0): the ramp maps the
+                // edge factor to the light colour.
+                m.EnableKeyword("FRESNEL_EMISSION");
+                m.SetFloat("_FEON", 1f);
+                m.SetTexture("_FresnelRamp", RimRamp());
+                m.SetFloat("_FresnelPower", RimPower);
+                m.SetFloat("_FresnelBoost", 0f);
+            }
             return m;
+        }
+
+        Texture2D RimRamp()
+        {
+            if (rimRamp) return rimRamp;
+            rimRamp = new Texture2D(16, 1, TextureFormat.RGBA32, false)
+            {
+                name = Name + " rim ramp", wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear,
+            };
+            rimPixels = new Color32[16];
+            SetRimRamp(Color.white);
+            return rimRamp;
+        }
+
+        // The ramp runs from black at the face-on side to the rim colour at the edge.
+        void SetRimRamp(Color c)
+        {
+            if (!rimRamp) return;
+            for (int i = 0; i < rimPixels.Length; i++)
+            {
+                float t = i / (float)(rimPixels.Length - 1);
+                rimPixels[i] = new Color(c.r * t, c.g * t, c.b * t, 1f);
+            }
+            rimRamp.SetPixels32(rimPixels);
+            rimRamp.Apply(false);
+            rimShown = c;
         }
 
         /// Moves the objects to this frame's draws (after the native side's update). `scale` is
@@ -323,6 +371,8 @@ namespace Ror2Common
         public unsafe void Update(float scale, Func<ViewDraw, (Vector3, Quaternion)?> place = null, Func<ViewDraw, bool> hide = null)
         {
             if (models == null) return;
+            if (rim && RimColor.a > 0f && rimRamp && (RimColor.r != rimShown.r || RimColor.g != rimShown.g || RimColor.b != rimShown.b))
+                SetRimRamp(RimColor);
             uint n = src.Draws(null, 0);
             if (n > draws.Length) draws = new ViewDraw[Math.Max(n, (uint)draws.Length * 2)];
             drawCount = (int)src.Draws(draws, (uint)draws.Length);
@@ -468,6 +518,7 @@ namespace Ror2Common
                         set = true, mode = wanted ? (byte)1 : cloud ? (byte)2 : (byte)0,
                         color = c, alpha = Mathf.Clamp01(d.alpha),
                         flash = (d.flags & 1) != 0 ? FlashColor : (d.flags & 2) != 0 ? FrozenColor : default,
+                        rim = rim && !cloud && RimColor.a > 0f ? RimColor.a * RimBoost : 0f,
                     };
                     if (inst.blocks[b].Matches(state)) continue;
                     block.Clear();
@@ -477,6 +528,7 @@ namespace Ror2Common
                         block.SetFloat(FadeId, Mathf.Clamp01(d.alpha));
                         if ((d.flags & 1) != 0) block.SetColor(FlashId, FlashColor);
                         else if ((d.flags & 2) != 0) block.SetColor(FlashId, FrozenColor);
+                        if (state.rim > 0f) block.SetFloat(FresnelBoostId, state.rim);
                     }
                     else if (cloud)
                         block.SetColor(TintId, c);
@@ -486,6 +538,7 @@ namespace Ror2Common
                         block.SetFloat(FadeId, Mathf.Clamp01(d.alpha));
                         if ((d.flags & 1) != 0) block.SetColor(FlashId, FlashColor);
                         else if ((d.flags & 2) != 0) block.SetColor(FlashId, FrozenColor);
+                        if (state.rim > 0f) block.SetFloat(FresnelBoostId, state.rim);
                     }
                     inst.renderer.SetPropertyBlock(block, b);
                     inst.blocks[b] = state;
@@ -658,6 +711,7 @@ namespace Ror2Common
                 if (tex) UnityEngine.Object.Destroy(tex);
             textures.Clear();
             animatedTextures.Clear();
+            if (rimRamp) UnityEngine.Object.Destroy(rimRamp);
             if (root) UnityEngine.Object.Destroy(root.gameObject);
         }
     }

@@ -25,12 +25,16 @@ namespace Ror2Common
         public Quaternion LocalRotation = Quaternion.identity;
         public Vector3 LocalPosition;
         readonly float[] overlay = new float[4];
+        readonly float[] light = new float[8];
+        /// Whether fighter views draw the colour programs' rim light (the Melee plugin's config sets it
+        /// before any view is made; effects and articles never draw one).
+        public static bool RimLight = true;
         readonly MaterialAlphaBuffer alpha = new MaterialAlphaBuffer();
         byte drawFlags;
         public ViewDraw[] InstanceDraws;
 
         public MeleeFighterView(string assetsDir, uint kind, uint costume)
-            : this(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4))) { }
+            : this(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)), RimLight) { }
         public MeleeFighterView(string assetsDir, uint kind, uint article, uint state)
             : this(MeleeNative.ssbm_article_new(NativeLib.CString(assetsDir), kind, article, state)) { }
         public static MeleeFighterView Effect(string assetsDir, uint kind, uint model)
@@ -42,11 +46,11 @@ namespace Ror2Common
         public static MeleeFighterView Grapple(string assetsDir, uint part)
             => new MeleeFighterView(MeleeNative.ssbm_grapple_new(NativeLib.CString(assetsDir), part));
 
-        MeleeFighterView(IntPtr handle)
+        MeleeFighterView(IntPtr handle, bool rim = false)
         {
             Handle = handle;
             if (Handle == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
-            Models = ModelView.Create(this, "Melee", translucentOpacity: 1f);
+            Models = ModelView.Create(this, "Melee", translucentOpacity: 1f, rim: rim && MeleeNative.HasLight);
             if (Models == null) { Dispose(); throw new InvalidOperationException("Melee ModelView creation failed"); }
         }
 
@@ -55,6 +59,9 @@ namespace Ror2Common
             if (MeleeNative.ssbm_view_update(Handle, sim, dt) != 1) throw new InvalidOperationException(MeleeNative.Error);
             drawFlags = MeleeNative.HasOverlay && MeleeNative.ssbm_sim_overlay(sim, overlay) == 1 ? (byte)1 : (byte)0;
             if (drawFlags != 0) Models.FlashColor = new Color(overlay[0], overlay[1], overlay[2], overlay[3]);
+            // The additive light of a colour program (a lamp-type light is not drawn).
+            Models.RimColor = MeleeNative.HasLight && MeleeNative.ssbm_sim_light(sim, light) == 1 && light[6] > 0.5f
+                ? new Color(light[0], light[1], light[2], light[3]) : default;
         }
         public void IdlePose() { if (MeleeNative.ssbm_view_pose(Handle, NativeLib.CString("Wait"), 0) != 1) throw new InvalidOperationException(MeleeNative.Error); }
         public void ClipPose(string clip, float frame) { if (MeleeNative.ssbm_view_pose(Handle, NativeLib.CString(clip), frame) != 1) throw new InvalidOperationException(MeleeNative.Error); }

@@ -19,6 +19,7 @@ namespace Ror2Common
         public const uint FighterDonkey = 7;
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
+        public static bool HasLight {get;private set;}
         public static bool HasMaterialAlpha {get;private set;}
         /// Staged-special exports (lock-on steering, hit notification, shot reflection).
         /// Optional: only Pikachu's Quick Attack / Skull Bash / Thunder Shock use them.
@@ -69,6 +70,8 @@ namespace Ror2Common
             // ABI-4 pairs can omit this presentation-only capability safely.
             try {ssbm_sim_overlay(IntPtr.Zero,null);HasOverlay=true;}
             catch(EntryPointNotFoundException){HasOverlay=false;}
+            try {ssbm_sim_light(IntPtr.Zero,null);HasLight=true;}
+            catch(EntryPointNotFoundException){HasLight=false;}
             try {ssbm_view_alpha_sources(IntPtr.Zero,out _);HasMaterialAlpha=true;}
             catch(EntryPointNotFoundException){HasMaterialAlpha=false;}
             try {ssbm_sim_lock_target(IntPtr.Zero,default,0);ssbm_sim_connect(IntPtr.Zero);ssbm_projectile_reflect(IntPtr.Zero,default);HasStagedSpecials=true;}
@@ -94,6 +97,8 @@ namespace Ror2Common
         }
         public static string Error => NativeLib.Utf8(ssbm_last_error());
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_overlay(IntPtr sim,[Out]float[] rgba);
+        /// The additive light a colour program has on the fighter: eight floats (rgb, intensity, x and yz degrees, additive flag, spare).
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_light(IntPtr sim,[Out]float[] values);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_charge_visual(IntPtr sim,[Out]float[] matrix);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_set_grabbed(IntPtr sim,uint held);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_grabbed(IntPtr sim);
