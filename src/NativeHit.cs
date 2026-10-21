@@ -22,6 +22,8 @@ namespace Ror2Common
         /// Seconds to stun the victim (0 = no stagger). Melee A attacks use this to
         /// briefly lock trash enemies out of attacking; bosses/elites are exempt.
         public float staggerDuration;
+        /// Stagger bosses and elites too (the stun is part of what the move does, so no enemy is immune).
+        public bool staggerBosses;
     }
 
     // Damage from a native sim, landing as RoR2 damage from a character, so its items, crits
@@ -60,12 +62,19 @@ namespace Ror2Common
             {
                 // Melee stagger: interrupt the victim so it cannot attack back while
                 // being hit. RoR2's own SetStateOnHurt path (the one the grapple uses
-                // to keep captures still); bosses and elites are exempt.
+                // to keep captures still); bosses and elites are exempt unless the move
+                // asks for them too, which flips their stun immunity for this one call.
                 var target = victim ? victim.body : null;
-                if (target && !MeleeGrapple.IsBoss(target))
+                if (target && (spec.staggerBosses || !MeleeGrapple.IsBoss(target)))
                 {
                     var stun = target.GetComponent<SetStateOnHurt>();
-                    if (stun) stun.SetStun(spec.staggerDuration);
+                    if (stun)
+                    {
+                        bool could = stun.canBeStunned;
+                        if (spec.staggerBosses) stun.canBeStunned = true;
+                        stun.SetStun(spec.staggerDuration);
+                        stun.canBeStunned = could;
+                    }
                 }
             }
             if (attacker && GlobalEventManager.instance)
