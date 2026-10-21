@@ -29,6 +29,11 @@ namespace Ror2Common
         protected static readonly float[] sweepHeights = { 0.1f, 0.6f, 1.2f, 1.7f };
         protected readonly List<Vector3> walls = new List<Vector3>();
         protected bool active, failed, permitDamage, deathStarted;
+        EnemyCapture capture;
+        MeleeNative.Event? pendingThrow;
+        int lastHitboxCount;
+        readonly HashSet<(ulong, uint)> pummeled = new HashSet<(ulong, uint)>();
+        readonly Collider[] grabCandidates = new Collider[32];
         protected float scale, lastHealth;
         protected MeleeNative.HitboxSample[] hitboxes = new MeleeNative.HitboxSample[64];
         protected readonly HashSet<string> presentationErrors = new HashSet<string>();
@@ -55,8 +60,13 @@ namespace Ror2Common
         protected abstract uint AllowedButtons { get; }
         protected abstract bool ShieldSelected { get; }
         protected abstract MeleeControlLayout Layout { get; }
-        protected abstract bool GrabAttached { get; }
-        protected abstract bool GrabHolding { get; }
+        // --- Grab: every fighter captures enemies with its disc grab hitboxes ---
+        // (Samus overrides all of this with her grapple.) A grab box that touches an
+        // enemy holds it in front of the fighter (EnemyCapture); the sim then runs
+        // the authored pummel and throws, and the throw's damage and launch land here.
+        protected virtual bool GenericGrab => true;
+        protected virtual bool GrabAttached => false;
+        protected virtual bool GrabHolding => GenericGrab && capture != null && capture.Target;
         protected abstract bool IsRangedMove(uint moveId);
         protected abstract bool IsChargeMove(uint moveId);
         protected abstract void UpdateAudio();
@@ -68,9 +78,17 @@ namespace Ror2Common
         protected abstract void DrawPresentation(Vector3 at, Quaternion rotation);
         protected abstract void DrawHud();
         protected abstract void BeginDeathPresentation(Vector3 feet, Quaternion rotation);
-        protected abstract void GrabDetach();
-        protected abstract void GrabReleaseCapture();
-        protected abstract void GrabThrow(MeleeNative.Event e);
+        protected virtual void GrabDetach() { }
+        protected virtual void GrabReleaseCapture()
+        {
+            if (!GenericGrab) return;
+            capture?.Dispose();
+            if (sim != IntPtr.Zero) MeleeNative.ssbm_sim_set_grabbed(sim, 0);
+        }
+        protected virtual void GrabThrow(MeleeNative.Event e)
+        {
+            if (GenericGrab && capture != null && capture.Target) pendingThrow = e;
+        }
         protected abstract void ApplyHitboxes(MeleeNative.HitboxSample[] samples, int count, float scale);
         protected abstract void OnEventStarted(MeleeNative.Event e);
         protected abstract void OnEventHit(MeleeNative.Event e);
@@ -146,11 +164,13 @@ namespace Ror2Common
                 uint count = MeleeNative.ssbm_sim_hitboxes(sim, null, 0);
                 if (count > 1024) throw new InvalidOperationException("Native hitbox sample budget exceeded");
                 if (count > hitboxes.Length) hitboxes = new MeleeNative.HitboxSample[count];
+                lastHitboxCount = 0;
                 if (count > 0) {
                     if (MeleeNative.ssbm_sim_hitboxes(sim, hitboxes, (uint)hitboxes.Length) != count) throw new InvalidOperationException(MeleeNative.Error);
-                    if (permitDamage) ApplyHitboxes(hitboxes, (int)count, scale);
+                    if (permitDamage) { ApplyHitboxes(hitboxes, (int)count, scale); lastHitboxCount = (int)count; }
                 }
                 if (MeleeNative.ssbm_sim_state(sim, out state) != 1) { Fallback(MeleeNative.Error); return; }
+                StepGrab(Time.fixedDeltaTime);
                 var feet = ToWorld(state.position);
                 if ((previousRecovery & 4) != 0 && (recoveryFlags & 4) == 0) {
                     transform.position = feet + feetOffset; smoother.Reset(); native.ForgetVelocity(); wallGuard.Placed(feet);
@@ -173,6 +193,70 @@ namespace Ror2Common
                 motor.Motor.GroundingStatus.FoundAnyGround = state.grounded != 0;
                 FaceTarget();
             } catch (Exception e) { Fallback(e.ToString()); }
+        }
+        // Native moves 25..27 are the three grabs, 28 the pummel, 29..32 the throws.
+        void StepGrab(float dt)
+        {
+            if (!GenericGrab || !NetworkServer.active) return;
+            if (capture == null) capture = new EnemyCapture(body);
+            if (pendingThrow.HasValue)
+            {
+                var cue = pendingThrow.Value; pendingThrow = null;
+                var target = capture.Target; capture.Dispose();
+                if (target && target.alive)
+                {
+                    var launch = new Vector3(cue.direction.x, cue.direction.y, cue.direction.z);
+                    NativeHit.Deal(body, target, new NativeHitSpec {
+                        coefficient = cue.strength / 3f, position = target.body.corePosition, force = launch * 1800f,
+                        procCoefficient = 1f, damageType = DamageType.Generic, color = DamageColorIndex.Default,
+                    });
+                }
+            }
+            bool catching = state.move_id >= 25 && state.move_id <= 27;
+            if (!capture.Target && catching) ScanGrab();
+            if (capture.Target)
+            {
+                if (MeleeNative.ssbm_sim_grabbed(sim) == 0) { capture.Dispose(); return; }
+                if (state.move_id == 28) Pummel(); else pummeled.Clear();
+                if (!capture.Step(new Vector3(state.facing.x, 0, state.facing.z), dt)) MeleeNative.ssbm_sim_set_grabbed(sim, 0);
+            }
+        }
+        // The disc's grab hitboxes (0% damage) mark where a grab reaches; the first live
+        // enemy inside one is captured.
+        void ScanGrab()
+        {
+            for (int i = 0; i < lastHitboxCount; i++)
+            {
+                var hit = hitboxes[i];
+                if (hit.damage > 0f) continue;
+                var forward = new Vector3(hit.facing.x, 0, hit.facing.z);
+                var heading = forward.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(forward) : Quaternion.identity;
+                var local = new Vector3(-hit.local_position.x, hit.local_position.y, hit.local_position.z);
+                var point = new Vector3(hit.origin.x, hit.origin.y, hit.origin.z) * scale + heading * local * scale;
+                int n = Physics.OverlapSphereNonAlloc(point, Mathf.Max(hit.radius * scale * 1.8f, 0.6f), grabCandidates, LayerIndex.entityPrecise.mask, QueryTriggerInteraction.Collide);
+                for (int j = 0; j < n; j++)
+                {
+                    var hurt = grabCandidates[j] ? grabCandidates[j].GetComponent<HurtBox>() : null;
+                    if (!hurt || !hurt.healthComponent || !hurt.healthComponent.alive) continue;
+                    var other = hurt.healthComponent.body;
+                    if (!other || !other.teamComponent || other.teamComponent.teamIndex == body.teamComponent.teamIndex) continue;
+                    if (!capture.TryCapture(hurt.healthComponent)) continue;
+                    MeleeNative.ssbm_sim_set_grabbed(sim, 1); pummeled.Clear();
+                    return;
+                }
+            }
+        }
+        void Pummel()
+        {
+            for (int i = 0; i < lastHitboxCount; i++)
+            {
+                var hit = hitboxes[i];
+                if (hit.damage <= 0f || !pummeled.Add((hit.serial, hit.generation))) continue;
+                NativeHit.Deal(body, capture.Target, new NativeHitSpec {
+                    coefficient = hit.damage / 3f, position = capture.Target.body.corePosition,
+                    procCoefficient = 1f, damageType = DamageType.Generic, color = DamageColorIndex.Default,
+                });
+            }
         }
         void StartSim()
         {
@@ -284,6 +368,7 @@ namespace Ror2Common
         }
         void Cleanup()
         {
+            capture?.Dispose(); pendingThrow = null;
             pad.ReleaseInteraction();
             DisposePresentation();
             Arriving = false; recoveryFlags = 0; recovery?.Refresh();

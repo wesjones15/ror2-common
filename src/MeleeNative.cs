@@ -166,6 +166,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern float ssbm_object_duration(IntPtr view);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_gfx(IntPtr sim,[Out]Event[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_bone(IntPtr sim,uint bone,[Out]float[] matrix);
+        /// Like ssbm_sim_bone, but `part` is a common FtPart index (HipN 4, RThumbNb 49...).
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_common_bone(IntPtr sim,uint part,[Out]float[] matrix);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern ulong ssbm_sim_motion_serial(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_view_free(IntPtr view);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_view_pose(IntPtr view,byte[] clip,float frame);

@@ -203,6 +203,10 @@ namespace Ror2Common
             controls.richText = true;
             controls.enableWordWrapping = true;
             controls.overflowMode = TMPro.TextOverflowModes.Truncate;
+            // A long move list shrinks to fit instead of being cut off.
+            controls.enableAutoSizing = true;
+            controls.fontSizeMax = 21f;
+            controls.fontSizeMin = 13f;
             footer = Label("Footer", window, new Vector2(24f, -(Height - 56f)), new Vector2(Width - 48f, 44f), 18f, new Color(.7f, .78f, .84f));
             footer.enableWordWrapping = true;
         }
