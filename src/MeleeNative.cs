@@ -109,6 +109,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_projectile_bounce(IntPtr projectile);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_projectile_reflect(IntPtr projectile,Vec3 normal);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_lock_target(IntPtr sim,Vec3 target,uint valid);
+        /// World facts a fighter's staged specials read (Link's boomerang out, a carried bomb); set every tick.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_set_host_flags(IntPtr sim,uint flags);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_connect(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_projectile_impact(IntPtr projectile,IntPtr audio);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_projectile_free(IntPtr projectile);
