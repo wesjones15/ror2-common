@@ -30,8 +30,10 @@ namespace Ror2Common
             public uint BounceSound;
             /// Hard cap on a shot's life in seconds, whatever the sim says.
             public float MaxSeconds = 10f;
-            /// Wall/ceiling reflections allowed before the shot gives up.
-            public int MaxReflections = 12;
+            /// Hard cap on a shot's straight-line range in metres; it despawns
+            /// past this (or the host's map bounds) even though its sim lifetime
+            /// is unbounded.
+            public float MaxRange = 200f;
             /// Melee damage percent per unit of damage coefficient.
             public float PercentPerCoefficient = 3f;
             /// Enemy hit radius multiplier so a shot at range lands as easily as a bullet.
@@ -49,7 +51,6 @@ namespace Ror2Common
         MeleeFighterView view;
         ulong trailKey;
         float age;
-        int reflections;
         bool finished;
         readonly HashSet<HealthComponent> victims = new HashSet<HealthComponent>();
 
@@ -85,6 +86,7 @@ namespace Ror2Common
             if (!owner || !owner.healthComponent || !owner.healthComponent.alive) { End(false); return; }
             age += Time.fixedDeltaTime;
             if (age > cfg.MaxSeconds) { End(true); return; }
+            if ((transform.position - origin).sqrMagnitude > cfg.MaxRange * cfg.MaxRange) { End(true); return; }
             var from = transform.position;
             MeleeNative.ssbm_projectile_step(projectile, Time.fixedDeltaTime, default, 0);
             ReadState();
@@ -130,8 +132,10 @@ namespace Ror2Common
             }
             else
             {
-                if (++reflections > cfg.MaxReflections) { End(true, centre); return; }
-                MeleeNative.ssbm_projectile_reflect(projectile, new MeleeNative.Vec3(normal.x, normal.y, normal.z));
+                // Wall/ceiling: the sim reflects the shot and spends one of the same
+                // surface contacts (Pikachu's ten arcs), so a Thunder Jolt arcs off
+                // any surface, not just the floor. Exhausted budget ends the shot.
+                if (MeleeNative.ssbm_projectile_reflect(projectile, new MeleeNative.Vec3(normal.x, normal.y, normal.z)) == 0) { End(true, centre); return; }
             }
             var rel = (centre - origin) / cfg.Scale;
             MeleeNative.ssbm_projectile_place(projectile, new MeleeNative.Vec3(rel.x, rel.y, rel.z), 0);
