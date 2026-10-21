@@ -38,6 +38,12 @@ namespace Ror2Common
             public float PercentPerCoefficient = 3f;
             /// Enemy hit radius multiplier so a shot at range lands as easily as a bullet.
             public float HitRadiusScale = 1.5f;
+            /// Follow surfaces instead of bouncing (Pikachu's Thunder Jolt): after its first contact the
+            /// shot crawls along the floor, up walls and across ceilings at its own speed, drops off ledges
+            /// and crawls again where it lands.
+            public bool Crawl;
+            /// Gravity in m/s^2 while a crawling shot is off every surface.
+            public float CrawlFall = 22f;
         }
 
         static ulong nextKey = 1ul << 40;
@@ -52,6 +58,10 @@ namespace Ror2Common
         ulong trailKey;
         float age;
         bool finished;
+        // Crawl mode: after the first surface contact the host owns the motion.
+        bool crawling, airborne, measured;
+        Vector3 surface, tangent, heading, flight;
+        float speed, travelled;
         readonly HashSet<HealthComponent> victims = new HashSet<HealthComponent>();
 
         public static MeleeBouncingShot Spawn(CharacterBody owner, Vector3 point, Vector3 direction, Config cfg)
@@ -91,12 +101,24 @@ namespace Ror2Common
             MeleeNative.ssbm_projectile_step(projectile, Time.fixedDeltaTime, default, 0);
             ReadState();
             if ((state.flags & 2) != 0) { End(true); return; }
+            float radius = Mathf.Max(state.radius * cfg.Scale, 0.1f);
+            if (crawling) { Crawl(radius); return; }
             var next = origin + new Vector3(state.position.x, state.position.y, state.position.z) * cfg.Scale;
             var step = next - from;
             float length = step.magnitude;
+            if (!measured && length > 1e-5f) { measured = true; speed = length / Time.fixedDeltaTime; }
             if (length < 1e-5f) { transform.position = next; return; }
-            float radius = Mathf.Max(state.radius * cfg.Scale, 0.1f);
-            int n = Physics.SphereCastNonAlloc(from, radius, step / length, hits, length,
+            if (!Sweep(from, step / length, length, radius, out var contact)) { transform.position = next; return; }
+            var enemy = contact.collider.GetComponent<HurtBox>();
+            if (enemy && enemy.healthComponent) { Strike(contact.point); return; }
+            Surface(contact, radius);
+        }
+
+        /// The nearest thing the shot would touch along a sweep: an enemy, or world geometry. Allies, the
+        /// owner and other bodies' non-hurtbox colliders are ignored.
+        bool Sweep(Vector3 from, Vector3 dir, float length, float radius, out RaycastHit contact)
+        {
+            int n = Physics.SphereCastNonAlloc(from, radius, dir, hits, length,
                 WorldProbe.Mask | LayerIndex.entityPrecise.mask, QueryTriggerInteraction.Ignore);
             int best = -1;
             for (int i = 0; i < n; i++)
@@ -114,17 +136,124 @@ namespace Ror2Common
                 else if (body) continue; // another body's non-hurtbox collider (allies, props with motors)
                 if (best < 0 || h.distance < hits[best].distance) best = i;
             }
-            if (best < 0) { transform.position = next; return; }
-            var contact = hits[best];
-            var enemy = contact.collider.GetComponent<HurtBox>();
-            if (enemy && enemy.healthComponent) { Strike(contact.point); return; }
-            Surface(contact, radius);
+            contact = best >= 0 ? hits[best] : default;
+            return best >= 0;
+        }
+
+        // --- Crawl mode (Thunder Jolt, itpikachutjoltground.c) ----------------------------------------
+        // The source's jolt flies down at x4 until it meets the ground, then follows the ground's line
+        // from one tick to the next with no corner limit (xC is 0 on the disc), so it climbs whatever the
+        // geometry does. Walls and ceilings are the same rule applied to a steeper line (host adaptation:
+        // the source's stages only ever had a floor to follow).
+        void BeginCrawl(Vector3 normal, Vector3 centre)
+        {
+            crawling = true;
+            airborne = false;
+            surface = normal;
+            var travel = centre - transform.position;
+            var along = new Vector3(state.velocity.x, state.velocity.y, state.velocity.z);
+            heading = Vector3.ProjectOnPlane(along.sqrMagnitude > 1e-6f ? along : travel, Vector3.up);
+            if (heading.sqrMagnitude < 1e-4f) heading = owner ? owner.transform.forward : Vector3.forward;
+            heading.Normalize();
+            tangent = Retangent(heading, normal);
+            // After landing the jolt hits for the ground jolt's damage, which the sim swaps in on a bounce.
+            MeleeNative.ssbm_projectile_bounce(projectile);
+            ReadState();
+        }
+
+        /// The direction along a surface that carries on from `wanted`: its projection onto the surface,
+        /// or, head-on into a wall, up the wall; head-on into a ceiling, the way the shot was heading.
+        Vector3 Retangent(Vector3 wanted, Vector3 normal)
+        {
+            var t = Vector3.ProjectOnPlane(wanted, normal);
+            if (t.sqrMagnitude > 0.04f) return t.normalized;
+            if (Mathf.Abs(normal.y) < 0.7f)
+            {
+                var up = Vector3.ProjectOnPlane(Vector3.up, normal);
+                if (up.sqrMagnitude > 1e-4f) return up.normalized;
+            }
+            t = Vector3.ProjectOnPlane(heading, normal);
+            return t.sqrMagnitude > 1e-4f ? t.normalized : Vector3.ProjectOnPlane(Vector3.forward, normal).normalized;
+        }
+
+        void Crawl(float radius)
+        {
+            float dt = Time.fixedDeltaTime;
+            var position = transform.position;
+            if (airborne)
+            {
+                flight.y -= cfg.CrawlFall * dt;
+                float flown = flight.magnitude * dt;
+                if (flown > 1e-5f && Sweep(position, flight.normalized, flown, radius, out var land))
+                {
+                    var enemy = land.collider.GetComponent<HurtBox>();
+                    if (enemy && enemy.healthComponent) { Strike(land.point); return; }
+                    position = land.point + land.normal * (radius + 0.02f);
+                    surface = land.normal;
+                    var level = Vector3.ProjectOnPlane(flight, Vector3.up);
+                    if (level.sqrMagnitude > 1e-4f) heading = level.normalized;
+                    tangent = Retangent(flight, surface);
+                    airborne = false;
+                    Puff(cfg.BouncePuff, position);
+                    if (cfg.BounceSound != 0) cfg.PlaySound?.Invoke(cfg.BounceSound);
+                }
+                else position += flight * dt;
+                travelled += flown;
+                transform.position = position;
+                if (travelled > cfg.MaxRange) End(true);
+                return;
+            }
+            float move = speed * dt;
+            // Forward along the surface: an enemy ends the shot, a new surface turns it.
+            if (Sweep(position, tangent, move + 0.02f, radius, out var ahead))
+            {
+                var enemy = ahead.collider.GetComponent<HurtBox>();
+                if (enemy && enemy.healthComponent) { Strike(ahead.point); return; }
+                if (Vector3.Dot(ahead.normal, surface) < 0.98f)
+                {
+                    position += tangent * Mathf.Max(ahead.distance - 0.02f, 0f);
+                    var previous = tangent;
+                    surface = ahead.normal;
+                    tangent = Retangent(previous, surface);
+                    travelled += move;
+                    transform.position = position;
+                    Puff(cfg.BouncePuff, position);
+                    return;
+                }
+            }
+            position += tangent * move;
+            travelled += move;
+            // Stay on the surface: pulled back to it, taking the slope under it as the new surface. With
+            // nothing within reach the shot has run off an edge and falls.
+            if (Sweep(position + surface * (radius * 0.5f), -surface, radius * 3f, radius * 0.6f, out var under)
+                && !under.collider.GetComponent<HurtBox>())
+            {
+                position = under.point + under.normal * (radius + 0.02f);
+                surface = under.normal;
+                tangent = Vector3.ProjectOnPlane(tangent, surface);
+                tangent = tangent.sqrMagnitude < 1e-4f ? Retangent(heading, surface) : tangent.normalized;
+            }
+            else
+            {
+                airborne = true;
+                flight = tangent * speed;
+            }
+            transform.position = position;
+            if (travelled > cfg.MaxRange) End(true);
         }
 
         void Surface(RaycastHit contact, float radius)
         {
             var normal = contact.normal;
             var centre = contact.point + normal * (radius + 0.02f);
+            if (cfg.Crawl)
+            {
+                BeginCrawl(normal, centre);
+                transform.position = centre;
+                Puff(cfg.BouncePuff, centre);
+                if (cfg.BounceSound != 0) cfg.PlaySound?.Invoke(cfg.BounceSound);
+                return;
+            }
             if (normal.y > 0.5f)
             {
                 // Ground: the sim spends one bounce; when the budget is gone the shot ends.
