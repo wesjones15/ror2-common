@@ -45,14 +45,14 @@ namespace Ror2Common
 
             // The A attack, in all its directions.
             sheet.Pad("A attacks")
-                .Add("LT", "Jab. Press again to combo.")
+                .Add("LT", "Jab. Press again to combo. Keep tapping for the rapid jab (Fox, Captain Falcon, Link); holding it is one jab.")
                 .Add("LS + LT", "Tilt toward the stick.")
                 .Add("Sprint + LS + LT", "Dash attack.")
                 .Add("LS flick + LT", "Smash attack. Hold LT to charge it.")
                 .Add("Camera up / down", "With LS held, aiming 20 deg above or 50 deg below level makes any of these an up or down attack.")
                 .Add("In the air", "LT is the neutral air; LS toward or away from the camera is the forward or back air.");
             sheet.Keys("A attacks")
-                .Add("Secondary", "Jab. Press again to combo.")
+                .Add("Secondary", "Jab. Press again to combo. Keep tapping for the rapid jab (Fox, Captain Falcon, Link); holding it is one jab.")
                 .Add("Move + Secondary", "Tilt toward your movement.")
                 .Add("Sprint + Move + Secondary", "Dash attack.")
                 .Add("Move flick + Secondary", "Smash attack. Hold Secondary to charge it.")
