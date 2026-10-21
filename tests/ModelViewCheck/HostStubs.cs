@@ -70,6 +70,11 @@ namespace UnityEngine
         public static Color white => new Color(1, 1, 1, 1);
         public static Color operator *(Color c, float f) => new Color(c.r * f, c.g * f, c.b * f, c.a * f);
     }
+    public struct Color32
+    {
+        public byte r, g, b, a;
+        public static implicit operator Color32(Color c) => new Color32 { r = (byte)(c.r * 255), g = (byte)(c.g * 255), b = (byte)(c.b * 255), a = (byte)(c.a * 255) };
+    }
     public struct Bounds { public Bounds(Vector3 center, Vector3 size) { } }
     public struct Plane { }
     public class Camera : Object { public static Camera main; public Transform transform = new Transform(); }
@@ -124,10 +129,13 @@ namespace UnityEngine
         bool readable = true;
         public FilterMode filterMode;
         public TextureWrapMode wrapModeU, wrapModeV;
+        public TextureWrapMode wrapMode;
         public static Texture2D whiteTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
         public Texture2D(int w, int h, TextureFormat format, bool mip) { }
         public void SetPixelData(byte[] pixels, int mip) { if (!readable) throw new Exception("texture is immutable"); uploads++; }
         public void Apply(bool mip, bool immutable) { readable = !immutable; }
+        public void SetPixels32(Color32[] pixels) { }
+        public void Apply(bool mip) { }
     }
     public class Material : Object
     {
