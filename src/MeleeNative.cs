@@ -28,6 +28,8 @@ namespace Ror2Common
         /// Staged-special exports (lock-on steering, hit notification, shot reflection).
         /// Optional: only Pikachu's Quick Attack / Skull Bash / Thunder Shock use them.
         public static bool HasStagedSpecials {get;private set;}
+        /// The sim's move list (ssbm_sim_moves), which the pause moveset is generated from. Optional.
+        public static bool HasMoves {get;private set;}
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_rebirth(IntPtr sim,byte[] dir,Vec3 destination);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_rebirth_flags(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_camera(IntPtr view,Vec3 camera);
@@ -84,6 +86,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasMaterialAlpha=false;}
             try {ssbm_sim_lock_target(IntPtr.Zero,default,0);ssbm_sim_connect(IntPtr.Zero);ssbm_projectile_reflect(IntPtr.Zero,default);HasStagedSpecials=true;}
             catch(EntryPointNotFoundException){HasStagedSpecials=false;}
+            try {ssbm_sim_moves(IntPtr.Zero,null,0);HasMoves=true;}
+            catch(EntryPointNotFoundException){HasMoves=false;}
             var sizes = new uint[14]; uint count=ssbm_struct_sizes(sizes,(uint)sizes.Length);
             error=NativeLib.CompareSizes(sizes,count,new[] {
                 ("Vec3",NativeLib.Size<Vec3>()),("Pad",NativeLib.Size<Pad>()),("State",NativeLib.Size<State>()),
@@ -103,6 +107,8 @@ namespace Ror2Common
                 ssbm_sim_hold_knockdown(IntPtr.Zero);
             }catch(EntryPointNotFoundException e){throw new InvalidOperationException("Melee requires its matching ssbm.dll behavior exports.",e);}
         }
+        /// The fighter's moves: `max` entries of 8 words each, the shared move id then 28 bytes of NUL-padded source action name.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_moves(IntPtr sim,[Out]uint[] output,uint max);
         public static string Error => NativeLib.Utf8(ssbm_last_error());
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_overlay(IntPtr sim,[Out]float[] rgba);
         /// The additive light a colour program has on the fighter: eight floats (rgb, intensity, x and yz degrees, additive flag, spare).

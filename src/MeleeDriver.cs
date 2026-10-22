@@ -62,6 +62,10 @@ namespace Ror2Common
         protected abstract string AssetsDir { get; }
         /// The fighter's native `FighterKind`, used to construct its sim.
         protected abstract uint FighterKind { get; }
+        MeleeMoveInfo[] moveList;
+        /// The moves this fighter's native sim has (null before the sim exists or without the move-list export);
+        /// read once, for the pause sheet's moveset.
+        public MeleeMoveInfo[] MoveList => moveList ?? (sim == IntPtr.Zero ? null : moveList = MeleeMoveset.Read(sim));
         protected abstract float MetresPerUnit { get; }
         protected abstract float JumpScale { get; }
         /// RoR2 calibration multiplier on walk/run speed; the Samus survivors
