@@ -1,17 +1,17 @@
 using System;
-using System.Text;
-using System.Text.RegularExpressions;
+using System.Collections.Generic;
+using RoR2;
 
 namespace Ror2Common
 {
-    /// The pause-menu controls window for any Melee survivor, generated from the
-    /// skills the fighter already defines (`MeleeSkillLayout`) plus the generic
-    /// Melee control scheme every fighter shares. The sheet has three pages: Skills
-    /// (the special-move skills), Controls (the shared A attack, grab and movement rules) and
-    /// Moveset (every move the fighter has and its input; see `MeleeMoveset`). A fighter supplies only a
-    /// subtitle and, if it has extra inputs of its own (Samus's grapple), a
-    /// callback that appends them; its special-move rows can never drift from
-    /// the skill names and descriptions shown in the loadout and HUD.
+    /// The pause-menu controls window for any Melee survivor: one page in the style of Olimar's and
+    /// Mario's sheets (a few short sections, rows of a few words) so it can be read at a glance with
+    /// the game running. Specials (the fighter's own skill names, from `MeleeSkillLayout`, so they can
+    /// never drift from the loadout and HUD), Attacks (the A attack in its directions, worded for the
+    /// moves this fighter's sim actually has), Grab and Moving. The text never needs the window's
+    /// auto-size: keep every action under about 34 characters and the sheet under Olimar's row count.
+    /// A fighter supplies a subtitle and, if it has inputs of its own (Samus's grapple), replacement
+    /// grab rows or a callback that appends them.
     ///
     /// Buttons are read by position (MeleePad), so the rows name physical
     /// controls: RT neutral special, LT A attack, RB side special, LB up special,
@@ -21,54 +21,56 @@ namespace Ror2Common
     public static class MeleeSheet
     {
         /// <param name="subtitle">Shown under the fighter's name.</param>
-        /// <param name="skills">The fighter's skill layout (names and descriptions).</param>
-        /// <param name="footer">Optional note at the foot of the window.</param>
+        /// <param name="skills">The fighter's skill layout (names).</param>
+        /// <param name="footer">Optional note at the foot of the window (one or two short lines).</param>
         /// <param name="extras">Optional: appends fighter-specific sections or rows.</param>
-        /// <param name="grabPad">Pad text for X when the fighter's grab differs from the generic one.</param>
-        /// <param name="grabKeys">Keyboard text for Interact likewise.</param>
-        /// <param name="grapple">The fighter's grab is a grapple beam (Samus): the moveset names it so.</param>
+        /// <param name="grab">Optional: fills the gamepad and keyboard Grab sections instead of the generic rows.</param>
+        /// <param name="body">The player's body, to word the Attacks and Grab rows by the fighter's own move list.</param>
         public static ControlSheet Build(string subtitle, in MeleeSkillLayout skills, string footer = null,
-            Action<ControlSheet> extras = null, string grabPad = null, string grabKeys = null, bool grapple = false)
+            Action<ControlSheet> extras = null, Action<ControlSection, ControlSection> grab = null, CharacterBody body = null)
         {
-            var sheet = new ControlSheet { Subtitle = subtitle, Footer = footer, CurrentPage = "Skills" };
+            var sheet = new ControlSheet { Subtitle = subtitle, Footer = footer };
+            var driver = body ? body.GetComponent<MeleeDriver>() : null;
+            var moves = driver ? driver.MoveList : null;
+            string jab = MeleeMoveset.JabText(moves);
+            bool dashGrab = moves == null || MeleeMoveset.Has(moves, MeleeMoveset.DashGrab);
 
-            // Specials, by button: the fighter's own skill names and descriptions.
-            var pad = sheet.Pad("Special moves");
-            pad.InputColumn = 100;
-            pad.Add("RT", Move(skills.primary));
-            pad.Add("RB", Move(skills.utility));
-            pad.Add("LB", Move(skills.special));
-            pad.Add("B", Move(skills.extra));
-            pad.Add("B alt", "Shield instead, and an evade once in the air. Pick it in the loadout's B Skill row.");
-            var keys = sheet.Keys("Special moves");
-            keys.InputColumn = 100;
-            keys.Add("Primary", Move(skills.primary));
-            keys.Add("Utility", Move(skills.utility));
-            keys.Add("Special", Move(skills.special));
-            keys.Add("C", Move(skills.extra));
-            keys.Add("C alt", "Shield instead, and an evade once in the air. Pick it in the loadout's B Skill row.");
+            // Specials, by button: the fighter's own skill names.
+            sheet.Pad("Specials")
+                .Add("RT", skills.primary.displayName)
+                .Add("RB", skills.utility.displayName)
+                .Add("LB", skills.special.displayName)
+                .Add("B", skills.extra.displayName);
+            sheet.Keys("Specials")
+                .Add("Primary", skills.primary.displayName)
+                .Add("Utility", skills.utility.displayName)
+                .Add("Special", skills.special.displayName)
+                .Add("C", skills.extra.displayName);
 
-            // The A attack, in all its directions.
-            sheet.CurrentPage = "Controls";
-            sheet.Pad("A attacks")
-                .Add("LT", "Jab. Press again to combo. Keep tapping for the rapid jab where the fighter has one (see Moveset); holding it is one jab.")
-                .Add("LS + LT", "Tilt toward the stick.")
-                .Add("Sprint + LS + LT", "Dash attack.")
-                .Add("LS flick + LT", "Smash attack. Hold LT to charge it.")
-                .Add("Camera up / down", "With LS held, aiming 20 deg above or 50 deg below level makes any of these an up or down attack.")
-                .Add("In the air", "LT is the neutral air; LS toward or away from the camera is the forward or back air.");
-            sheet.Keys("A attacks")
-                .Add("Secondary", "Jab. Press again to combo. Keep tapping for the rapid jab where the fighter has one (see Moveset); holding it is one jab.")
-                .Add("Move + Secondary", "Tilt toward your movement.")
-                .Add("Sprint + Move + Secondary", "Dash attack.")
-                .Add("Move flick + Secondary", "Smash attack. Hold Secondary to charge it.")
-                .Add("Camera up / down", "While moving, aiming 20 deg above or 50 deg below level makes any of these an up or down attack.")
-                .Add("In the air", "Secondary is the neutral air; moving toward or away from the camera is the forward or back air.");
+            // The A attack, in its directions: aim up or down with the camera.
+            sheet.Pad("Attacks")
+                .Add("LT", jab)
+                .Add("LS + LT", "Tilts (aim up/down)")
+                .Add("Flick + LT", "Smashes (hold to charge)")
+                .Add("Sprint + LT", "Dash attack")
+                .Add("LT in air", "Aerials");
+            sheet.Keys("Attacks")
+                .Add("Secondary", jab)
+                .Add("Move + Secondary", "Tilts (aim up/down)")
+                .Add("Flick + Secondary", "Smashes (hold to charge)")
+                .Add("Sprint + Secondary", "Dash attack")
+                .Add("Secondary in air", "Aerials");
 
-            sheet.Pad("Grab")
-                .Add("X", grabPad ?? "Grab (Sprint + X while running). Then LT to pummel, LS + LT to throw. Not while an interact prompt is up.");
-            sheet.Keys("Grab")
-                .Add("Interact", grabKeys ?? "Grab (Sprint + Interact while running). Then Secondary to pummel, Move + Secondary to throw.");
+            var padGrab = sheet.Pad("Grab");
+            var keysGrab = sheet.Keys("Grab");
+            if (grab != null) grab(padGrab, keysGrab);
+            else
+            {
+                padGrab.Add("X", dashGrab ? "Grab (Sprint + X: dash grab)" : "Grab")
+                    .Add("While held", "LT pummel, LS + LT throw");
+                keysGrab.Add("Interact", dashGrab ? "Grab (Sprint: dash grab)" : "Grab")
+                    .Add("While held", "Secondary pummel, Move throw");
+            }
 
             sheet.Pad("Moving")
                 .Add("Left stick", "Walk, run")
@@ -79,37 +81,7 @@ namespace Ror2Common
                 .Add("Jump", "Jump; again in the air");
 
             extras?.Invoke(sheet);
-
-            // Every move the fighter has, from its sim's own move list.
-            var body = PauseControls.SheetBody;
-            var driver = body ? body.GetComponent<MeleeDriver>() : null;
-            MeleeMoveset.Add(sheet, skills, driver ? driver.MoveList : null, grapple);
-            sheet.CurrentPage = null;
             return sheet;
-        }
-
-        /// "Name: what it does", from the skill's own strings.
-        static string Move(in MeleeSkillInfo skill) => skill.displayName + ": " + Describe(skill.description);
-
-        static readonly Regex ButtonPrefix = new Regex(@"^\s*(RT|LT|RB|LB|B|X|A)\s*:\s*", RegexOptions.Compiled);
-
-        /// The description without its leading button label, kept to whole
-        /// sentences that fit the window (about 110 characters).
-        internal static string Describe(string description)
-        {
-            if (string.IsNullOrEmpty(description)) return "";
-            var text = ButtonPrefix.Replace(description, "");
-            var sentences = text.Split(new[] { ". " }, StringSplitOptions.RemoveEmptyEntries);
-            var result = new StringBuilder();
-            foreach (var sentence in sentences)
-            {
-                var piece = sentence.Trim().TrimEnd('.');
-                if (piece.Length == 0) continue;
-                if (result.Length > 0 && result.Length + piece.Length + 2 > 110) break;
-                if (result.Length > 0) result.Append(' ');
-                result.Append(piece).Append('.');
-            }
-            return result.ToString();
         }
     }
 }
