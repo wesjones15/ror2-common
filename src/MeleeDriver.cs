@@ -29,6 +29,7 @@ namespace Ror2Common
         protected static readonly float[] sweepHeights = { 0.1f, 0.6f, 1.2f, 1.7f };
         protected readonly List<Vector3> walls = new List<Vector3>();
         protected bool active, failed, permitDamage, deathStarted;
+        uint startedMove; ulong lastBatchSerial = ulong.MaxValue;
         EnemyCapture capture;
         MeleeNative.Event? pendingThrow;
         int lastHitboxCount;
@@ -103,7 +104,11 @@ namespace Ror2Common
             if (GenericGrab && capture != null && capture.Target) pendingThrow = e;
         }
         protected abstract void ApplyHitboxes(MeleeNative.HitboxSample[] samples, int count, float scale);
-        protected abstract void OnEventStarted(MeleeNative.Event e);
+        /// The fighter's skill layout (FoxSkills.Built...): the shared `BeginMove` finds the slot a started move
+        /// belongs to through it, spends its charge and decides `permitDamage`.
+        protected abstract MeleeSkillSet SkillSet { get; }
+        /// A move started, after the shared `BeginMove` has set `permitDamage`. Most fighters need nothing here.
+        protected virtual void OnEventStarted(MeleeNative.Event e) { }
         protected abstract void OnEventHit(MeleeNative.Event e);
         protected abstract void FallbackSkills();
         protected virtual void OnSimStarted() { }
@@ -242,6 +247,7 @@ namespace Ror2Common
                     if (permitDamage) { ApplyHitboxes(hitboxes, (int)count, scale); lastHitboxCount = (int)count; }
                 }
                 if (MeleeNative.ssbm_sim_state(sim, out state) != 1) { Fallback(MeleeNative.Error); return; }
+                if (MeleeDiag.On && count > 0) MeleeDiag.Batch(FighterName, state.move_id, startedMove, hitboxes, (int)count, permitDamage, ref lastBatchSerial);
                 StepGrab(Time.fixedDeltaTime);
                 var feet = ToWorld(state.position);
                 if ((previousRecovery & 4) != 0 && (recoveryFlags & 4) == 0) {
@@ -348,6 +354,7 @@ namespace Ror2Common
             smoother = new StepSmoother(transform); cameraPivot = new CameraPivot(body); cameraPivot.Use(true); active = true;
             unstuck.Reset(); unstuck.Step(safe, false, true, false, 0.25f, 1.8f, RecoveryGround, out _); wallGuard.Placed(safe);
             CommonLog.Info(FighterName + " sim started with costume " + body.skinIndex);
+            if (body.isPlayerControlled && body.hasEffectiveAuthority) MeleeLocal.Set(FighterKind, Run.instance);
             OnSimStarted();
         }
         protected void LateUpdate()
@@ -495,11 +502,31 @@ namespace Ror2Common
         {
             // A shadow only shows the fighter: the owner makes its attacks and moves its body.
             if (puppet) { if (e.kind == 3) OnJump(e.strength); return; }
-            if (e.kind == 1) { OnEventStarted(e); NativeBody.MarkCombat(body); MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction); }
+            if (e.kind == 1) { BeginMove(e); OnEventStarted(e); NativeBody.MarkCombat(body); MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction); }
             else if (e.kind == 2) { if (permitDamage) OnEventHit(e); }
             else if (e.kind == 6) GrabThrow(e);
             else if (e.kind == 3) { native.Jumped(); OnJump(e.strength); }
             else if (e.kind == 4) native.Landed(Vector3.down * e.strength * scale * 60f);
+        }
+        // A move the sim started: its slot spends a charge (RoR2's bookkeeping: cooldown, items that
+        // watch skill use), and `permitDamage` says whether it may hit. The pad already refused a press
+        // with no charge, so a start that finds the slot empty (a chained jab, a rapid jab) still
+        // deals its damage; permission is only that the slot holds this fighter's own skill and this
+        // machine runs the body (MeleePermit). Every fighter uses this one rule.
+        void BeginMove(MeleeNative.Event e)
+        {
+            var set = SkillSet;
+            startedMove = e.move_id;
+            bool acts = MeleeNet.Acts(body);
+            if (set == null) { permitDamage = acts; MeleeDiag.MoveStart(FighterName, e.move_id, -1, true, -1, false, acts, permitDamage); return; }
+            int slot = set.Slot(e.move_id);
+            var skill = set.Get(body, slot);
+            var expected = set.Expected(body, slot);
+            bool holds = NativeSkills.Holds(skill, expected);
+            int stock = skill ? skill.stock : -1;
+            bool spent = NativeSkills.Spend(skill, expected);
+            permitDamage = MeleePermit.Allowed(holds, acts, spent);
+            MeleeDiag.MoveStart(FighterName, e.move_id, slot, holds, stock, spent, acts, permitDamage);
         }
         void Fallback(string reason)
         {

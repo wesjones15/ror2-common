@@ -58,8 +58,16 @@ static class Program
         Check(MeleeGrapple.Trace(body,body.corePosition,Vector3.forward,20,out var trace,out var hurt)&&trace.collider==wall&&!hurt,"grapple passed through wall");
         Physics.hits=new[]{new RaycastHit{collider=bossCollider,distance=15,point=hit}};Check(MeleeGrapple.Trace(body,body.corePosition,Vector3.forward,20,out _,out hurt)&&hurt.healthComponent==bossHealth,"camera grapple did not find hurtbox");
         Check(Physics.lastSphereLength==20,"grapple range is not 20m");
+        // Damage permission (MeleeDriver.BeginMove): a chained start finds the slot's charge already spent and must still hit.
+        int stock=1;bool Spend(){if(stock<1)return false;stock--;return true;}
+        bool first=MeleePermit.Allowed(true,true,Spend());bool chained=MeleePermit.Allowed(true,true,Spend());
+        Check(first&&stock==0,"first start did not spend the charge");
+        Check(chained,"a chained start with no charge left lost its damage permission");
+        Check(!MeleePermit.Allowed(false,true,true),"another skill overriding the slot kept damage permission");
+        Check(!MeleePermit.Allowed(true,false,true),"a machine that does not own the body got damage permission");
         Console.WriteLine("PASS: native-driven automatic arrival, protection/cleanup without owning Interact, corrected camera ray, owner filtering, crosshair convergence and near-camera obstruction");
         Console.WriteLine("PASS: 20m grapple wall occlusion, boss player-pull without capture/AI/movement, release/control interruption, ordinary hold/release and champion exclusion");
+        Console.WriteLine("PASS: damage permission is the slot holding the fighter's own skill plus authority, whatever the charge");
     }
 }
 

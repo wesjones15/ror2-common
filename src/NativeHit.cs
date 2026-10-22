@@ -40,12 +40,19 @@ namespace Ror2Common
             if (!NetworkServer.active)
             {
                 // A client's Melee fighter asks the server to land its hit (MeleeNet.RemoteDeal).
-                if (MeleeNet.RemoteDeal(attacker, victim, spec)) return true;
+                bool sent = MeleeNet.RemoteDeal(attacker, victim, spec);
+                if (MeleeDiag.On) MeleeDiag.Deal(attacker, victim, spec, sent ? "sent-to-server" : "client-unsent", sent, 0f, 0f, 0f, "n/a");
+                if (sent) return true;
                 if (!warned) CommonLog.Warn("NativeHit.Deal on a client; hits are the server's");
                 warned = true;
                 return false;
             }
-            if (!victim || !victim.alive) return false;
+            if (!victim || !victim.alive)
+            {
+                if (MeleeDiag.On) MeleeDiag.Deal(attacker, victim, spec, "victim-dead", false, 0f, 0f, 0f, "n/a");
+                return false;
+            }
+            float healthBefore = MeleeDiag.On ? victim.health : 0f;
             var info = new DamageInfo
             {
                 damage = spec.coefficient * (attacker ? attacker.damage : 12f),
@@ -60,6 +67,7 @@ namespace Ror2Common
                 damageColorIndex = spec.color,
             };
             victim.TakeDamage(info);
+            string staggerResult = "none";
             if (spec.staggerDuration > 0f)
             {
                 // Melee stagger: interrupt the victim so it cannot attack back while
@@ -67,9 +75,11 @@ namespace Ror2Common
                 // to keep captures still); bosses and elites are exempt unless the move
                 // asks for them too, which flips their stun immunity for this one call.
                 var target = victim ? victim.body : null;
+                staggerResult = "exempt-boss";
                 if (target && (spec.staggerBosses || !MeleeGrapple.IsBoss(target)))
                 {
                     var stun = target.GetComponent<SetStateOnHurt>();
+                    staggerResult = stun ? "applied" : "no-SetStateOnHurt";
                     if (stun)
                     {
                         bool could = stun.canBeStunned;
@@ -84,6 +94,7 @@ namespace Ror2Common
                 GlobalEventManager.instance.OnHitEnemy(info, victim.gameObject);
                 GlobalEventManager.instance.OnHitAll(info, victim.gameObject);
             }
+            if (MeleeDiag.On) MeleeDiag.Deal(attacker, victim, spec, "server", true, info.damage, healthBefore, victim ? victim.health : 0f, staggerResult);
             return true;
         }
     }
