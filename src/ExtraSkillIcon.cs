@@ -27,8 +27,7 @@ namespace Ror2Common
                 clone.name="NativeExtraSkill";
                 var layout=clone.GetComponent<LayoutElement>()??clone.AddComponent<LayoutElement>();layout.ignoreLayout=true;
                 var rect=clone.GetComponent<RectTransform>();var original=source.GetComponent<RectTransform>();
-                // Above the fourth icon avoids the equipment column and four-icon layout.
-                rect.anchoredPosition=original.anchoredPosition+Vector2.up*(original.rect.height+12f);
+                Place(hud,rect,original);
                 var icon=clone.GetComponent<SkillIcon>();icon.targetSkill=skill;icon.targetSkillSlot=SkillSlot.None;
                 icon.playerCharacterMasterController=source.playerCharacterMasterController;
                 foreach(var binding in clone.GetComponentsInChildren<InputBindingDisplayController>(true)){
@@ -45,8 +44,66 @@ namespace Ror2Common
                 if(!pair.Key||!pair.Value||pair.Key.skillIcons==null||pair.Key.skillIcons.Length<4||!pair.Key.skillIcons[3])continue;
                 var original=pair.Key.skillIcons[3].GetComponent<RectTransform>();
                 var rect=pair.Value.GetComponent<RectTransform>();
-                rect.anchoredPosition=original.anchoredPosition+Vector2.up*(original.rect.height+12f);
+                Place(pair.Key,rect,original);
             }
+        }
+        /// Puts the fifth icon in the stock row: one slot past the last icon, at the spacing the stock icons
+        /// already have (last minus the one before it), so its cooldown overlay and key glyph line up with theirs.
+        /// If that spot would sit on the equipment slot or off the screen, the same step before the first icon,
+        /// and only then above the row.
+        static void Place(HUD hud,RectTransform clone,RectTransform last)
+        {
+            var icons=hud.skillIcons;
+            Vector2 step=Vector2.zero;
+            var before=icons.Length>=3&&icons[2]?icons[2].GetComponent<RectTransform>():null;
+            if(before)step=last.anchoredPosition-before.anchoredPosition;
+            // A row runs sideways; with no usable spacing (a layout group not yet laid out) use one slot and a gap.
+            if(Mathf.Abs(step.x)<1f||Mathf.Abs(step.x)<Mathf.Abs(step.y))step=new Vector2(last.rect.width+12f,0f);
+            var first=icons[0]?icons[0].GetComponent<RectTransform>():last;
+            var parent=clone.parent as RectTransform;
+            Vector2[] candidates={
+                last.anchoredPosition+step,
+                first.anchoredPosition-step,
+                last.anchoredPosition+Vector2.up*(last.rect.height+12f),
+            };
+            for(int i=0;i<candidates.Length;i++){
+                var offset=candidates[i]-last.anchoredPosition;
+                // The last slot's bounds in the shared parent's space, moved to the candidate.
+                var bounds=LocalBounds(last,parent);bounds.center+=(Vector3)offset;
+                if(i<candidates.Length-1&&!Free(hud,bounds,parent,clone))continue;
+                clone.anchoredPosition=candidates[i];
+                return;
+            }
+        }
+        // `rect`'s box in `space`'s local coordinates.
+        static Bounds LocalBounds(RectTransform rect,Transform space)
+        {
+            var corners=new Vector3[4];rect.GetWorldCorners(corners);
+            var box=new Bounds(space.InverseTransformPoint(corners[0]),Vector3.zero);
+            for(int i=1;i<4;i++)box.Encapsulate(space.InverseTransformPoint(corners[i]));
+            box.center=new Vector3(box.center.x,box.center.y,0f);box.size=new Vector3(box.size.x,box.size.y,0f);
+            return box;
+        }
+        // Whether `box` (in `parent`'s space) is on the screen and clear of the equipment slot and the stock icons.
+        static bool Free(HUD hud,Bounds box,RectTransform parent,RectTransform clone)
+        {
+            var canvas=hud.mainContainerCanvas?hud.mainContainerCanvas.rootCanvas:null;
+            var camera=canvas&&canvas.renderMode!=RenderMode.ScreenSpaceOverlay?canvas.worldCamera:null;
+            foreach(var corner in new[]{box.min,box.max}){
+                var p=RectTransformUtility.WorldToScreenPoint(camera,parent.TransformPoint(corner));
+                if(p.x<0f||p.y<0f||p.x>Screen.width||p.y>Screen.height)return false;
+            }
+            // Slightly shrunk, so slots that merely touch (the stock spacing) do not count as overlapping.
+            box.size-=new Vector3(4f,4f,0f);
+            if(hud.equipmentIcons!=null)foreach(var equipment in hud.equipmentIcons){
+                var rect=equipment?equipment.GetComponent<RectTransform>():null;
+                if(rect&&rect.gameObject.activeInHierarchy&&LocalBounds(rect,parent).Intersects(box))return false;
+            }
+            foreach(var stock in hud.skillIcons){
+                var rect=stock?stock.GetComponent<RectTransform>():null;
+                if(rect&&rect!=clone&&rect.gameObject.activeInHierarchy&&LocalBounds(rect,parent).Intersects(box))return false;
+            }
+            return true;
         }
         void OnDisable(){foreach(var icon in icons.Values)if(icon)Destroy(icon.gameObject);icons.Clear();}
     }
