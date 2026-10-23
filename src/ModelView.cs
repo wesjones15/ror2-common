@@ -128,6 +128,21 @@ namespace Ror2Common
         public Transform Root => root;
 
         public int DrawCount => drawCount;
+
+        /// What the instance drawn for `key` is made of: each batch's material, shader and texture, for a
+        /// host's diagnostics.
+        public string DescribeInstance(ulong key)
+        {
+            if (!instances.TryGetValue(key, out var inst)) return "no instance";
+            var s = new System.Text.StringBuilder(inst.go && inst.go.activeSelf ? "active" : "inactive");
+            for (int b = 0; b < inst.materials.Length; b++)
+            {
+                var m = inst.materials[b];
+                var t = m ? m.mainTexture : null;
+                s.Append($" [batch {b}: {(m ? m.name : "no material")}, {(m && m.shader ? m.shader.name : "no shader")}, {(t ? t.name : "no texture")}]");
+            }
+            return s.ToString();
+        }
         public ViewDraw DrawAt(int i) => draws[i];
 
         ModelView(IViewSource src, Transform root, string name, Material skin, float translucentOpacity, bool rim)
