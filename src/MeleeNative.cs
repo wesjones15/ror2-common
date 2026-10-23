@@ -30,6 +30,8 @@ namespace Ror2Common
         public static bool HasStagedSpecials {get;private set;}
         /// The sim's move list (ssbm_sim_moves), which the pause moveset is generated from. Optional.
         public static bool HasMoves {get;private set;}
+        /// The Super Scope (Luigi's alternate neutral special): ssbm_sim_scope and the beam exports. Optional.
+        public static bool HasScope {get;private set;}
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_rebirth(IntPtr sim,byte[] dir,Vec3 destination);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_rebirth_flags(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_camera(IntPtr view,Vec3 camera);
@@ -68,6 +70,13 @@ namespace Ror2Common
             public uint kind,state,flags,element;
         }
 
+        /// The scope's magazine and use, for a HUD (`ssbm_sim_scope_state`). Stage 0 not in use, 1 charging, 2 firing,
+        /// 3 in a burst, 4 ending.
+        [StructLayout(LayoutKind.Sequential)] public struct ScopeInfo
+        {
+            public uint ammo,capacity,held,level,stage;
+        }
+
         public static void Load(string path)
         {
             if (!NativeLib.Load(path, out string error)) throw new InvalidOperationException(error);
@@ -88,6 +97,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasStagedSpecials=false;}
             try {ssbm_sim_moves(IntPtr.Zero,null,0);HasMoves=true;}
             catch(EntryPointNotFoundException){HasMoves=false;}
+            try {ssbm_sim_scope(IntPtr.Zero,0,0f);HasScope=true;}
+            catch(EntryPointNotFoundException){HasScope=false;}
             var sizes = new uint[14]; uint count=ssbm_struct_sizes(sizes,(uint)sizes.Length);
             error=NativeLib.CompareSizes(sizes,count,new[] {
                 ("Vec3",NativeLib.Size<Vec3>()),("Pad",NativeLib.Size<Pad>()),("State",NativeLib.Size<State>()),
@@ -182,6 +193,11 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_launch_pad(IntPtr sim,Vec3 velocity,Vec3 gravity);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new(byte[] dir,uint kind,uint costume);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_article_new(byte[] dir,uint fighterKind,uint articleKind,uint state);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_scope(IntPtr sim,uint on,float refillPerSecond);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_scope_state(IntPtr sim,out ScopeInfo info);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_scope_beams(byte[] dir,float[] rows);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_scope_beam_new(byte[] dir,uint level,Vec3 direction);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_item_new(byte[] dir,uint item,uint state);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_update(IntPtr view,float frame);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_article_cues(uint kind,uint state,uint previous,uint frame,uint fullCharge,[Out]uint[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern int ssbm_effect_target(uint id);

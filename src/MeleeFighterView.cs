@@ -41,6 +41,9 @@ namespace Ror2Common
             => new MeleeFighterView(MeleeNative.ssbm_effect_new(NativeLib.CString(assetsDir), kind, model));
         public static MeleeFighterView Game(string assetsDir)
             => new MeleeFighterView(MeleeNative.ssbm_game_new(NativeLib.CString(assetsDir)));
+        /// An item of the common item archive: the Super Scope held (0x15) or a level of its beam (0x26, state = level).
+        public static MeleeFighterView Item(string assetsDir, uint item, uint state)
+            => new MeleeFighterView(MeleeNative.ssbm_item_new(NativeLib.CString(assetsDir), item, state));
         public static MeleeFighterView EntryPlatform(string assetsDir)
             => new MeleeFighterView(MeleeNative.ssbm_entry_platform_new(NativeLib.CString(assetsDir)));
         public static MeleeFighterView Grapple(string assetsDir, uint part)

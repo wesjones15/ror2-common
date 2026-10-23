@@ -26,6 +26,8 @@ namespace Ror2Common
     public struct MeleeSkillLayout
     {
         public MeleeSkillInfo primary, secondary, utility, special;
+        /// An alternate for the primary slot (Luigi's Super Scope in place of the Fireball); `defName` null: none.
+        public MeleeSkillInfo primaryAlt;
         public MeleeSkillInfo extra, extraAlt;
         public string extraName;        // GenericSkill name for the fifth slot
         public string extraTitleToken;  // loadout title for that fifth slot
@@ -44,6 +46,8 @@ namespace Ror2Common
     {
         public readonly NativeSkillDef[] Stock = new NativeSkillDef[4];
         public NativeSkillDef Extra, ExtraAlt;
+        /// The primary slot's alternate, if the fighter has one.
+        public NativeSkillDef PrimaryAlt;
         public string ExtraName;
         readonly Func<uint, int> slotForMove;
         public static readonly SkillSlot[] Slots =
@@ -65,8 +69,11 @@ namespace Ror2Common
 
         public bool ShieldSelected(CharacterBody body) => Get(body, 4)?.skillDef == ExtraAlt;
 
+        /// The loadout holds the primary slot's alternate.
+        public bool PrimaryAltSelected(CharacterBody body) => PrimaryAlt != null && body && body.skillLocator && Get(body, 0)?.skillDef == PrimaryAlt;
+
         public NativeSkillDef Expected(CharacterBody body, int slot) =>
-            slot == 4 ? (ShieldSelected(body) ? ExtraAlt : Extra) : Stock[slot];
+            slot == 4 ? (ShieldSelected(body) ? ExtraAlt : Extra) : slot == 0 && PrimaryAltSelected(body) ? PrimaryAlt : Stock[slot];
 
         public uint Allowed(CharacterBody body)
         {
@@ -92,7 +99,16 @@ namespace Ror2Common
                 var def = NativeSkills.Make(info.defName, info.nameToken, info.descriptionToken, null,
                     info.recharge, info.stock, info.combat);
                 set.Stock[i] = def;
-                NativeSkills.SetFamily(body, MeleeSkillSet.Slots[i], def, pack);
+                if (i == 0 && layout.primaryAlt.defName != null)
+                {
+                    var alt = layout.primaryAlt;
+                    set.PrimaryAlt = NativeSkills.Make(alt.defName, alt.nameToken, alt.descriptionToken, null,
+                        alt.recharge, alt.stock, alt.combat);
+                    var primary = body.GetComponent<SkillLocator>() ? body.GetComponent<SkillLocator>().GetSkill(MeleeSkillSet.Slots[0]) : null;
+                    NativeSkills.SetFamily(primary, body.name + MeleeSkillSet.Slots[0] + "Family", pack, def, set.PrimaryAlt);
+                    VanillaIcons.Use(set.PrimaryAlt, alt.icon);
+                }
+                else NativeSkills.SetFamily(body, MeleeSkillSet.Slots[i], def, pack);
                 VanillaIcons.Use(def, info.icon);
             }
             set.Extra = NativeSkills.Make(layout.extra.defName, layout.extra.nameToken, layout.extra.descriptionToken, null,
@@ -115,6 +131,11 @@ namespace Ror2Common
             {
                 l.SetStringByToken(stock[i].nameToken, stock[i].displayName);
                 l.SetStringByToken(stock[i].descriptionToken, stock[i].description);
+            }
+            if (layout.primaryAlt.defName != null)
+            {
+                l.SetStringByToken(layout.primaryAlt.nameToken, layout.primaryAlt.displayName);
+                l.SetStringByToken(layout.primaryAlt.descriptionToken, layout.primaryAlt.description);
             }
             l.SetStringByToken(layout.extraTitleToken, layout.extraTitle);
             l.SetStringByToken(layout.extra.nameToken, layout.extra.displayName);
