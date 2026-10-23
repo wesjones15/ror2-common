@@ -69,11 +69,56 @@ namespace Ror2Common
             CommonLog.Info($"Lock-on found nothing: {enemies} enemies, {far} beyond {Range:0} m, {blocked} out of line of sight{by}");
         }
 
-        public CharacterBody Update(CharacterBody owner, bool held, bool cycle, Vector2 direction)
+        /// A thing other than an enemy a host lets the player lock onto (Olimar's pellets, corpses and ship parts).
+        public struct LockPoint
         {
-            if (!held) { target = null; return null; }
+            public uint Id;
+            public Vector3 Position;
+        }
+
+        /// Fills the list with what can be locked besides enemies; asked on every update. Null (the default)
+        /// leaves the lock for enemies only, exactly as it was.
+        public System.Action<System.Collections.Generic.List<LockPoint>> Points;
+
+        readonly System.Collections.Generic.List<LockPoint> points = new System.Collections.Generic.List<LockPoint>();
+        bool hasPoint;
+        uint pointId;
+        Vector3 pointPosition;
+
+        struct Candidate
+        {
+            public CharacterBody Body;
+            public LockPoint Point;
+            public Vector3 Position;
+        }
+
+        readonly System.Collections.Generic.List<Candidate> candidates = new System.Collections.Generic.List<Candidate>();
+
+        bool PointValid(CharacterBody owner, Vector3 at) =>
+            (at - owner.corePosition).sqrMagnitude <= Range * Range
+            && !Physics.Linecast(owner.corePosition, at, LayerIndex.world.mask, QueryTriggerInteraction.Ignore);
+
+        public CharacterBody Update(CharacterBody owner, bool held, bool cycle, Vector2 direction) =>
+            Update(owner, held, cycle, direction, out _, out _);
+
+        /// As above, and with `Points` set the lock can sit on one of those instead: then the result is null and
+        /// `onPoint` is set, with its id.
+        public CharacterBody Update(CharacterBody owner, bool held, bool cycle, Vector2 direction, out bool onPoint, out uint pointOut)
+        {
+            onPoint = false;
+            pointOut = 0;
+            if (!held) { target = null; hasPoint = false; return null; }
             if (!Valid(owner, target)) target = null;
-            if (target && !cycle) return target;
+            points.Clear();
+            if (Points != null) Points(points);
+            if (hasPoint)
+            {
+                bool found = false;
+                foreach (var p in points)
+                    if (p.Id == pointId) { found = PointValid(owner, p.Position); pointPosition = p.Position; break; }
+                if (!found) hasPoint = false;
+            }
+            if ((target || hasPoint) && !cycle) { onPoint = hasPoint; pointOut = pointId; return target; }
             var camera = GameSettings.PlayerCamera();
             var forward = camera ? camera.forward : owner.transform.forward;
             var right = camera ? camera.right : owner.transform.right;
@@ -81,31 +126,45 @@ namespace Ror2Common
             var view = camera ? camera.GetComponent<Camera>() : null;
             if (direction.sqrMagnitude < .2f) direction = Vector2.right;
             direction.Normalize();
-            CharacterBody best = null, wrap = null;
-            float score = float.PositiveInfinity, wrapScore = 0f;
+            candidates.Clear();
             foreach (var b in CharacterBody.readOnlyInstancesList)
+                if (b != target && Valid(owner, b)) candidates.Add(new Candidate { Body = b, Position = b.corePosition });
+            foreach (var p in points)
+                if (!(hasPoint && p.Id == pointId) && PointValid(owner, p.Position)) candidates.Add(new Candidate { Point = p, Position = p.Position });
+            bool have = target || hasPoint;
+            var current = target ? target.corePosition : pointPosition;
+            int best = -1, wrap = -1;
+            float score = float.PositiveInfinity, wrapScore = 0f;
+            for (int i = 0; i < candidates.Count; i++)
             {
-                if (b == target || !Valid(owner, b)) continue;
-                var delta = b.corePosition - owner.corePosition;
-                if (!target)
+                var at = candidates[i].Position;
+                var delta = at - owner.corePosition;
+                if (!have)
                 {
                     float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * .01f
-                        + (OnScreen(view, b.corePosition) ? 0f : OffScreen);
-                    if (s < score) { best = b; score = s; }
+                        + (OnScreen(view, at) ? 0f : OffScreen);
+                    if (s < score) { best = i; score = s; }
                     continue;
                 }
-                var from = b.corePosition - target.corePosition;
+                var from = at - current;
                 var screen = new Vector2(Vector3.Dot(from, right), Vector3.Dot(from, up));
                 float along = Vector2.Dot(screen, direction);
-                if (along < wrapScore) { wrap = b; wrapScore = along; }
+                if (along < wrapScore) { wrap = i; wrapScore = along; }
                 float alignment = Vector2.Dot(screen.normalized, direction);
                 if (alignment <= .1f) continue;
-                float rank = screen.magnitude / alignment + (OnScreen(view, b.corePosition) ? 0f : OffScreen * 1000f);
-                if (rank < score) { best = b; score = rank; }
+                float rank = screen.magnitude / alignment + (OnScreen(view, at) ? 0f : OffScreen * 1000f);
+                if (rank < score) { best = i; score = rank; }
             }
-            if (best) target = best;
-            else if (wrap) target = wrap;
-            if (!target) Report(owner);
+            int pick = best >= 0 ? best : wrap;
+            if (pick >= 0)
+            {
+                var c = candidates[pick];
+                if (c.Body) { target = c.Body; hasPoint = false; }
+                else { target = null; hasPoint = true; pointId = c.Point.Id; pointPosition = c.Point.Position; }
+            }
+            if (!target && !hasPoint) Report(owner);
+            onPoint = hasPoint;
+            pointOut = pointId;
             return target;
         }
     }
