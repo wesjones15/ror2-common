@@ -14,7 +14,7 @@ namespace Ror2Common
 {
     /// A physical button on an Xbox-style pad (Rewired's gamepad template; the glyph shown is
     /// whatever the player's pad draws for it).
-    public enum PadButton { A, B, X, Y, LB, RB, LT, RT, RS }
+    public enum PadButton { A, B, X, Y, LB, RB, LT, RT, RS, LS }
 
     // The glyphs on RoR2's HUD skill icons say which button the player bound to the slot's RoR2
     // action. A survivor whose native sim reads the pad by position (Mario's LT for the ground
@@ -197,6 +197,7 @@ namespace Ror2Common
                 case PadButton.LB: return g.leftBumper;
                 case PadButton.RB: return g.rightBumper;
                 case PadButton.LT: return g.leftTrigger.AsButton;
+                case PadButton.LS: return g.leftStick.press;
                 case PadButton.RS: return g.rightStick.press;
                 default: return g.rightTrigger.AsButton;
             }
