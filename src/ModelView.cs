@@ -20,7 +20,6 @@ namespace Ror2Common
         readonly IViewSource src;
         readonly Transform root;
         readonly float translucentOpacity;
-        readonly bool sourceCulling;
         // One material for every part, in place of the baked ones (Create's `skin`).
         Material skin;
         readonly Dictionary<Material, Material> skinCopies = new Dictionary<Material, Material>();
@@ -75,7 +74,7 @@ namespace Ror2Common
         readonly Dictionary<int, Texture2D> textures = new Dictionary<int, Texture2D>();
         sealed class AnimatedTexture { public uint version; public byte[] pixels; }
         readonly Dictionary<int, AnimatedTexture> animatedTextures = new Dictionary<int, AnimatedTexture>();
-        readonly Dictionary<(int, byte, byte, byte), Material> materials = new Dictionary<(int, byte, byte, byte), Material>();
+        readonly Dictionary<(int, byte, byte), Material> materials = new Dictionary<(int, byte, byte), Material>();
         ViewDraw[] draws = new ViewDraw[64];
         int drawCount;
         Vector3[] vbuf = new Vector3[0], nbuf = new Vector3[0];
@@ -146,10 +145,9 @@ namespace Ror2Common
         }
         public ViewDraw DrawAt(int i) => draws[i];
 
-        ModelView(IViewSource src, Transform root, string name, Material skin, float translucentOpacity, bool rim, bool sourceCulling)
+        ModelView(IViewSource src, Transform root, string name, Material skin, float translucentOpacity, bool rim)
         {
             this.rim = rim;
-            this.sourceCulling = sourceCulling;
             this.src = src;
             this.skin = skin;
             this.root = root;
@@ -162,7 +160,7 @@ namespace Ror2Common
         /// on every part instead of their textures (a copy, both sides, with the part's alpha
         /// and hit flash; the game's gummy clone material, say).
         public static ModelView Create(IViewSource src, string name, Transform parent = null, Material skin = null,
-            float translucentOpacity = Shaders.SurfaceTintOpacity, bool rim = false, bool sourceCulling = false)
+            float translucentOpacity = Shaders.SurfaceTintOpacity, bool rim = false)
         {
             var root = new GameObject(name).transform;
             if (parent) root.SetParent(parent, false);
@@ -173,7 +171,7 @@ namespace Ror2Common
                 // The mirror flip turns the winding around.
                 skin.SetFloat("_Cull", 0f);
             }
-            var mv = new ModelView(src, root, name, skin, translucentOpacity, rim, sourceCulling);
+            var mv = new ModelView(src, root, name, skin, translucentOpacity, rim);
             try
             {
                 mv.Build();
@@ -263,7 +261,7 @@ namespace Ror2Common
 
         Material MaterialFor(ViewBatch b, int texture)
         {
-            var k = (texture, b.blend, b.lit, sourceCulling ? b.cull : (byte)2);
+            var k = (texture, b.blend, b.lit);
             if (!materials.TryGetValue(k, out var m))
             {
                 m = MakeMaterial(b, TextureFor(texture));
@@ -334,12 +332,9 @@ namespace Ror2Common
                 m.SetFloat("_EnableCutout", 1f);
                 m.EnableKeyword("CUTOUT");
             }
-            // GX and Unity both treat clockwise faces as front. MirrorX reverses the winding,
-            // so swap front/back when honoring a source batch's cull mode.
-            m.SetFloat("_Cull", sourceCulling && b.cull < 2
-                ? (MirrorX ? (b.cull == 0 ? (float)CullMode.Front : (float)CullMode.Back)
-                    : (b.cull == 0 ? (float)CullMode.Back : (float)CullMode.Front))
-                : (float)CullMode.Off);
+            // Both sides: GameCube models draw some faces from both, and the mirror flip below
+            // is easy to get backwards.
+            m.SetFloat("_Cull", 0f);
             // Smoothed two tone like RoR2's characters; "unlitish" where the game draws unlit.
             m.SetFloat("_RampInfo", b.lit != 0 ? 1f : 3f);
             m.SetFloat("_SpecularStrength", 0.1f);
