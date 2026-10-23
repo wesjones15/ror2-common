@@ -29,12 +29,17 @@ namespace Ror2Common
         /// Whether fighter views draw the colour programs' rim light (the Melee plugin's config sets it
         /// before any view is made; effects and articles never draw one).
         public static bool RimLight = true;
+        /// How much brighter than the source's material colour fighter bodies are drawn. Every Melee fighter material
+        /// has a diffuse colour of 0.70, which the source's stage lighting more than makes up for; RoR2's lighting
+        /// does not (the Melee plugin's config sets it before any view is made). Effects and articles are not touched.
+        public static float FighterBrightness = 1f;
+        float brightness = 1f;
         readonly MaterialAlphaBuffer alpha = new MaterialAlphaBuffer();
         byte drawFlags;
         public ViewDraw[] InstanceDraws;
 
         public MeleeFighterView(string assetsDir, uint kind, uint costume)
-            : this(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)), RimLight) { }
+            : this(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)), RimLight) { brightness = FighterBrightness; }
         public MeleeFighterView(string assetsDir, uint kind, uint article, uint state)
             : this(MeleeNative.ssbm_article_new(NativeLib.CString(assetsDir), kind, article, state)) { }
         public static MeleeFighterView Effect(string assetsDir, uint kind, uint model)
@@ -95,7 +100,13 @@ namespace Ror2Common
         }
         public IntPtr Positions(out uint count) => MeleeNative.ssbm_view_positions(Handle, out count);
         public IntPtr Normals(out uint count) => MeleeNative.ssbm_view_normals(Handle, out count);
-        public IntPtr Colors(out uint count) { var colors = MeleeNative.ssbm_view_colors(Handle, out count); if (!MeleeNative.HasMaterialAlpha) return colors; var sources = MeleeNative.ssbm_view_alpha_sources(Handle, out uint n); return alpha.Resolve(colors, count, sources, n); }
+        public IntPtr Colors(out uint count)
+        {
+            var colors = MeleeNative.ssbm_view_colors(Handle, out count);
+            if (!MeleeNative.HasMaterialAlpha) return brightness == 1f ? colors : alpha.Resolve(colors, count, IntPtr.Zero, 0, brightness);
+            var sources = MeleeNative.ssbm_view_alpha_sources(Handle, out uint n);
+            return alpha.Resolve(colors, count, sources, n, brightness);
+        }
         public IntPtr TextureIds(out uint count) => MeleeNative.ssbm_view_texture_ids(Handle, out count);
         public IntPtr FrameUvs(out uint count) => MeleeNative.ssbm_view_frame_uvs(Handle, out count);
         public uint TextureVersion(uint id) => MeleeNative.ssbm_view_texture_version(Handle, id);

@@ -35,17 +35,21 @@ namespace Ror2Common
     public sealed class MaterialAlphaBuffer:IDisposable
     {
         float[] values;GCHandle pinned;
-        public unsafe IntPtr Resolve(IntPtr rgba,uint count,IntPtr sources,uint sourceCount)
+        /// `brightness` multiplies the colours' RGB (a host's compensation for a source that lights its models
+        /// brighter than the host does); 1 leaves them as the source gave them.
+        public unsafe IntPtr Resolve(IntPtr rgba,uint count,IntPtr sources,uint sourceCount,float brightness=1f)
         {
-            if(sources==IntPtr.Zero&&sourceCount==0)return rgba;
-            if(rgba==IntPtr.Zero||sources==IntPtr.Zero||sourceCount!=count||count>1048576)
+            bool tint=!(sources==IntPtr.Zero&&sourceCount==0);
+            if(!tint&&brightness==1f)return rgba;
+            if(rgba==IntPtr.Zero||tint&&(sources==IntPtr.Zero||sourceCount!=count)||count>1048576)
                 throw new ArgumentException("Material alpha/colour count mismatch");
             if(values==null||values.Length<count*4) {
                 Dispose();values=new float[checked((int)count*4)];pinned=GCHandle.Alloc(values,GCHandleType.Pinned);
             }
             var input=(float*)rgba;var alpha=(float*)sources;
             for(uint i=0;i<count;i++) {
-                values[i*4]=input[i*4];values[i*4+1]=input[i*4+1];values[i*4+2]=input[i*4+2];
+                values[i*4]=input[i*4]*brightness;values[i*4+1]=input[i*4+1]*brightness;values[i*4+2]=input[i*4+2]*brightness;
+                if(!tint){values[i*4+3]=input[i*4+3];continue;}
                 float mode=alpha[i*3+2];
                 if(mode<0||mode>2||mode!=(int)mode)throw new ArgumentException("Invalid texture alpha mode");
                 values[i*4+3]=MaterialAlpha.Tint(alpha[i*3],(TextureAlphaMode)(int)mode,alpha[i*3+1]);
