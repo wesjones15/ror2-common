@@ -1,31 +1,21 @@
 using System;
-using System.Collections.Generic;
 using RoR2;
 
 namespace Ror2Common
 {
-    /// The pause-menu controls window for any Melee survivor: one page in the style of Olimar's and
-    /// Mario's sheets (a few short sections, rows of a few words) so it can be read at a glance with
-    /// the game running. Specials (the fighter's own skill names, from `MeleeSkillLayout`, so they can
-    /// never drift from the loadout and HUD), Attacks (the A attack in its directions, worded for the
-    /// moves this fighter's sim actually has), Grab and Moving. The text never needs the window's
-    /// auto-size: keep every action under about 34 characters and the sheet under Olimar's row count.
-    /// A fighter supplies a subtitle and, if it has inputs of its own (Samus's grapple), replacement
-    /// grab rows or a callback that appends them.
-    ///
-    /// Buttons are read by position (MeleePad), so the rows name physical
-    /// controls: RT neutral special, LT A attack, RB side special, LB up special,
-    /// B down special (or the shield alternate). A fighter whose specials sit on
-    /// other buttons (Pikachu) lists them correctly because its layout is already
-    /// by slot.
+    /// The pause-menu controls window for a Melee survivor: one page in the style of Olimar's
+    /// (Specials, Attacks, Grab and Moving), listing the fighter's own moves and the controls the
+    /// native sim reads. The four stock skills and the fifth show the names the loadout and HUD
+    /// use, including a chosen alternate, and the left column is RoR2's own binding: the physical
+    /// pad button's glyph or the player's key, never an action name such as "Primary".
     public static class MeleeSheet
     {
         /// <param name="subtitle">Shown under the fighter's name.</param>
-        /// <param name="skills">The fighter's skill layout (names).</param>
+        /// <param name="skills">The fighter's skill layout (names and the fifth slot's name).</param>
         /// <param name="footer">Optional note at the foot of the window (one or two short lines).</param>
         /// <param name="extras">Optional: appends fighter-specific sections or rows.</param>
         /// <param name="grab">Optional: fills the gamepad and keyboard Grab sections instead of the generic rows.</param>
-        /// <param name="body">The player's body, to word the Attacks and Grab rows by the fighter's own move list.</param>
+        /// <param name="body">The player's body, to show the selected primary and B-skill variants.</param>
         public static ControlSheet Build(string subtitle, in MeleeSkillLayout skills, string footer = null,
             Action<ControlSheet> extras = null, Action<ControlSection, ControlSection> grab = null, CharacterBody body = null)
         {
@@ -35,53 +25,104 @@ namespace Ror2Common
             string jab = MeleeMoveset.JabText(moves);
             bool dashGrab = moves == null || MeleeMoveset.Has(moves, MeleeMoveset.DashGrab);
 
+            var user = LocalUserManager.GetFirstLocalUser();
+            var player = user != null ? user.inputPlayer : null;
+            var eventSystem = user != null ? user.eventSystem : null;
+
+            // Pad: the physical buttons MeleePad reads, drawn as RoR2 draws them.
+            string rt = ControlGlyphs.Pad(player, PadButton.RT, "RT");
+            string lt = ControlGlyphs.Pad(player, PadButton.LT, "LT");
+            string lb = ControlGlyphs.Pad(player, PadButton.LB, "LB");
+            string rb = ControlGlyphs.Pad(player, PadButton.RB, "RB");
+            string b = ControlGlyphs.Pad(player, PadButton.B, "B");
+            string x = ControlGlyphs.Pad(player, PadButton.X, "X");
+            string a = ControlGlyphs.Pad(player, PadButton.A, "A");
+            string click = ControlGlyphs.Pad(player, PadButton.LS, "LS click");
+
+            // Keyboard: RoR2's own binds. C is MeleePad's fixed fifth-skill key.
+            string primary = ControlGlyphs.Key(eventSystem, "PrimarySkill", "Primary");
+            string secondary = ControlGlyphs.Key(eventSystem, "SecondarySkill", "Secondary");
+            string utility = ControlGlyphs.Key(eventSystem, "UtilitySkill", "Utility");
+            string special = ControlGlyphs.Key(eventSystem, "SpecialSkill", "Special");
+            string interact = ControlGlyphs.Key(eventSystem, "Interact", "Interact");
+            string jump = ControlGlyphs.Key(eventSystem, "Jump", "Jump");
+            string sprint = ControlGlyphs.Key(eventSystem, "Sprint", "Sprint");
+
+            // The loadout can swap the primary (Luigi's Super Scope) and the B skill (the shield),
+            // so read the names from the body's current skills rather than the layout alone.
+            string primaryName = Name(body, SkillSlot.Primary, skills.primary.displayName);
+            string utilityName = Name(body, SkillSlot.Utility, skills.utility.displayName);
+            string specialName = Name(body, SkillSlot.Special, skills.special.displayName);
+            string extraName = ExtraName(body, skills);
+
             // Specials, by button: the fighter's own skill names.
             sheet.Pad("Specials")
-                .Add("RT", skills.primary.displayName)
-                .Add("RB", skills.utility.displayName)
-                .Add("LB", skills.special.displayName)
-                .Add("B", skills.extra.displayName);
+                .Add(rt, primaryName)
+                .Add(rb, utilityName)
+                .Add(lb, specialName)
+                .Add(b, extraName);
             sheet.Keys("Specials")
-                .Add("Primary", skills.primary.displayName)
-                .Add("Utility", skills.utility.displayName)
-                .Add("Special", skills.special.displayName)
-                .Add("C", skills.extra.displayName);
+                .Add(primary, primaryName)
+                .Add(utility, utilityName)
+                .Add(special, specialName)
+                .Add("C", extraName);
 
             // The A attack, in its directions: aim up or down with the camera.
             sheet.Pad("Attacks")
-                .Add("LT", jab)
-                .Add("LS + LT", "Tilts (aim up/down)")
-                .Add("Flick + LT", "Smashes (hold to charge)")
-                .Add("Sprint + LT", "Dash attack")
-                .Add("LT in air", "Aerials");
+                .Add(lt, jab)
+                .Add("LS + " + lt, "Tilts (aim up/down)")
+                .Add("Flick + " + lt, "Smashes (hold to charge)")
+                .Add(click + " + " + lt, "Dash attack")
+                .Add(lt + " in air", "Aerials");
             sheet.Keys("Attacks")
-                .Add("Secondary", jab)
-                .Add("Move + Secondary", "Tilts (aim up/down)")
-                .Add("Flick + Secondary", "Smashes (hold to charge)")
-                .Add("Sprint + Secondary", "Dash attack")
-                .Add("Secondary in air", "Aerials");
+                .Add(secondary, jab)
+                .Add("Move + " + secondary, "Tilts (aim up/down)")
+                .Add("Flick + " + secondary, "Smashes (hold to charge)")
+                .Add(sprint + " + " + secondary, "Dash attack")
+                .Add(secondary + " in air", "Aerials");
 
             var padGrab = sheet.Pad("Grab");
             var keysGrab = sheet.Keys("Grab");
             if (grab != null) grab(padGrab, keysGrab);
             else
             {
-                padGrab.Add("X", dashGrab ? "Grab (Sprint + X: dash grab)" : "Grab")
+                padGrab.Add(x, dashGrab ? "Grab (Sprint + X: dash grab)" : "Grab")
                     .Add("While held", "LT pummel, LS + LT throw");
-                keysGrab.Add("Interact", dashGrab ? "Grab (Sprint: dash grab)" : "Grab")
+                keysGrab.Add(interact, dashGrab ? "Grab (Sprint: dash grab)" : "Grab")
                     .Add("While held", "Secondary pummel, Move throw");
             }
 
             sheet.Pad("Moving")
                 .Add("Left stick", "Walk, run")
-                .Add("A", "Jump; again in the air")
-                .Add("Left stick click", "Sprint");
+                .Add(a, "Jump; again in the air")
+                .Add(click, "Sprint");
             sheet.Keys("Moving")
                 .Add("Move", "Walk (Sprint: run)")
-                .Add("Jump", "Jump; again in the air");
+                .Add(jump, "Jump; again in the air");
 
             extras?.Invoke(sheet);
             return sheet;
+        }
+
+        static string Name(CharacterBody body, SkillSlot slot, string fallback)
+        {
+            var skill = body && body.skillLocator ? body.skillLocator.GetSkill(slot) : null;
+            return SkillName(skill, fallback);
+        }
+
+        static string ExtraName(CharacterBody body, in MeleeSkillLayout skills)
+        {
+            var locator = body ? body.skillLocator : null;
+            var skill = locator && !string.IsNullOrEmpty(skills.extraName) ? locator.FindSkill(skills.extraName) : null;
+            return SkillName(skill, skills.extra.displayName);
+        }
+
+        static string SkillName(GenericSkill skill, string fallback)
+        {
+            var def = skill ? skill.skillDef : null;
+            if (!def || string.IsNullOrEmpty(def.skillNameToken)) return fallback;
+            var name = Language.GetString(def.skillNameToken);
+            return string.IsNullOrEmpty(name) || name == def.skillNameToken ? fallback : name;
         }
     }
 }
