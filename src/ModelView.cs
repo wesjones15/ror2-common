@@ -367,6 +367,35 @@ namespace Ror2Common
 
         /// Moves the objects to this frame's draws (after the native side's update). `scale` is
         /// metres per sim unit. `place` overrides where a draw goes (default: its own position
+        /// Replaces every non-finite component in the first `n` vectors with 0; returns the first vector that had one, or -1.
+        static unsafe int ZeroNonFinite(Vector3[] v, int n)
+        {
+            int first = -1;
+            fixed (Vector3* start = v)
+            {
+                int* bits = (int*)start;
+                for (int i = 0, end = n * 3; i < end; i++)
+                {
+                    if ((bits[i] & 0x7F800000) != 0x7F800000) continue;
+                    bits[i] = 0;
+                    if (first < 0) first = i / 3;
+                }
+            }
+            return first;
+        }
+
+        static bool Finite(float f) => !float.IsNaN(f) && !float.IsInfinity(f);
+        static bool Finite(Vector3 v) => Finite(v.x) && Finite(v.y) && Finite(v.z);
+
+        float nonFiniteReportedAt = -100f;
+        void ReportNonFinite(ViewDraw d, int vertex, int count, Vector3 at, float scale)
+        {
+            if (Time.unscaledTime - nonFiniteReportedAt < 5f) return;
+            nonFiniteReportedAt = Time.unscaledTime;
+            CommonLog.Warn($"{Name}: model {d.model} (draw {d.key}, {src.GetType().Name}) had a non-finite {(vertex < 0 ? "placement" : "vertex at " + vertex + " of " + count + "; zeroed")}. " +
+                           $"at {at}, scale {scale}, draw pos ({d.pos.x}, {d.pos.y}, {d.pos.z}), draw flags {d.flags}");
+        }
+
         /// times `scale`, and its rotation); `hide` leaves draws out.
         public unsafe void Update(float scale, Func<ViewDraw, (Vector3, Quaternion)?> place = null, Func<ViewDraw, bool> hide = null)
         {
@@ -422,16 +451,20 @@ namespace Ror2Common
                 if (!inst.go.activeSelf) inst.go.SetActive(true);
                 var t = inst.go.transform;
                 var at = place?.Invoke(d);
-                if (at.HasValue)
+                Vector3 placedAt; Quaternion placedRot;
+                if (at.HasValue) { placedAt = at.Value.Item1; placedRot = at.Value.Item2; }
+                else { placedAt = new Vector3(d.pos.x, d.pos.y, d.pos.z) * scale; placedRot = new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w); }
+                // A placement that is not a real position or turn (NaN from a bad matrix upstream) leaves the draw out
+                // for the frame: Unity refuses such a transform and the mesh would not be boxed.
+                if (!Finite(placedAt) || !(Finite(placedRot.x) && Finite(placedRot.y) && Finite(placedRot.z) && Finite(placedRot.w))
+                    || placedRot.x * placedRot.x + placedRot.y * placedRot.y + placedRot.z * placedRot.z + placedRot.w * placedRot.w < 1e-6f)
                 {
-                    t.position = at.Value.Item1;
-                    t.rotation = at.Value.Item2;
+                    ReportNonFinite(d, -1, 0, placedAt, scale);
+                    inst.go.SetActive(false);
+                    continue;
                 }
-                else
-                {
-                    t.position = new Vector3(d.pos.x, d.pos.y, d.pos.z) * scale;
-                    t.rotation = new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w);
-                }
+                t.position = placedAt;
+                t.rotation = placedRot;
                 // The models are right-handed and Unity is left-handed: mirroring each across its
                 // own X puts the right hand back on the right without moving or turning it.
                 t.localScale = new Vector3(MirrorX ? -scale : scale, scale, scale);
@@ -460,6 +493,11 @@ namespace Ror2Common
                         Buffer.MemoryCopy(pos + d.first_vertex, vd, bytes, bytes);
                         Buffer.MemoryCopy(nrm + d.first_vertex, nd, bytes, bytes);
                     }
+                    // A vertex the native side posed to NaN or infinity would make Unity log "abnormal mesh bounds"
+                    // and hand the GPU a mesh it cannot box: zero it, and say once where it came from.
+                    int bad = ZeroNonFinite(vbuf, vn);
+                    if (bad >= 0) ReportNonFinite(d, bad, vn, t.position, scale);
+                    ZeroNonFinite(nbuf, vn);
                     inst.mesh.SetVertices(vbuf, 0, vn);
                     inst.mesh.SetNormals(nbuf, 0, vn);
                     // Parts posed away from their own origin leave the bind-pose box behind:
