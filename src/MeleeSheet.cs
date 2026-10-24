@@ -38,6 +38,7 @@ namespace Ror2Common
             string x = ControlGlyphs.Pad(player, PadButton.X, "X");
             string a = ControlGlyphs.Pad(player, PadButton.A, "A");
             string click = ControlGlyphs.Pad(player, PadButton.LS, "LS click");
+            string stick = ControlGlyphs.Stick(eventSystem, "LS");
 
             // Keyboard: RoR2's own binds. C is MeleePad's fixed fifth-skill key.
             string primary = ControlGlyphs.Key(eventSystem, "PrimarySkill", "Primary");
@@ -73,7 +74,7 @@ namespace Ror2Common
             // The A attack, in its directions: aim up or down with the camera.
             sheet.Pad("Attacks")
                 .Add(b, jab)
-                .Add("LS + " + b, "Tilts (aim up/down)")
+                .Add(stick + " + " + b, "Tilts (aim up/down)")
                 .Add("Flick + " + b, "Smashes (hold to charge)")
                 .Add(click + " + " + b, "Dash attack")
                 .Add(b + " in air", "Aerials");
@@ -90,13 +91,13 @@ namespace Ror2Common
             else
             {
                 padGrab.Add(x, dashGrab ? "Grab (Sprint + X: dash grab)" : "Grab")
-                    .Add("While held", b + " pummel, LS + " + b + " throw");
+                    .Add("While held", b + " pummel, " + stick + " + " + b + " throw");
                 keysGrab.Add(interact, dashGrab ? "Grab (Sprint: dash grab)" : "Grab")
                     .Add("While held", "C pummel, Move throw");
             }
 
             sheet.Pad("Moving")
-                .Add("Left stick", "Walk, run")
+                .Add(stick, "Walk, run")
                 .Add(a, "Jump; again in the air")
                 .Add(click, "Sprint");
             sheet.Keys("Moving")

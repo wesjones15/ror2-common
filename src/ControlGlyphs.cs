@@ -15,6 +15,19 @@ namespace Ror2Common
         public static string Pad(Player player, PadButton button, string fallback) =>
             GlyphOverride.PhysicalGlyph(player, button) ?? fallback;
 
+        /// The pad's left-stick glyph (RoR2's movement action), or `fallback`.
+        public static string Stick(MPEventSystem eventSystem, string fallback)
+        {
+            if (!eventSystem) return fallback;
+            foreach (var action in new[] { "MoveHorizontal", "Move" })
+            {
+                var glyph = Glyphs.GetGlyphString(eventSystem, action, AxisRange.Full,
+                    MPEventSystem.InputSource.Gamepad, true);
+                if (!string.IsNullOrEmpty(glyph)) return glyph;
+            }
+            return fallback;
+        }
+
         /// The player's key for a RoR2 input action ("PrimarySkill", "Interact"), or `fallback`.
         public static string Key(MPEventSystem eventSystem, string action, string fallback)
         {
