@@ -90,20 +90,27 @@ namespace Ror2Common
         }
         public void Draw(Matrix4x4? placement=null)
         {
+            var view=GameSettings.PlayerCamera();
+            Draw(view?view.GetComponent<Camera>():null,0,placement);
+        }
+        /// Draws for one camera on `layer` (an offscreen skill portrait, or the HUD camera).
+        public void Draw(Camera camera,int layer,Matrix4x4? placement=null)
+        {
             if(source==null)return;
             uint n=source.Draws(null,0);if(n>4096)throw new InvalidOperationException("Native particle budget exceeded");
             if(n>sprites.Length)sprites=new ViewParticle[n];
             if(n>0&&source.Draws(sprites,(uint)sprites.Length)!=n)throw new InvalidOperationException(source.Error);
-            var camera=GameSettings.PlayerCamera();if(!camera)return;
+            if(!camera)return;
+            var view=camera.transform;
             for(int i=0;i<n;i++) {
                 var p=sprites[i];var point=new Vector3(p.position.x,p.position.y,p.position.z)*scale;
                 if(placement.HasValue)point=placement.Value.MultiplyPoint3x4(point);
-                var look=camera.position-point;
+                var look=view.position-point;
                 if(look.sqrMagnitude<0.00001f)continue;
-                var rotation=Quaternion.LookRotation(look,camera.up)*Quaternion.AngleAxis(-p.rotation*Mathf.Rad2Deg,Vector3.forward);
+                var rotation=Quaternion.LookRotation(look,view.up)*Quaternion.AngleAxis(-p.rotation*Mathf.Rad2Deg,Vector3.forward);
                 var size=new Vector3(p.size*scale,p.size*scale,1);
                 if((p.flags&(1<<18))!=0)size.x=-size.x;if((p.flags&(1<<19))!=0)size.y=-size.y;
-                Graphics.DrawMesh(quad,Matrix4x4.TRS(point,rotation,size),Material(in p),0,null,0,properties,ShadowCastingMode.Off,false);
+                Graphics.DrawMesh(quad,Matrix4x4.TRS(point,rotation,size),Material(in p),layer,camera,0,properties,ShadowCastingMode.Off,false);
             }
             // Animated colour variants are transient; keep current/recent draws.
             if(variants.Count>256)foreach(var entry in new List<KeyValuePair<(uint,uint,uint,uint,bool),(Texture2D,Material,float)>>(variants))

@@ -17,6 +17,7 @@ namespace Ror2Common
         public void Tune(uint id, float scale, float alpha, bool glow = false) => view.Tune(id, scale, alpha, glow);
         public void Step(float dt) => view.Step(dt);
         public void Draw(Matrix4x4? placement = null) => view.Draw(placement);
+        public void Draw(Camera camera, int layer, Matrix4x4? placement = null) => view.Draw(camera, layer, placement);
         public void Dispose() => view.Dispose();
 
         sealed class Source : IParticleSource

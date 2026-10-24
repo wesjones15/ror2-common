@@ -25,6 +25,10 @@ namespace Ror2Common
         public Func<IDisplayActor> displayFactory;
         public Func<Texture2D> portraitFactory;
         public Dictionary<SkillSlot, PadButton[]> glyphs;
+        /// The native fighter kind, and the plugin assets cache the generated skill portraits read. 
+        public uint fighterKind;
+        public Func<string> assetsDir;
+        public Func<bool> assetsReady;
     }
 
     public static class MeleeSurvivor
@@ -68,7 +72,7 @@ namespace Ror2Common
             body.AddComponent(def.driverType);
             body.AddComponent<MeleeRecovery>();
             body.AddComponent<MeleeDefense>();
-            var skills = MeleeSkills.Build(body, pack, def.skills);
+            var skills = MeleeSkills.Build(body, pack, def.skills, def.fighterKind, def.assetsDir, def.assetsReady);
             // Goobo Jr., Artifact of Vengeance and the like need an AI master whose body is
             // this survivor's. It only walks; MeleeDriver's brain presses the fighter's buttons.
             var monster = SurvivorAi.Register(pack, body, "Prefabs/CharacterMasters/CommandoMonsterMaster",

@@ -128,7 +128,8 @@ namespace Ror2Common
         static NativeSkillDef MakeAlt(in MeleeSkillInfo info) => NativeSkills.Make(
             info.defName, info.nameToken, info.descriptionToken, null, info.recharge, info.stock, info.combat);
 
-        public static MeleeSkillSet Build(GameObject body, ContentPack pack, in MeleeSkillLayout layout)
+        public static MeleeSkillSet Build(GameObject body, ContentPack pack, in MeleeSkillLayout layout,
+            uint fighterKind, Func<string> assetsDir, Func<bool> assetsReady)
         {
             var set = new MeleeSkillSet(layout.slotForMove ?? ((body, move) => MeleeSkillSet.DefaultSlot(move))) { ExtraName = layout.extraName };
             MeleeSkillInfo[] stock = { layout.primary, layout.secondary, layout.utility, layout.special };
@@ -166,10 +167,11 @@ namespace Ror2Common
                 }
                 else NativeSkills.SetFamily(body, MeleeSkillSet.Slots[i], def, pack);
                 VanillaIcons.Use(def, info.icon);
-                if (i == 0 && set.PrimaryAlt != null) VanillaIcons.Use(set.PrimaryAlt, layout.primaryAlt.icon);
-                if (i == 1 && set.SecondaryAlt != null) VanillaIcons.Use(set.SecondaryAlt, layout.secondaryAlt.icon);
-                if (i == 1 && set.SecondaryAlt2 != null) VanillaIcons.Use(set.SecondaryAlt2, layout.secondaryAlt2.icon);
-                if (i == 3 && set.SpecialAlt != null) VanillaIcons.Use(set.SpecialAlt, layout.specialAlt.icon);
+                SkillIcons.Request(def, info.defName, fighterKind, assetsDir, assetsReady);
+                if (i == 0 && set.PrimaryAlt != null) { VanillaIcons.Use(set.PrimaryAlt, layout.primaryAlt.icon); SkillIcons.Request(set.PrimaryAlt, layout.primaryAlt.defName, fighterKind, assetsDir, assetsReady); }
+                if (i == 1 && set.SecondaryAlt != null) { VanillaIcons.Use(set.SecondaryAlt, layout.secondaryAlt.icon); SkillIcons.Request(set.SecondaryAlt, layout.secondaryAlt.defName, fighterKind, assetsDir, assetsReady); }
+                if (i == 1 && set.SecondaryAlt2 != null) { VanillaIcons.Use(set.SecondaryAlt2, layout.secondaryAlt2.icon); SkillIcons.Request(set.SecondaryAlt2, layout.secondaryAlt2.defName, fighterKind, assetsDir, assetsReady); }
+                if (i == 3 && set.SpecialAlt != null) { VanillaIcons.Use(set.SpecialAlt, layout.specialAlt.icon); SkillIcons.Request(set.SpecialAlt, layout.specialAlt.defName, fighterKind, assetsDir, assetsReady); }
             }
             set.Extra = NativeSkills.Make(layout.extra.defName, layout.extra.nameToken, layout.extra.descriptionToken, null,
                 layout.extra.recharge, layout.extra.stock, layout.extra.combat);
