@@ -34,6 +34,8 @@ namespace Ror2Common
         public MeleeSkillInfo secondaryAlt;
         /// A second alternate for the secondary slot (Samus's Morph Ball Roll); `defName` null: none.
         public MeleeSkillInfo secondaryAlt2;
+        /// An alternate for the special slot (Luigi's Super Scope in place of the Super Jump Punch); `defName` null: none.
+        public MeleeSkillInfo specialAlt;
         public MeleeSkillInfo extra, extraAlt;
         public string extraName;        // GenericSkill name for the fifth slot
         public string extraTitleToken;  // loadout title for that fifth slot
@@ -42,11 +44,11 @@ namespace Ror2Common
         /// Stock skill icon to clone for the extra slot's key glyph/cooldown style: 0..3,
         /// or 0 for the default fourth slot. Yoshi's fifth slot is on LT, so he uses 1.
         public int extraGlyphFrom;
-        /// Native move id -> skill slot index (0..4). Null uses the shared
-        /// default (neutral->primary, side->utility, up->special, down->extra,
-        /// else secondary). Fighters whose specials sit on different buttons
-        /// supply their own mapping.
-        public Func<uint, int> slotForMove;
+        /// Native move id -> skill slot index (0..4), given the body so a loadout choice can
+        /// move a move (Luigi's Super Scope may sit on the primary or the special slot). Null
+        /// uses the shared default (neutral->primary, side->utility, up->special, down->extra,
+        /// else secondary). Fighters whose specials sit on different buttons supply their own.
+        public Func<CharacterBody, uint, int> slotForMove;
     }
 
     /// The built skills for one fighter, plus the shared slot helpers every
@@ -61,12 +63,14 @@ namespace Ror2Common
         public NativeSkillDef SecondaryAlt;
         /// A second secondary alternate (Samus's morph-ball roll), if any.
         public NativeSkillDef SecondaryAlt2;
+        /// The special slot's alternate (Luigi's Super Scope in place of the Super Jump Punch), if any.
+        public NativeSkillDef SpecialAlt;
         public string ExtraName;
-        readonly Func<uint, int> slotForMove;
+        readonly Func<CharacterBody, uint, int> slotForMove;
         public static readonly SkillSlot[] Slots =
             { SkillSlot.Primary, SkillSlot.Secondary, SkillSlot.Utility, SkillSlot.Special };
 
-        internal MeleeSkillSet(Func<uint, int> slotForMove) { this.slotForMove = slotForMove; }
+        internal MeleeSkillSet(Func<CharacterBody, uint, int> slotForMove) { this.slotForMove = slotForMove; }
 
         /// The shared default mapping: neutral->primary, side/super->utility,
         /// up->special, down->secondary (the slot that sits on LT), and every other
@@ -74,8 +78,8 @@ namespace Ror2Common
         public static int DefaultSlot(uint move) =>
             move == 20 ? 0 : move == 21 || move == 22 ? 2 : move == 23 ? 3 : move == 24 ? 1 : 4;
 
-        /// This fighter's native move -> skill slot index (0..4).
-        public int Slot(uint move) => slotForMove(move);
+        /// This fighter's native move -> skill slot index (0..4), for `body`.
+        public int Slot(CharacterBody body, uint move) => slotForMove(body, move);
 
         public GenericSkill Get(CharacterBody body, int slot) =>
             slot == 4 ? body.skillLocator.FindSkill(ExtraName) : body.skillLocator.GetSkill(Slots[slot]);
@@ -90,12 +94,15 @@ namespace Ror2Common
         public bool SecondaryAltSelected(CharacterBody body) => SecondaryAlt != null && body && body.skillLocator && Get(body, 1)?.skillDef == SecondaryAlt;
         /// The loadout holds the secondary slot's second alternate (Samus's morph roll).
         public bool SecondaryAlt2Selected(CharacterBody body) => SecondaryAlt2 != null && body && body.skillLocator && Get(body, 1)?.skillDef == SecondaryAlt2;
+        /// The loadout holds the special slot's alternate (Luigi's Super Scope in place of the Super Jump Punch).
+        public bool SpecialAltSelected(CharacterBody body) => SpecialAlt != null && body && body.skillLocator && Get(body, 3)?.skillDef == SpecialAlt;
 
         public NativeSkillDef Expected(CharacterBody body, int slot) =>
             slot == 4 ? (ShieldSelected(body) && ExtraAlt != null ? ExtraAlt : Extra)
             : slot == 0 && PrimaryAltSelected(body) ? PrimaryAlt
             : slot == 1 && SecondaryAltSelected(body) ? SecondaryAlt
             : slot == 1 && SecondaryAlt2Selected(body) ? SecondaryAlt2
+            : slot == 3 && SpecialAltSelected(body) ? SpecialAlt
             : Stock[slot];
 
         public uint Allowed(CharacterBody body)
@@ -117,7 +124,7 @@ namespace Ror2Common
 
         public static MeleeSkillSet Build(GameObject body, ContentPack pack, in MeleeSkillLayout layout)
         {
-            var set = new MeleeSkillSet(layout.slotForMove ?? MeleeSkillSet.DefaultSlot) { ExtraName = layout.extraName };
+            var set = new MeleeSkillSet(layout.slotForMove ?? ((body, move) => MeleeSkillSet.DefaultSlot(move))) { ExtraName = layout.extraName };
             MeleeSkillInfo[] stock = { layout.primary, layout.secondary, layout.utility, layout.special };
             for (int i = 0; i < 4; i++)
             {
@@ -141,6 +148,11 @@ namespace Ror2Common
                     set.SecondaryAlt2 = MakeAlt(layout.secondaryAlt2);
                     alts.Add(set.SecondaryAlt2);
                 }
+                if (i == 3 && layout.specialAlt.defName != null)
+                {
+                    set.SpecialAlt = MakeAlt(layout.specialAlt);
+                    alts.Add(set.SpecialAlt);
+                }
                 if (alts.Count > 1)
                 {
                     var slot = body.GetComponent<SkillLocator>() ? body.GetComponent<SkillLocator>().GetSkill(MeleeSkillSet.Slots[i]) : null;
@@ -151,6 +163,7 @@ namespace Ror2Common
                 if (i == 0 && set.PrimaryAlt != null) VanillaIcons.Use(set.PrimaryAlt, layout.primaryAlt.icon);
                 if (i == 1 && set.SecondaryAlt != null) VanillaIcons.Use(set.SecondaryAlt, layout.secondaryAlt.icon);
                 if (i == 1 && set.SecondaryAlt2 != null) VanillaIcons.Use(set.SecondaryAlt2, layout.secondaryAlt2.icon);
+                if (i == 3 && set.SpecialAlt != null) VanillaIcons.Use(set.SpecialAlt, layout.specialAlt.icon);
             }
             set.Extra = NativeSkills.Make(layout.extra.defName, layout.extra.nameToken, layout.extra.descriptionToken, null,
                 layout.extra.recharge, layout.extra.stock, layout.extra.combat);
@@ -181,7 +194,7 @@ namespace Ror2Common
                 l.SetStringByToken(stock[i].nameToken, stock[i].displayName);
                 l.SetStringByToken(stock[i].descriptionToken, stock[i].description);
             }
-            foreach (var alt in new[] { layout.primaryAlt, layout.secondaryAlt, layout.secondaryAlt2, layout.extraAlt })
+            foreach (var alt in new[] { layout.primaryAlt, layout.secondaryAlt, layout.secondaryAlt2, layout.specialAlt, layout.extraAlt })
             {
                 if (alt.defName == null) continue;
                 l.SetStringByToken(alt.nameToken, alt.displayName);

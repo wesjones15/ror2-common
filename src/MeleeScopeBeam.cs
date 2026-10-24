@@ -44,6 +44,11 @@ namespace Ror2Common
 
         public static bool Available(string assetsDir) => MeleeNative.HasScope && System.IO.File.Exists(System.IO.Path.Combine(assetsDir, "ItCo.dat"));
 
+        /// Host adaptation: the source's uncharged beam is 1% damage, unusable in RoR2. Raise the low
+        /// levels and fade the bonus to zero by the top level, whose ~933% is already good.
+        internal static float BeamCoefficient(uint level, float damage) =>
+            damage / 3f + (1f - level / 9f) * (4f / 3f);
+
         public static MeleeScopeBeam Spawn(CharacterBody owner, Vector3 point, Vector3 direction, uint level, Config cfg)
         {
             if (!MeleeNet.Acts(owner) || level > 9) return null;
@@ -107,7 +112,7 @@ namespace Ror2Common
                 if (!hurt || !hurt.healthComponent || !hurt.healthComponent.alive) continue;
                 NativeHit.Deal(owner, hurt.healthComponent, new NativeHitSpec
                 {
-                    coefficient = state.damage / cfg.PercentPerCoefficient,
+                    coefficient = BeamCoefficient(level, state.damage),
                     position = hurt.transform.position,
                     force = heading * (cfg.ForceBase + cfg.ForcePerLevel * level),
                     procCoefficient = 1f,

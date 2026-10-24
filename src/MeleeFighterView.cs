@@ -44,6 +44,19 @@ namespace Ror2Common
             : this(MeleeNative.ssbm_article_new(NativeLib.CString(assetsDir), kind, article, state)) { }
         public static MeleeFighterView Effect(string assetsDir, uint kind, uint model)
             => new MeleeFighterView(MeleeNative.ssbm_effect_new(NativeLib.CString(assetsDir), kind, model));
+        /// Modular effect lookup: every fighter's effects are just extracted assets, not part of the
+        /// body, so a move borrowed from another character still finds its cue. Tries the fighter's
+        /// own bank first, then every other fighter's, and only fails when no bank has the model.
+        public static MeleeFighterView EffectAny(string assetsDir, uint kind, uint model)
+        {
+            try { return Effect(assetsDir, kind, model); } catch (Exception) { }
+            for (uint other = 0; other < 8; other++)
+            {
+                if (other == kind) continue;
+                try { return Effect(assetsDir, other, model); } catch (Exception) { }
+            }
+            throw new InvalidOperationException("Melee effect model " + model + " is in no extracted fighter bank");
+        }
         /// A fighter's alternate model alone (choice 1: Samus's morph ball, Yoshi's egg),
         /// for a laid egg or another prop that does not follow a live sim.
         public static MeleeFighterView FighterChoice(string assetsDir, uint kind, uint costume, uint choice)

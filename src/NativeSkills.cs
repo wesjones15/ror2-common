@@ -173,7 +173,7 @@ namespace Ror2Common
         public static bool SpendDeferred(MeleeSkillSet set, CharacterBody body, uint moveId)
         {
             if (set == null || !body) return false;
-            int slot = set.Slot(moveId);
+            int slot = set.Slot(body, moveId);
             var skill = set.Get(body, slot);
             var expected = set.Expected(body, slot);
             return Holds(skill, expected) && Spend(skill, expected);

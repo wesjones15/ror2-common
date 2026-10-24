@@ -30,6 +30,7 @@ namespace Ror2Common
         protected readonly List<Vector3> walls = new List<Vector3>();
         protected bool active, failed, permitDamage, deathStarted;
         uint startedMove; ulong lastBatchSerial = ulong.MaxValue;
+        uint lastButtons; int upBTicks;
         EnemyCapture capture;
         MeleeNative.Event? pendingThrow;
         int lastHitboxCount;
@@ -90,6 +91,10 @@ namespace Ror2Common
         protected virtual bool GrabHolding => GenericGrab && capture != null && capture.Target;
         protected abstract bool IsRangedMove(uint moveId);
         protected abstract bool IsChargeMove(uint moveId);
+        /// A contextual A attack (B button: Jab..RapidJab, moves 1..16). It faces the stick
+        /// (or keeps its facing with no stick); specials (including Luigi's Super Scope, move
+        /// 17) aim along the camera ray instead.
+        protected static bool IsContextualAttack(uint moveId) => moveId >= MeleeMoveset.Jab && moveId <= MeleeMoveset.RapidJab;
         protected abstract void UpdateAudio();
         protected abstract void CreatePresentation();
         protected abstract void DisposePresentation();
@@ -174,7 +179,7 @@ namespace Ror2Common
         protected void FaceTarget()
         {
             if (IsRangedMove(state.move_id)) MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction);
-            MeleeAim.FacingTarget(body, direction, input ? input.moveVector : Vector3.zero, MeleeAim.CameraRay(body, input).direction, FacingLocked, new Vector3(state.facing.x, 0, state.facing.z));
+            MeleeAim.FacingTarget(body, direction, input ? input.moveVector : Vector3.zero, MeleeAim.CameraRay(body, input).direction, FacingLocked, new Vector3(state.facing.x, 0, state.facing.z), IsContextualAttack(state.move_id));
         }
         protected void Awake() { body = GetComponent<CharacterBody>(); motor = GetComponent<CharacterMotor>(); input = GetComponent<InputBankTest>(); native = GetComponent<NativeBody>(); direction = GetComponent<CharacterDirection>(); }
         protected void Update()
@@ -205,11 +210,15 @@ namespace Ror2Common
                 try { StartSim(); } catch (Exception e) { Fallback(e.ToString()); return; }
             }
             try {
-                if (smoother.MovedElsewhere) { var moved = transform.position - feetOffset; MeleeNative.ssbm_sim_place(sim, ToSim(moved), 0); smoother.Reset(); native.ForgetVelocity(); unstuck.Reset(); wallGuard.Placed(moved); }
+                if (smoother.MovedElsewhere) {
+                    if (MeleeDiag.On && state.move_id != 0) CommonLog.Info($"[MeleeDiag] {FighterName} MovedElsewhere during move {state.move_id} (teleport cancels it)");
+                    var moved = transform.position - feetOffset; MeleeNative.ssbm_sim_place(sim, ToSim(moved), 0); smoother.Reset(); native.ForgetVelocity(); unstuck.Reset(); wallGuard.Placed(moved);
+                }
                 bool hitImpulse = false;
                 // A fluttering jump's armor (Yoshi): hits do not move him.
                 bool armored = (MeleeNative.ssbm_sim_defense_flags(sim) & 256) != 0;
                 if (native.TakeExternalVelocity(out var external) && !Recovering && !armored) {
+                    if (MeleeDiag.On && state.move_id != 0) CommonLog.Info($"[MeleeDiag] {FighterName} external velocity during move {state.move_id}: {external}");
                     hitImpulse = !native.JumpPadLaunch && external.sqrMagnitude > 0.01f;
                     var velocity = new MeleeNative.Vec3(external.x / (scale * 60), external.y / (scale * 60), external.z / (scale * 60));
                     if (native.JumpPadLaunch) { var g = Physics.gravity / (scale * 3600); MeleeNative.ssbm_sim_launch_pad(sim, velocity, new MeleeNative.Vec3(g.x, g.y, g.z)); }
@@ -248,6 +257,10 @@ namespace Ror2Common
                 MeleeNative.ssbm_sim_step(sim, in host, in p, Time.fixedDeltaTime);
                 FlushOps();
                 uint previousRecovery = recoveryFlags; recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim);
+                // Map falloff only: the blast-zone lines are drawn in front of the camera while the fall
+                // recovery runs, so an overhead camera does not get a face full of them. The death
+                // presentation (MeleeDeath) has its own effects and is left as it is.
+                if (EffectsForSparks != null) EffectsForSparks.AffixToCamera = Recovering;
                 recovery?.Refresh();
                 if (Arriving && !Recovering) Arriving = false;
                 StepPresentation(Time.fixedDeltaTime);
@@ -261,6 +274,17 @@ namespace Ror2Common
                 }
                 if (MeleeNative.ssbm_sim_state(sim, out state) != 1) { Fallback(MeleeNative.Error); return; }
                 if (MeleeDiag.On && count > 0) MeleeDiag.Batch(FighterName, state.move_id, startedMove, hitboxes, (int)count, permitDamage, ref lastBatchSerial);
+                // Diagnostic: a special-button press that starts no move is the reported
+                // "up-B does nothing on the ground". Log the raw pad once per press so the gate
+                // (the ready-slot bitmask `allowed`) is visible in the BepInEx log.
+                if (MeleeDiag.On && (p.buttons & 1024u) != 0 && (lastButtons & 1024u) == 0)
+                    CommonLog.Info($"[MeleeDiag] {FighterName} up-B pressed: allowed=0x{p.allowed:x}, grounded={state.grounded}, move={state.move_id}, phase={state.phase}, simY={state.position.y:F3}, vy={state.velocity.y:F3}, jumpScale={JumpScale * NativeBody.JumpScale(body):F3}, bodyY={transform.position.y:F3}");
+                // Diagnostic: trace the up-B's climb for a few ticks after it starts.
+                if (state.move_id == 23 && upBTicks < 24) {
+                    if (MeleeDiag.On) CommonLog.Info($"[MeleeDiag] {FighterName} up-B t{upBTicks}: simY={state.position.y:F3} vy={state.velocity.y:F3} grounded={state.grounded} phase={state.phase} bodyY={transform.position.y:F3}");
+                    upBTicks++;
+                } else if (state.move_id != 23) upBTicks = 0;
+                lastButtons = p.buttons;
                 StepGrab(Time.fixedDeltaTime);
                 var feet = ToWorld(state.position);
                 if ((previousRecovery & 4) != 0 && (recoveryFlags & 4) == 0) {
@@ -505,6 +529,10 @@ namespace Ror2Common
                 end.y = floor.point.y; land = true;
             }
             if (delta.y > 0 && WorldProbe.Roof(start + Vector3.up * height, delta.y + 0.05f, out var ceiling)) { end.y = Mathf.Min(end.y, ceiling.point.y - height - 0.01f); roof = true; }
+            // Never end a step inside solid geometry. A cast that starts inside a mesh finds no back
+            // face, so once the feet are in the world the sim falls straight through it; keeping the
+            // step the body already had stops it happening instead of relying on WallGuard's undo.
+            if (WorldProbe.InsideSolid(end + Vector3.up * 0.6f)) end = start;
             return new MeleeNative.Collision { position = ToSim(end), grounded = land ? 1u : 0u, ceiling = roof ? 1u : 0u };
         }
         static void Event(IntPtr user, in MeleeNative.Event e)
@@ -515,7 +543,7 @@ namespace Ror2Common
         {
             // A shadow only shows the fighter: the owner makes its attacks and moves its body.
             if (puppet) { if (e.kind == 3) OnJump(e.strength); return; }
-            if (e.kind == 1) { BeginMove(e); OnEventStarted(e); NativeBody.MarkCombat(body); MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction); }
+            if (e.kind == 1) { BeginMove(e); OnEventStarted(e); NativeBody.MarkCombat(body); if (!IsContextualAttack(e.move_id)) MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction); }
             else if (e.kind == 2) { if (permitDamage) OnEventHit(e); }
             else if (e.kind == 6) GrabThrow(e);
             else if (e.kind == 3) { native.Jumped(); OnJump(e.strength); }
@@ -532,7 +560,7 @@ namespace Ror2Common
             startedMove = e.move_id;
             bool acts = MeleeNet.Acts(body);
             if (set == null) { permitDamage = acts; MeleeDiag.MoveStart(FighterName, e.move_id, -1, true, -1, false, acts, permitDamage); return; }
-            int slot = set.Slot(e.move_id);
+            int slot = set.Slot(body, e.move_id);
             var skill = set.Get(body, slot);
             var expected = set.Expected(body, slot);
             bool holds = NativeSkills.Holds(skill, expected);
