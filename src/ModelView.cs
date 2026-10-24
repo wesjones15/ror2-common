@@ -74,7 +74,10 @@ namespace Ror2Common
         readonly Dictionary<int, Texture2D> textures = new Dictionary<int, Texture2D>();
         sealed class AnimatedTexture { public uint version; public byte[] pixels; }
         readonly Dictionary<int, AnimatedTexture> animatedTextures = new Dictionary<int, AnimatedTexture>();
-        readonly Dictionary<(int, byte, byte), Material> materials = new Dictionary<(int, byte, byte), Material>();
+        readonly Dictionary<(int, byte, byte, bool), Material> materials = new Dictionary<(int, byte, byte, bool), Material>();
+        /// Draw every batch additive. A bolt texture's black outline contributes zero
+        /// instead of painting a dark border around the glow.
+        public bool ForceAdditive;
         ViewDraw[] draws = new ViewDraw[64];
         int drawCount;
         Vector3[] vbuf = new Vector3[0], nbuf = new Vector3[0];
@@ -261,10 +264,10 @@ namespace Ror2Common
 
         Material MaterialFor(ViewBatch b, int texture)
         {
-            var k = (texture, b.blend, b.lit);
+            var k = (texture, b.blend, b.lit, ForceAdditive);
             if (!materials.TryGetValue(k, out var m))
             {
-                m = MakeMaterial(b, TextureFor(texture));
+                m = MakeMaterial(b, TextureFor(texture), ForceAdditive);
                 materials[k] = m;
             }
             return m;
@@ -317,13 +320,13 @@ namespace Ror2Common
         static TextureWrapMode Wrap(byte w) =>
             w == 1 ? TextureWrapMode.Clamp : w == 2 ? TextureWrapMode.Mirror : TextureWrapMode.Repeat;
 
-        Material MakeMaterial(ViewBatch b, Texture2D tex)
+        Material MakeMaterial(ViewBatch b, Texture2D tex, bool forceAdditive)
         {
             if (skin) return skin;
-            bool blended = b.blend == ViewBlend.Translucent || b.blend == ViewBlend.Additive;
+            bool blended = forceAdditive || b.blend == ViewBlend.Translucent || b.blend == ViewBlend.Additive;
             if (blended && Shaders.CloudRemap())
-                return Shaders.SeeThrough($"{Name} glass", tex, b.blend == ViewBlend.Additive, b.lit != 0,
-                    b.blend == ViewBlend.Translucent ? translucentOpacity : 1f);
+                return Shaders.SeeThrough($"{Name} glass", tex, forceAdditive || b.blend == ViewBlend.Additive, b.lit != 0,
+                    forceAdditive || b.blend == ViewBlend.Additive ? 1f : translucentOpacity);
             var m = new Material(Shaders.HgStandard()) { name = Name };
             if (tex) m.SetTexture("_MainTex", tex);
             m.SetColor("_Color", Color.white);

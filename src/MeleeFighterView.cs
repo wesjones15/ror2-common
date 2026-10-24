@@ -38,6 +38,8 @@ namespace Ror2Common
         /// Optional tint for a borrowed model. The air-jolt arc is authored white and
         /// gets its blue from Melee's item colour overlay, which the view does not carry.
         public Color Tint = Color.white;
+        /// Force additive blending for models whose texture has a black border (Thunder bolt).
+        public bool ForceAdditive { get => Models.ForceAdditive; set => Models.ForceAdditive = value; }
         Color[] tinted = Array.Empty<Color>();
         GCHandle tintPin;
         readonly MaterialAlphaBuffer alpha = new MaterialAlphaBuffer();
