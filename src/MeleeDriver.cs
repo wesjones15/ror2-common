@@ -179,7 +179,10 @@ namespace Ror2Common
         protected void FaceTarget()
         {
             if (IsRangedMove(state.move_id)) MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction);
-            MeleeAim.FacingTarget(body, direction, input ? input.moveVector : Vector3.zero, MeleeAim.CameraRay(body, input).direction, FacingLocked, new Vector3(state.facing.x, 0, state.facing.z), IsContextualAttack(state.move_id));
+            // A held Charge Shot walks with the stick while the shot keeps the camera aim, so
+            // the body's move direction is the stick, not the aim, while the charge is held.
+            bool mobileCharge = IsChargeMove(state.move_id) && state.phase == 4;
+            MeleeAim.FacingTarget(body, direction, input ? input.moveVector : Vector3.zero, MeleeAim.CameraRay(body, input).direction, FacingLocked, new Vector3(state.facing.x, 0, state.facing.z), IsContextualAttack(state.move_id), mobileCharge);
         }
         protected void Awake() { body = GetComponent<CharacterBody>(); motor = GetComponent<CharacterMotor>(); input = GetComponent<InputBankTest>(); native = GetComponent<NativeBody>(); direction = GetComponent<CharacterDirection>(); }
         protected void Update()

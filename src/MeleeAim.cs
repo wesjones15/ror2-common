@@ -10,11 +10,14 @@ namespace Ror2Common
         // Installed DLC4 GenericCharacterMain.HandleMovements selects aim vs move
         // using CharacterBody.shouldAim; CharacterDirection.Update owns smoothing.
         // Keep those real game decisions, including alwaysAim and sprint gating.
-        public static void FacingTarget(CharacterBody body,CharacterDirection direction,Vector3 move,Vector3 aim,bool actionLocked,Vector3 actionFacing,bool contextual=false)
+        public static void FacingTarget(CharacterBody body,CharacterDirection direction,Vector3 move,Vector3 aim,bool actionLocked,Vector3 actionFacing,bool contextual=false,bool mobileCharge=false)
         {
             // `contextual` is a contextual A attack (B button): it faces the stick instead of
             // the camera ray, so it must not follow the aim timer a skill set (`shouldAim`).
-            if(direction)direction.moveVector=actionLocked?actionFacing:(contextual?move:(body.shouldAim?aim:move));
+            // `mobileCharge` is Samus walking while she holds the Charge Shot: the body moves
+            // with the stick while the shot stays on the camera aim, so it also bypasses
+            // `shouldAim` for the movement direction.
+            if(direction)direction.moveVector=actionLocked?actionFacing:(contextual||mobileCharge?move:(body.shouldAim?aim:move));
         }
 
         public static void BeginAttack(CharacterBody body,CharacterDirection direction,Vector3 aim)

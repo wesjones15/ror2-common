@@ -51,6 +51,7 @@ static class Program
         var facing=go.AddComponent<CharacterDirection>();var move=new Vector3(1,0,0);var aim=Vector3.forward;
         body.shouldAim=false;MeleeAim.FacingTarget(body,facing,move,aim,false,default);Check(facing.moveVector.x==1,"normal facing must use vanilla movement rule");
         body.shouldAim=true;MeleeAim.FacingTarget(body,facing,move,aim,false,default);Check(facing.moveVector.z==1,"aim facing must use real CharacterBody.shouldAim");
+        MeleeAim.FacingTarget(body,facing,move,aim,false,default,false,true);Check(facing.moveVector.x==1,"held mobile charge must move with the stick, not the aim");
         MeleeAim.FacingTarget(body,facing,move,aim,true,move);Check(facing.moveVector.x==1,"authored action lost locked heading");
         MeleeAim.BeginAttack(body,facing,aim);Check(body.aimTimer==3&&facing.moveVector.z==1&&facing.forward.x==1,"attack must set real aim timer/target without snapping vanilla yaw");
         body.healthComponent=new HealthComponent{body=body,alive=true};body.teamComponent=new TeamComponent{teamIndex=1};body.corePosition=new Vector3(0,1,0);body.radius=.5f;
