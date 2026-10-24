@@ -116,6 +116,11 @@ namespace Ror2Common
         protected abstract MeleeSkillSet SkillSet { get; }
         /// A move started, after the shared `BeginMove` has set `permitDamage`. Most fighters need nothing here.
         protected virtual void OnEventStarted(MeleeNative.Event e) { }
+        /// Whether starting `moveId` spends its skill's charge. A fighter whose move only
+        /// pays off when it lands returns false here and spends from its own success
+        /// (`NativeSkills.SpendDeferred`): Yoshi's Egg Lay spends when the tongue swallows,
+        /// so a miss costs no cooldown.
+        protected virtual bool SpendsOnStart(uint moveId) => true;
         protected abstract void OnEventHit(MeleeNative.Event e);
         protected abstract void FallbackSkills();
         protected virtual void OnSimStarted() { }
@@ -532,7 +537,10 @@ namespace Ror2Common
             var expected = set.Expected(body, slot);
             bool holds = NativeSkills.Holds(skill, expected);
             int stock = skill ? skill.stock : -1;
-            bool spent = NativeSkills.Spend(skill, expected);
+            // A deferred move keeps its charge until it succeeds; the pad's own gate
+            // (`MeleeSkillSet.Allowed`) still refused the press without one.
+            bool defer = !MeleePermit.SpendsAtStart(holds, SpendsOnStart(e.move_id));
+            bool spent = !defer && NativeSkills.Spend(skill, expected);
             permitDamage = MeleePermit.Allowed(holds, acts, spent);
             MeleeDiag.MoveStart(FighterName, e.move_id, slot, holds, stock, spent, acts, permitDamage);
         }

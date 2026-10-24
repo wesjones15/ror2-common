@@ -12,5 +12,10 @@ namespace Ror2Common
         /// `authority`: this machine runs the body's sim (`MeleeNet.Acts`).
         /// `spent`: whether a charge was there to spend; it is deliberately not part of the answer.
         public static bool Allowed(bool holdsOwn, bool authority, bool spent) => holdsOwn && authority;
+
+        /// Whether the move's start spends its charge. A move that pays off only on success
+        /// (Yoshi's Egg Lay, which spends when the tongue swallows) returns false from
+        /// `MeleeDriver.SpendsOnStart`; an overriding skill still spends at the start.
+        public static bool SpendsAtStart(bool holdsOwn, bool spendsOnStart) => !holdsOwn || spendsOnStart;
     }
 }

@@ -17,6 +17,9 @@ class Program
             return new[]{new RaycastHit {collider=target,distance=4}};
         };
         Check(MeleeSweep.Ranged(owner,default,3,default,10,out var hit)&&hit.collider==target,"missed enemy above nearby floor");
+        // The drawn lash and Samus's Charge Shot share the narrow terrain probe.
+        Physics.Query=(radius,mask)=>{Check(radius==MeleeSweep.TerrainRadius,"lash terrain probe is not the narrow centreline");return new[]{new RaycastHit {collider=wall,distance=2.5f}};};
+        Check(MeleeSweep.Terrain(owner,default,default,10,out hit)&&hit.collider==wall&&hit.distance==2.5f,"lash did not stop at terrain");
         Physics.Query=(radius,mask)=>new[]{new RaycastHit {collider=mask==1?wall:target,distance=mask==1?2:4}};
         Check(MeleeSweep.Ranged(owner,default,3,default,10,out hit)&&hit.collider==wall,"enemy assist bypassed nearer wall");
         Physics.Query=(radius,mask)=>new[]{new RaycastHit {collider=mask==1?wall:target,distance=mask==1?6:4}};
@@ -25,7 +28,9 @@ class Program
         Check(MeleeSweep.Ranged(owner,default,3,default,10,out hit)&&hit.collider==wall,"ally blocked shot");
         Physics.Query=(radius,mask)=>new[]{new RaycastHit {collider=wall,distance=0,normal=Vector3.zero}};
         Check(!MeleeSweep.Ranged(owner,default,3,default,10,out hit),"initial-overlap sentinel blocked shot");
+        Check(MeleeSweep.Terrain(owner,default,default,10,out hit)&&hit.collider==wall,"a lash starting inside geometry must stop, not pass through");
         Console.WriteLine("PASS: shared energy-shot terrain radius, full enemy radius, nearest wall/enemy ordering, ally filtering and overlap sentinel");
+        Console.WriteLine("PASS: the drawn lash reuses the narrow terrain probe and stops at the contact, including when it starts inside geometry");
     }
 }
 namespace UnityEngine

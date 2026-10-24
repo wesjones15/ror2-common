@@ -65,6 +65,11 @@ static class Program
         Check(chained,"a chained start with no charge left lost its damage permission");
         Check(!MeleePermit.Allowed(false,true,true),"another skill overriding the slot kept damage permission");
         Check(!MeleePermit.Allowed(true,false,true),"a machine that does not own the body got damage permission");
+        // A move that defers its charge to success (Yoshi's Egg Lay) must not spend at the
+        // start, but an overriding skill still does; ordinary moves are unchanged.
+        Check(MeleePermit.SpendsAtStart(true,true),"an ordinary move deferred its charge");
+        Check(!MeleePermit.SpendsAtStart(true,false),"the tongue spent its charge on a miss");
+        Check(MeleePermit.SpendsAtStart(false,false),"an overriding skill deferred its own charge");
         Console.WriteLine("PASS: native-driven automatic arrival, protection/cleanup without owning Interact, corrected camera ray, owner filtering, crosshair convergence and near-camera obstruction");
         Console.WriteLine("PASS: 20m grapple wall occlusion, boss player-pull without capture/AI/movement, release/control interruption, ordinary hold/release and champion exclusion");
         Console.WriteLine("PASS: damage permission is the slot holding the fighter's own skill plus authority, whatever the charge");

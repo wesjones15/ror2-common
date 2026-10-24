@@ -165,5 +165,18 @@ namespace Ror2Common
             if (body) body.OnSkillActivated(slot);
             return true;
         }
+
+        /// Spend the charge of a move that deferred it from its start to its success
+        /// (`MeleeDriver.SpendsOnStart`, Yoshi's Egg Lay spends when the tongue swallows):
+        /// a miss leaves the stock and its cooldown untouched. Only this fighter's own
+        /// skill is spent; an overriding skill was already spent when the move started.
+        public static bool SpendDeferred(MeleeSkillSet set, CharacterBody body, uint moveId)
+        {
+            if (set == null || !body) return false;
+            int slot = set.Slot(moveId);
+            var skill = set.Get(body, slot);
+            var expected = set.Expected(body, slot);
+            return Holds(skill, expected) && Spend(skill, expected);
+        }
     }
 }
