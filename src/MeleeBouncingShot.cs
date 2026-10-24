@@ -23,8 +23,12 @@ namespace Ror2Common
             /// Metres per Melee unit.
             public float Scale = 0.1f;
             public MeleeParticles Particles;
-            /// Particle bank ids: a trail that follows the shot, and one-shot puffs.
+            /// Particle bank ids: an attached generator effect that follows the shot, and one-shot puffs.
             public uint TrailParticle, BouncePuff, ImpactPuff, DespawnPuff;
+            /// Seconds a one-shot puff (Bounce/Impact/Despawn) may keep its generator. Several source
+            /// child generators have a zero generator lifetime (infinite); spawned untracked they
+            /// would emit sparks at the contact point for the rest of the run.
+            public float PuffSeconds = 2f;
             /// Plays a source sound id through the owner's mixer.
             public Action<uint> PlaySound;
             public uint BounceSound;
@@ -63,6 +67,7 @@ namespace Ror2Common
         Vector3 surface, tangent, heading, flight;
         float speed, travelled;
         readonly HashSet<HealthComponent> victims = new HashSet<HealthComponent>();
+        readonly List<(ulong key, float until)> puffs = new List<(ulong key, float until)>();
 
         public static MeleeBouncingShot Spawn(CharacterBody owner, Vector3 point, Vector3 direction, Config cfg)
         {
@@ -95,6 +100,7 @@ namespace Ror2Common
             if (finished || projectile == IntPtr.Zero) return;
             if (!owner || !owner.healthComponent || !owner.healthComponent.alive) { End(false); return; }
             age += Time.fixedDeltaTime;
+            ExpirePuffs();
             if (age > cfg.MaxSeconds) { End(true); return; }
             if ((transform.position - origin).sqrMagnitude > cfg.MaxRange * cfg.MaxRange) { End(true); return; }
             var from = transform.position;
@@ -304,8 +310,26 @@ namespace Ror2Common
         void Puff(uint id, Vector3 world)
         {
             if (id == 0 || cfg.Particles == null) return;
-            try { cfg.Particles.Spawn(id, MeleeParticles.At(world, Quaternion.identity, cfg.Scale), nextKey++); }
+            ulong key = nextKey++;
+            try
+            {
+                cfg.Particles.Spawn(id, MeleeParticles.At(world, Quaternion.identity, cfg.Scale), key);
+                puffs.Add((key, Time.time + Mathf.Max(0.1f, cfg.PuffSeconds)));
+            }
             catch (Exception e) { CommonLog.Error("Melee shot puff: " + e.Message); }
+        }
+
+        // An untracked source generator would stay in the shared particle system for the
+        // whole run; stop each puff once its short authored flash is over.
+        void ExpirePuffs()
+        {
+            if (puffs.Count == 0) return;
+            for (int i = puffs.Count - 1; i >= 0; i--)
+            {
+                if (Time.time < puffs[i].until) continue;
+                try { cfg.Particles?.Stop(puffs[i].key); } catch (Exception) { }
+                puffs.RemoveAt(i);
+            }
         }
 
         void ReadState()
@@ -335,6 +359,9 @@ namespace Ror2Common
         void OnDestroy()
         {
             if (trailKey != 0 && cfg != null && cfg.Particles != null) { try { cfg.Particles.Stop(trailKey); } catch (Exception) { } }
+            if (cfg != null && cfg.Particles != null)
+                foreach (var puff in puffs) { try { cfg.Particles.Stop(puff.key); } catch (Exception) { } }
+            puffs.Clear();
             view?.Dispose(); view = null;
             if (projectile != IntPtr.Zero) { MeleeNative.ssbm_projectile_free(projectile); projectile = IntPtr.Zero; }
         }
