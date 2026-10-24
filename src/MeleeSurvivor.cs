@@ -42,6 +42,12 @@ namespace Ror2Common
             var display = LegacyResourcesAPI.Load<GameObject>("Prefabs/CharacterDisplays/CommandoDisplay");
             if (!commando || !display) throw new InvalidOperationException("Commando prefabs unavailable");
             var body = Prefabs.Clone(commando, def.bodyName, guid);
+            // The clone inherits Commando's RagdollController, so vanilla's death state would
+            // drop a Commando ragdoll corpse at the death spot. Melee owns its own death
+            // presentation (the blast-zone KO at the fighter's location); remove the controller
+            // so no vanilla corpse is spawned and nothing is left after the KO effect finishes.
+            foreach (var ragdoll in body.GetComponentsInChildren<RagdollController>(true))
+                UnityEngine.Object.DestroyImmediate(ragdoll);
             var cb = body.GetComponent<CharacterBody>();
             cb.baseNameToken = def.nameToken;
             cb.subtitleNameToken = def.subtitleToken;
