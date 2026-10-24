@@ -36,6 +36,15 @@ static class Program
         Physics.hits=new[]{new RaycastHit{collider=enemy,distance=1,point=new Vector3(0,3,-4)}};
         direction=MeleeAim.ProjectileDirection(body,muzzle,ray);Check(direction.z==1&&direction.x==0,"camera obstruction reversed projectile into owner");
         Physics.hits=Array.Empty<RaycastHit>();direction=MeleeAim.ProjectileDirection(body,muzzle,ray);Check(direction.z>.999f,"empty sky shot did not follow camera");
+        // A converging shot that keeps its crosshair point while its muzzle moves (the tongue).
+        var point=MeleeAim.ProjectilePoint(body,muzzle,ray,20f);
+        Check(Math.Abs(point.z-20f)<1e-4f&&Math.Abs(point.x-muzzle.x)<1e-4f,"empty sky point did not extend from the muzzle");
+        Physics.hits=new[]{new RaycastHit{collider=enemy,distance=10,point=new Vector3(0,3,5)}};
+        point=MeleeAim.ProjectilePoint(body,muzzle,ray,20f);
+        Check(Math.Abs(point.z-5f)<1e-4f&&Math.Abs(point.y-3f)<1e-4f,"crosshair point missed the target");
+        Physics.hits=new[]{new RaycastHit{collider=own,distance=5,point=new Vector3(0,3,0)},new RaycastHit{collider=enemy,distance=10,point=new Vector3(0,3,5)}};
+        point=MeleeAim.ProjectilePoint(body,muzzle,ray,20f);
+        Check(Math.Abs(point.z-5f)<1e-4f,"crosshair point used the owner's own collider");
         var facing=go.AddComponent<CharacterDirection>();var move=new Vector3(1,0,0);var aim=Vector3.forward;
         body.shouldAim=false;MeleeAim.FacingTarget(body,facing,move,aim,false,default);Check(facing.moveVector.x==1,"normal facing must use vanilla movement rule");
         body.shouldAim=true;MeleeAim.FacingTarget(body,facing,move,aim,false,default);Check(facing.moveVector.z==1,"aim facing must use real CharacterBody.shouldAim");

@@ -32,20 +32,40 @@ namespace Ror2Common
         public static Vector3 ProjectileDirection(CharacterBody body,Vector3 muzzle,Ray cameraRay)
         {
             var forward=cameraRay.direction.normalized;
-            float closest=float.PositiveInfinity;
-            Vector3 point=cameraRay.origin+forward*10000f;
-            foreach(var hit in Physics.RaycastAll(cameraRay,Mathf.Infinity,WorldProbe.Mask|LayerIndex.entityPrecise.mask,QueryTriggerInteraction.Ignore)){
+            var point=CrosshairPoint(body,cameraRay,float.PositiveInfinity,out var hit)
+                ?hit:cameraRay.origin+forward*10000f;
+            var delta=point-muzzle;
+            // Geometry between camera and cannon must not reverse the shot.
+            // The projectile's own sweep still handles walls in front of it.
+            return Vector3.Dot(delta,forward)>0.05f?delta.normalized:forward;
+        }
+
+        /// The world point under the crosshair, for a projectile that keeps converging on it
+        /// while its muzzle moves (Yoshi's tongue head bobs through Egg Lay). The nearest
+        /// non-owner hit along the camera ray within `range`, else `muzzle + forward * range`;
+        /// a hit behind the muzzle (camera obstruction) falls back to the forward point.
+        public static Vector3 ProjectilePoint(CharacterBody body,Vector3 muzzle,Ray cameraRay,float range)
+        {
+            var forward=cameraRay.direction.normalized;
+            if(CrosshairPoint(body,cameraRay,range,out var hit)
+                &&Vector3.Dot(hit-muzzle,forward)>0.05f)return hit;
+            return muzzle+forward*range;
+        }
+
+        static bool CrosshairPoint(CharacterBody body,Ray cameraRay,float range,out Vector3 point)
+        {
+            float closest=range;
+            point=default;
+            bool found=false;
+            foreach(var hit in Physics.RaycastAll(cameraRay,range,WorldProbe.Mask|LayerIndex.entityPrecise.mask,QueryTriggerInteraction.Ignore)){
                 // A camera ray can pass through the owner's body before reaching
                 // its crosshair target. Never aim back into our own hurtboxes.
                 if(!hit.collider||hit.collider.GetComponentInParent<CharacterBody>()==body)continue;
                 var hurt=hit.collider.GetComponent<HurtBox>();
                 if(hurt&&hurt.healthComponent&&hurt.healthComponent.body==body)continue;
-                if(hit.distance<closest){closest=hit.distance;point=hit.point;}
+                if(hit.distance<closest){closest=hit.distance;point=hit.point;found=true;}
             }
-            var delta=point-muzzle;
-            // Geometry between camera and cannon must not reverse the shot.
-            // The projectile's own sweep still handles walls in front of it.
-            return Vector3.Dot(delta,forward)>0.05f?delta.normalized:forward;
+            return found;
         }
     }
 }
