@@ -44,6 +44,10 @@ namespace Ror2Common
             : this(MeleeNative.ssbm_article_new(NativeLib.CString(assetsDir), kind, article, state)) { }
         public static MeleeFighterView Effect(string assetsDir, uint kind, uint model)
             => new MeleeFighterView(MeleeNative.ssbm_effect_new(NativeLib.CString(assetsDir), kind, model));
+        /// A fighter's alternate model alone (choice 1: Samus's morph ball, Yoshi's egg),
+        /// for a laid egg or another prop that does not follow a live sim.
+        public static MeleeFighterView FighterChoice(string assetsDir, uint kind, uint costume, uint choice)
+            => new MeleeFighterView(MeleeNative.ssbm_view_new_choice(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4), choice));
         public static MeleeFighterView Game(string assetsDir)
             => new MeleeFighterView(MeleeNative.ssbm_game_new(NativeLib.CString(assetsDir)));
         /// An item of the common item archive: the Super Scope held (0x15) or a level of its beam (0x26, state = level).
