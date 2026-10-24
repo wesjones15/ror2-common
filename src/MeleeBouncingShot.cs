@@ -20,6 +20,15 @@ namespace Ror2Common
             public uint Fighter, Article, State;
             /// The article drawn as the shot (an effect-only article has no model: leave `ViewArticle` at uint.MaxValue).
             public uint ViewArticle = uint.MaxValue, ViewState;
+            /// A short article flash at each surface contact. Pikachu's source contact replaces the
+            /// ground jolt's 0x4BD aura with the air-jolt arc model for 24 ticks
+            /// (itpikachutjoltground.c it_802B3554 / itpikachutjoltair.c xDF4 <= 24); the host
+            /// draws that arc at the bounce instead of freezing it on the flying orb.
+            public uint BounceViewArticle = uint.MaxValue, BounceViewState;
+            /// Size multiplier for the bounce arc (the source item's model is large).
+            public float BounceViewScale = 1f;
+            /// Melee ticks the bounce arc lives (source air jolt: 24).
+            public int BounceViewFrames = 24;
             /// Metres per Melee unit.
             public float Scale = 0.1f;
             public MeleeParticles Particles;
@@ -38,6 +47,9 @@ namespace Ror2Common
             /// past this (or the host's map bounds) even though its sim lifetime
             /// is unbounded.
             public float MaxRange = 200f;
+            /// Host adaptation: fly level for this many metres before the disc's arc begins.
+            /// The sim works in Melee units, so the spawn divides by `Scale`.
+            public float StraightMetres;
             /// Melee damage percent per unit of damage coefficient.
             public float PercentPerCoefficient = 3f;
             /// Enemy hit radius multiplier so a shot at range lands as easily as a bullet.
@@ -83,6 +95,8 @@ namespace Ror2Common
             if (shot.projectile == IntPtr.Zero) { Destroy(go); return null; }
             // The sim's source life is an offscreen cutoff; open worlds are bounded by MaxSeconds.
             MeleeNative.ssbm_projectile_lifetime(shot.projectile, 0);
+            if (cfg.StraightMetres > 0f)
+                MeleeNative.ssbm_projectile_straight(shot.projectile, cfg.StraightMetres / cfg.Scale);
             if (cfg.ViewArticle != uint.MaxValue)
                 shot.view = new MeleeFighterView(cfg.AssetsDir, cfg.Fighter, cfg.ViewArticle, cfg.ViewState);
             shot.ReadState();
@@ -257,6 +271,7 @@ namespace Ror2Common
                 BeginCrawl(normal, centre);
                 transform.position = centre;
                 Puff(cfg.BouncePuff, centre);
+                Arc(centre);
                 if (cfg.BounceSound != 0) cfg.PlaySound?.Invoke(cfg.BounceSound);
                 return;
             }
@@ -276,7 +291,15 @@ namespace Ror2Common
             MeleeNative.ssbm_projectile_place(projectile, new MeleeNative.Vec3(rel.x, rel.y, rel.z), 0);
             transform.position = centre;
             Puff(cfg.BouncePuff, centre);
+            Arc(centre);
             if (cfg.BounceSound != 0) cfg.PlaySound?.Invoke(cfg.BounceSound);
+        }
+
+        void Arc(Vector3 at)
+        {
+            if (cfg.BounceViewArticle == uint.MaxValue) return;
+            var velocity = new Vector3(state.velocity.x, state.velocity.y, state.velocity.z);
+            ShotArc.Spawn(cfg, at, velocity, owner ? owner.transform.forward : Vector3.forward);
         }
 
         void Strike(Vector3 at)
@@ -364,6 +387,71 @@ namespace Ror2Common
             puffs.Clear();
             view?.Dispose(); view = null;
             if (projectile != IntPtr.Zero) { MeleeNative.ssbm_projectile_free(projectile); projectile = IntPtr.Zero; }
+        }
+    }
+
+    /// A short air-jolt arc at a surface contact. The source ground jolt destroys its 0x4BD
+    /// aura on contact and spawns the air-jolt article, whose model runs for 24 ticks
+    /// (itpikachutjoltair.c xDF4 <= 24). The host's bouncing arc repeats that flash at each
+    /// contact instead of carrying the arc model on the flying orb.
+    internal sealed class ShotArc : MonoBehaviour
+    {
+        MeleeBouncingShot.Config cfg;
+        MeleeFighterView view;
+        Vector3 direction;
+        int ticks;
+
+        internal static void Spawn(MeleeBouncingShot.Config cfg, Vector3 at, Vector3 velocity, Vector3 forward)
+        {
+            if (cfg == null || cfg.BounceViewArticle == uint.MaxValue) return;
+            var go = new GameObject("Melee shot bounce arc");
+            go.transform.position = at;
+            var arc = go.AddComponent<ShotArc>();
+            arc.cfg = cfg;
+            arc.direction = velocity.sqrMagnitude > 0.0001f ? velocity.normalized : forward;
+            try
+            {
+                arc.view = new MeleeFighterView(cfg.AssetsDir, cfg.Fighter, cfg.BounceViewArticle, cfg.BounceViewState);
+                arc.view.ObjectPose(0f);
+            }
+            catch (Exception e)
+            {
+                CommonLog.Warn("Melee shot bounce arc: " + e.Message);
+                arc.view?.Dispose();
+                arc.view = null;
+                Destroy(go);
+            }
+        }
+
+        void FixedUpdate()
+        {
+            ticks++;
+            if (ticks >= cfg.BounceViewFrames) Destroy(gameObject);
+        }
+
+        void LateUpdate()
+        {
+            if (view == null) return;
+            float scale = cfg.Scale * Mathf.Max(0.05f, cfg.BounceViewScale);
+            var rotation = Quaternion.LookRotation(direction);
+            try
+            {
+                view.ObjectPose(ticks);
+                view.FaceCamera(transform.position, rotation, scale);
+                view.Models.Update(scale, d => (transform.position, rotation));
+            }
+            catch (Exception e)
+            {
+                CommonLog.Error("Melee shot bounce arc draw: " + e.Message);
+                view?.Dispose();
+                view = null;
+            }
+        }
+
+        void OnDestroy()
+        {
+            view?.Dispose();
+            view = null;
         }
     }
 }

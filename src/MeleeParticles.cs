@@ -14,6 +14,7 @@ namespace Ror2Common
         public void Spawn(uint id, Matrix4x4 transform, ulong key) => view.Spawn(id, transform, key);
         public void Attach(ulong key, Matrix4x4 transform) => view.Attach(key, transform);
         public void Stop(ulong key) => view.Stop(key);
+        public void Tune(uint id, float scale, float alpha, bool glow = false) => view.Tune(id, scale, alpha, glow);
         public void Step(float dt) => view.Step(dt);
         public void Draw(Matrix4x4? placement = null) => view.Draw(placement);
         public void Dispose() => view.Dispose();
@@ -30,6 +31,7 @@ namespace Ror2Common
             public bool Spawn(uint id, float[] transform, ulong key) => MeleeNative.ssbm_particles_spawn(handle, id, transform, key) == 1;
             public bool Attach(ulong key, float[] transform) => MeleeNative.ssbm_particles_attach(handle, key, transform) == 1;
             public void Stop(ulong key) => MeleeNative.ssbm_particles_stop(handle, key);
+            public bool Tune(uint id, float scale, float alpha, bool glow) => MeleeNative.ssbm_particles_tune(handle, id, scale, alpha, glow ? 1u : 0u) == 1;
             public bool Step(double dt) => MeleeNative.ssbm_particles_step(handle, dt) == 1;
             public uint Draws(ViewParticle[] output, uint max) => MeleeNative.ssbm_particles_draws(handle, output, max);
             public bool Texture(uint id, out ViewTexture info, byte[] rgba, uint len) => MeleeNative.ssbm_particles_texture(handle, id, out info, rgba, len) == 1;

@@ -12,7 +12,8 @@ namespace Ror2Common
         IParticleSource source;
         ViewParticle[] sprites=new ViewParticle[128];
         readonly Dictionary<uint,(ViewTexture,byte[])> originals=new Dictionary<uint,(ViewTexture,byte[])>();
-        readonly Dictionary<(uint,uint,uint,uint),(Texture2D,Material,float)> variants=new Dictionary<(uint,uint,uint,uint),(Texture2D,Material,float)>();
+        readonly Dictionary<(uint,uint,uint,uint,bool),(Texture2D,Material,float)> variants=new Dictionary<(uint,uint,uint,uint,bool),(Texture2D,Material,float)>();
+        readonly Dictionary<(int,int),byte[]> glows=new Dictionary<(int,int),byte[]>();
         readonly float[] matrix=new float[16];
         readonly MaterialPropertyBlock properties=new MaterialPropertyBlock();
         Mesh quad;
@@ -35,16 +36,35 @@ namespace Ror2Common
         public void Attach(ulong key,Matrix4x4 transform)
         {if(source!=null){Matrix(transform);source.Attach(key,matrix);}}
         public void Stop(ulong key){if(source!=null)source.Stop(key);}
+        public void Tune(uint id,float scale,float alpha,bool glow){if(source!=null)source.Tune(id,scale,alpha,glow);}
         public void Step(float dt)
         {if(source!=null&&!source.Step(dt))CommonLog.Error("Melee particle commands: "+source.Error);}
         static uint Pack(float r,float g,float b,float a)
             =>(uint)(Mathf.Clamp(Mathf.RoundToInt(r*255),0,255)|(Mathf.Clamp(Mathf.RoundToInt(g*255),0,255)<<8)|(Mathf.Clamp(Mathf.RoundToInt(b*255),0,255)<<16)|(Mathf.Clamp(Mathf.RoundToInt(a*255),0,255)<<24));
+        // A centred soft radial mask: opaque white in the middle, transparent at the
+        // edges. The source 7002 texture holds its colour in a corner; baking this mask
+        // instead keeps the deepest colour in the centre and fades every edge.
+        byte[] GlowMask(int width,int height)
+        {
+            var key=(width,height);
+            if(glows.TryGetValue(key,out var cached))return cached;
+            var pixels=new byte[checked(width*height*4)];
+            for(int y=0;y<height;y++) for(int x=0;x<width;x++) {
+                float dx=(x+0.5f)/width*2f-1f, dy=(y+0.5f)/height*2f-1f;
+                float r=Mathf.Clamp01(Mathf.Sqrt(dx*dx+dy*dy));
+                float a=1f-r; a=a*a*(3f-2f*a);
+                int i=(y*width+x)*4;
+                pixels[i]=255;pixels[i+1]=255;pixels[i+2]=255;pixels[i+3]=(byte)Mathf.RoundToInt(a*255f);
+            }
+            glows.Add(key,pixels);return pixels;
+        }
         Material Material(in ViewParticle sprite)
         {
             uint prim=Pack(sprite.r,sprite.g,sprite.b,sprite.a);
             uint env=(sprite.flags&128)!=0?Pack(sprite.er,sprite.eg,sprite.eb,sprite.ea):0;
             uint flags=sprite.flags&((3u<<22)|(1u<<9)|(1u<<28));
-            var key=(sprite.texture,prim,env,flags);
+            bool glow=sprite.glow!=0;
+            var key=(sprite.texture,prim,env,flags,glow);
             if(variants.TryGetValue(key,out var existing)){variants[key]=(existing.Item1,existing.Item2,Time.unscaledTime);return existing.Item2;}
             if(!originals.TryGetValue(sprite.texture,out var original)) {
                 if(!source.Texture(sprite.texture,out var info,null,0))throw new InvalidOperationException(source.Error);
@@ -55,9 +75,10 @@ namespace Ror2Common
             // psdisptev.c: interpolate env/primary per texture channel, including
             // alpha. Baking this inexpensive colour variant preserves the source
             // two-colour TEV operation with RoR2's existing particle shader.
-            var pixels=new byte[original.Item2.Length];
+            var sourcePixels = glow ? GlowMask((int)original.Item1.width, (int)original.Item1.height) : original.Item2;
+            var pixels=new byte[sourcePixels.Length];
             for(int i=0;i<pixels.Length;i++) {
-                int ch=i&3,t=original.Item2[i],p=(int)(prim>>(ch*8))&255,e=(int)(env>>(ch*8))&255;
+                int ch=i&3,t=sourcePixels[i],p=(int)(prim>>(ch*8))&255,e=(int)(env>>(ch*8))&255;
                 pixels[i]=(byte)((e*(255-t)+p*t+127)/255);
             }
             var tex=new Texture2D((int)original.Item1.width,(int)original.Item1.height,TextureFormat.RGBA32,false,true) {name="Melee particle "+sprite.texture,wrapMode=TextureWrapMode.Clamp,filterMode=(flags&(1<<9))!=0?FilterMode.Point:FilterMode.Bilinear};
@@ -85,13 +106,13 @@ namespace Ror2Common
                 Graphics.DrawMesh(quad,Matrix4x4.TRS(point,rotation,size),Material(in p),0,null,0,properties,ShadowCastingMode.Off,false);
             }
             // Animated colour variants are transient; keep current/recent draws.
-            if(variants.Count>256)foreach(var entry in new List<KeyValuePair<(uint,uint,uint,uint),(Texture2D,Material,float)>>(variants))
+            if(variants.Count>256)foreach(var entry in new List<KeyValuePair<(uint,uint,uint,uint,bool),(Texture2D,Material,float)>>(variants))
                 if(Time.unscaledTime-entry.Value.Item3>1f){UnityEngine.Object.Destroy(entry.Value.Item1);UnityEngine.Object.Destroy(entry.Value.Item2);variants.Remove(entry.Key);}
         }
         public void Dispose()
         {
             if(source!=null){source.Dispose();source=null;}
-            foreach(var value in variants.Values){UnityEngine.Object.Destroy(value.Item1);UnityEngine.Object.Destroy(value.Item2);}variants.Clear();originals.Clear();
+            foreach(var value in variants.Values){UnityEngine.Object.Destroy(value.Item1);UnityEngine.Object.Destroy(value.Item2);}variants.Clear();originals.Clear();glows.Clear();
             if(quad){UnityEngine.Object.Destroy(quad);quad=null;}
         }
     }
