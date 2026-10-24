@@ -258,9 +258,10 @@ namespace Ror2Common
                 FlushOps();
                 uint previousRecovery = recoveryFlags; recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim);
                 // Map falloff only: the blast-zone lines are drawn in front of the camera while the fall
-                // recovery runs, so an overhead camera does not get a face full of them. The death
-                // presentation (MeleeDeath) has its own effects and is left as it is.
-                if (EffectsForSparks != null) EffectsForSparks.AffixToCamera = Recovering;
+                // recovery runs, so an overhead camera does not get a face full of them. The initial
+                // arrival (the figurine/trophy) also reports the recovering flag, but its effects belong
+                // on the fighter, so exclude it; the death presentation (MeleeDeath) has its own effects.
+                if (EffectsForSparks != null) EffectsForSparks.AffixToCamera = Recovering && !Arriving;
                 recovery?.Refresh();
                 if (Arriving && !Recovering) Arriving = false;
                 StepPresentation(Time.fixedDeltaTime);
