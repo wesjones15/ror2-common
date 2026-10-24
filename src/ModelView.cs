@@ -78,6 +78,9 @@ namespace Ror2Common
         /// Draw every batch additive. A bolt texture's black outline contributes zero
         /// instead of painting a dark border around the glow.
         public bool ForceAdditive;
+        /// Replace near-black texture pixels with this colour (Thunder's authored black
+        /// border becomes the yellow glow around the bolt).
+        public Color BlackToGlow;
         ViewDraw[] draws = new ViewDraw[64];
         int drawCount;
         Vector3[] vbuf = new Vector3[0], nbuf = new Vector3[0];
@@ -280,7 +283,48 @@ namespace Ror2Common
             if (!src.Texture(id, out t, px, (uint)px.Length)) return null;
             uint version = (src as IAnimatedTextureSource)?.TextureVersion(id) ?? 0;
             if (version != 0) animatedTextures[(int)id] = new AnimatedTexture { version = version, pixels = px };
-            return MakeTexture($"{Name} texture {id}", t, px, version != 0);
+            return MakeTexture($"{Name} texture {id}", t, GlowBlack(px, (int)t.width, (int)t.height), version != 0);
+        }
+        byte[] GlowBlack(byte[] px, int width, int height)
+        {
+            if (BlackToGlow.a <= 0f || width <= 0 || height <= 0) return px;
+            // A distance transform from the bright bolt core: the authored black border
+            // becomes a yellow halo that fades out with distance instead of a flat slab.
+            int n = width * height;
+            var dist = new int[n];
+            var queue = new Queue<int>();
+            for (int i = 0; i < n; i++)
+            {
+                int p = i * 4;
+                if (px[p + 3] == 0) { dist[i] = int.MaxValue; continue; }
+                int bright = Mathf.Max(px[p], Mathf.Max(px[p + 1], px[p + 2]));
+                dist[i] = bright >= 80 ? 0 : int.MaxValue;
+                if (dist[i] == 0) queue.Enqueue(i);
+            }
+            while (queue.Count > 0)
+            {
+                int i = queue.Dequeue();
+                int x = i % width, y = i / width;
+                if (x > 0) Relax(i - 1, dist[i] + 1);
+                if (x + 1 < width) Relax(i + 1, dist[i] + 1);
+                if (y > 0) Relax(i - width, dist[i] + 1);
+                if (y + 1 < height) Relax(i + width, dist[i] + 1);
+                void Relax(int j, int d)
+                {
+                    if (dist[j] > d) { dist[j] = d; queue.Enqueue(j); }
+                }
+            }
+            var glow = (Color32)BlackToGlow;
+            for (int i = 0; i < n; i++)
+            {
+                if (dist[i] == int.MaxValue || dist[i] == 0 || dist[i] > 6) continue;
+                int p = i * 4;
+                if (!(px[p] < 40 && px[p + 1] < 40 && px[p + 2] < 40)) continue;
+                float fade = 1f - dist[i] / 7f;
+                px[p] = glow.r; px[p + 1] = glow.g; px[p + 2] = glow.b;
+                px[p + 3] = (byte)Mathf.RoundToInt(glow.a * fade);
+            }
+            return px;
         }
 
         void RefreshTextures()
@@ -293,7 +337,7 @@ namespace Ror2Common
                 if (version == state.version) continue;
                 if (!src.Texture((uint)entry.Key, out _, state.pixels, (uint)state.pixels.Length)) continue;
                 var texture = textures[entry.Key];
-                texture.SetPixelData(state.pixels, 0);
+                texture.SetPixelData(GlowBlack(state.pixels, texture.width, texture.height), 0);
                 texture.Apply(true, false);
                 state.version = version;
             }

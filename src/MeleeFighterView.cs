@@ -40,6 +40,8 @@ namespace Ror2Common
         public Color Tint = Color.white;
         /// Force additive blending for models whose texture has a black border (Thunder bolt).
         public bool ForceAdditive { get => Models.ForceAdditive; set => Models.ForceAdditive = value; }
+        /// Replace near-black texture pixels with this colour (the Thunder black border).
+        public Color BlackToGlow { get => Models.BlackToGlow; set => Models.BlackToGlow = value; }
         Color[] tinted = Array.Empty<Color>();
         GCHandle tintPin;
         readonly MaterialAlphaBuffer alpha = new MaterialAlphaBuffer();
