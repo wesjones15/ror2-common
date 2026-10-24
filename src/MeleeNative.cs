@@ -32,6 +32,8 @@ namespace Ror2Common
         public static bool HasMoves {get;private set;}
         /// The Super Scope (Luigi's alternate neutral special): ssbm_sim_scope and the beam exports. Optional.
         public static bool HasScope {get;private set;}
+        /// A host terrain correction that moves a live fighter without resetting its action.
+        public static bool HasNudge {get;private set;}
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_rebirth(IntPtr sim,byte[] dir,Vec3 destination);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_rebirth_flags(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_camera(IntPtr view,Vec3 camera);
@@ -99,6 +101,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasMoves=false;}
             try {ssbm_sim_scope(IntPtr.Zero,0,0f);HasScope=true;}
             catch(EntryPointNotFoundException){HasScope=false;}
+            try {ssbm_sim_nudge(IntPtr.Zero,default,0);HasNudge=true;}
+            catch(EntryPointNotFoundException){HasNudge=false;}
             var sizes = new uint[14]; uint count=ssbm_struct_sizes(sizes,(uint)sizes.Length);
             error=NativeLib.CompareSizes(sizes,count,new[] {
                 ("Vec3",NativeLib.Size<Vec3>()),("Pad",NativeLib.Size<Pad>()),("State",NativeLib.Size<State>()),
@@ -172,6 +176,7 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_tuning(IntPtr sim,Tuning tuning);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_mobile_moves(IntPtr sim,ulong mask);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_place(IntPtr sim,Vec3 vector,uint kind);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_nudge(IntPtr sim,Vec3 vector,uint grounded);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_facing(IntPtr sim,Vec3 facing);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_jump_height(IntPtr sim,float height);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_anchor(IntPtr sim,Vec3 position,uint grounded);
