@@ -96,7 +96,6 @@ namespace Ror2Common
     {
         const int CanvasOrder = 1000;
         const float Width = 540f, Height = 880f, Margin = 36f;
-        const int ActionColumn = 170;
         static readonly Color gold = new Color(1f, .82f, .3f);
 
         GameObject root;
@@ -153,16 +152,11 @@ namespace Ror2Common
             if (other) text.Append("<color=#9aa4ad>").Append(pad ? "Keyboard and mouse" : "Gamepad").Append("</color>\n");
             foreach (var section in sections)
             {
-                text.Append("<margin-left=0><line-indent=0>");
                 if (!string.IsNullOrEmpty(section.Heading))
                     text.Append("<color=#ffd24d><size=108%>").Append(section.Heading.ToUpperInvariant()).Append("</size></color>\n");
-                // A hanging indent: the binding starts the first line, the action sits in a column at ActionColumn, and
-                // a long action that wraps keeps to that column instead of going back under the binding.
                 foreach (var row in section.Rows)
-                    text.Append("<margin-left=").Append(ActionColumn).Append("><line-indent=-").Append(ActionColumn)
-                        .Append("><color=#8fd0ff>").Append(row.Input).Append("</color><pos=").Append(ActionColumn)
-                        .Append(">").Append(row.Action).Append('\n');
-                text.Append("<margin-left=0><line-indent=0><size=40%>\n</size>");
+                    text.Append("<color=#8fd0ff>").Append(row.Input).Append("</color><pos=170>").Append(row.Action).Append('\n');
+                text.Append("<size=40%>\n</size>");
             }
             controls.text = text.ToString();
             footer.text = sheet.Footer ?? "";
@@ -201,7 +195,6 @@ namespace Ror2Common
             subtitle.enableWordWrapping = true;
             controls = Label("Controls", window, new Vector2(24f, -186f), new Vector2(Width - 48f, Height - 250f), 21f, Color.white);
             controls.richText = true;
-            controls.enableWordWrapping = true;
             controls.overflowMode = TMPro.TextOverflowModes.Truncate;
             footer = Label("Footer", window, new Vector2(24f, -(Height - 56f)), new Vector2(Width - 48f, 44f), 18f, new Color(.7f, .78f, .84f));
             footer.enableWordWrapping = true;
