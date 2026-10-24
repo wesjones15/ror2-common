@@ -425,8 +425,8 @@ namespace Ror2Common
             new MeleeSkillIcon { source = SkillIconSource.ArticleCharacter, id = article, state = state, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, frame = frame, offset = offset, charOffset = charOffset };
         static MeleeSkillIcon B(Color color, float zoom = 1f) =>
             new MeleeSkillIcon { source = SkillIconSource.Ball, color = color, zoom = zoom };
-        static MeleeSkillIcon C(string clip, float clipFrame, Color color, float zoom = 1f, bool tongue = false) =>
-            new MeleeSkillIcon { source = SkillIconSource.Character, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, tongue = tongue };
+        static MeleeSkillIcon C(string clip, float clipFrame, Color color, float zoom = 1f, bool tongue = false, uint trail = 0, int trailFrames = 20, Vector3 trailOffset = default) =>
+            new MeleeSkillIcon { source = SkillIconSource.Character, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, tongue = tongue, trail = trail, trailFrames = trailFrames, trailOffset = trailOffset };
         static MeleeSkillIcon EC(uint id, string clip, float clipFrame, Color color, float zoom = 1f, float frame = 4f, Vector3 offset = default, Vector3 charOffset = default) =>
             new MeleeSkillIcon { source = SkillIconSource.EffectCharacter, id = id, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, frame = frame, offset = offset, charOffset = charOffset };
         static MeleeSkillIcon M(uint model, Color color, float zoom = 1f, float frame = 4f) =>
@@ -455,7 +455,7 @@ namespace Ror2Common
                 case "MeleeLuigiScope": return I(0x15, 0, Green, 1.1f);
                 case "MeleeLuigiCyclone": return E(1289, Green, 1f, 4);
                 case "MeleeLuigiShield": return M(14, Blue, 1.2f, 4);
-                case "MeleeLuigi2": return EC(0x50A, "SpecialS", 8, Green, 0.9f, 4, new Vector3(0f, 0f, 0f));
+                case "MeleeLuigi2": return C("SpecialS", 8, Green, 0.9f, false, 66, 3, new Vector3(0f, 0f, 1f));
                 case "MeleeLuigi3": return C("SpecialHi", 6, Red);
                 case "MeleeLuigiScopeSpecial": return I(0x15, 0, Green, 1.1f);
                 // Pikachu
@@ -463,7 +463,7 @@ namespace Ror2Common
                 case "MeleePikachuEggLay": return C("SpecialLwStart", 15, Green, 1.7f, true);
                 case "MeleePikachu2": return A(0, 0, Yellow, 1.2f, 4, 0, 20, default, default, true);
                 case "MeleePikachuShield": return M(14, Blue, 1.2f, 4);
-                case "MeleePikachuSkullBash": return EC(1215, "SpecialS", 8, Yellow, 0.9f, 4, new Vector3(0f, 0f, 0f));
+                case "MeleePikachuSkullBash": return C("SpecialS", 8, Yellow, 0.9f, false, 66, 3, new Vector3(0f, 0f, 1f));
                 case "MeleePikachu3": return EC(1012, "SpecialHiStart", 4, Yellow, 0.9f, 4, new Vector3(0f, 6f, 0f));
                 // Captain Falcon
                 case "MeleeCaptain0": return E(1167, Red, 1f, 6);
