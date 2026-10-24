@@ -164,7 +164,9 @@ namespace Ror2Common
                 NativeSkills.AddExtra(body, layout.extraName, layout.extraTitleToken, pack, set.Extra);
             var hud = body.AddComponent<ExtraSkillIcon>();
             hud.skillName = layout.extraName;
-            hud.actionName = layout.extraActionName;
+            // "Cancel" is not a RoR2 input action in this build; the fifth slot is on B,
+            // which is bound to Interact, so use that for the HUD key glyph.
+            hud.actionName = layout.extraActionName == "Cancel" ? "Interact" : layout.extraActionName;
             hud.glyphFrom = layout.extraGlyphFrom > 0 ? layout.extraGlyphFrom : 3;
             VanillaIcons.Use(set.Extra, layout.extra.icon);
             if (set.ExtraAlt != null) VanillaIcons.Use(set.ExtraAlt, layout.extraAlt.icon);
