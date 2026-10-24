@@ -160,6 +160,7 @@ namespace Ror2Common
             }
             controls.text = text.ToString();
             footer.text = sheet.Footer ?? "";
+            footer.gameObject.SetActive(!string.IsNullOrEmpty(footer.text));
         }
 
         void Build()
