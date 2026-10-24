@@ -74,6 +74,7 @@ namespace Ror2Common
         ulong trailKey;
         float age;
         bool finished;
+        int surfaceLock;
         // Crawl mode: after the first surface contact the host owns the motion.
         bool crawling, airborne, measured;
         Vector3 surface, tangent, heading, flight;
@@ -128,6 +129,7 @@ namespace Ror2Common
             float length = step.magnitude;
             if (!measured && length > 1e-5f) { measured = true; speed = length / Time.fixedDeltaTime; }
             if (length < 1e-5f) { transform.position = next; return; }
+            if (surfaceLock > 0) { surfaceLock--; transform.position = next; return; }
             if (!Sweep(from, step / length, length, radius, out var contact)) { transform.position = next; return; }
             var enemy = contact.collider.GetComponent<HurtBox>();
             if (enemy && enemy.healthComponent) { Strike(contact.point); return; }
@@ -144,7 +146,7 @@ namespace Ror2Common
             for (int i = 0; i < n; i++)
             {
                 var h = hits[i];
-                if (!h.collider || h.distance <= 0f && h.normal == Vector3.zero) continue;
+                if (!h.collider || h.distance <= 0.001f) continue;
                 var body = h.collider.GetComponentInParent<CharacterBody>();
                 if (body == owner) continue;
                 var hurt = h.collider.GetComponent<HurtBox>();
@@ -265,7 +267,7 @@ namespace Ror2Common
         void Surface(RaycastHit contact, float radius)
         {
             var normal = contact.normal;
-            var centre = contact.point + normal * (radius + 0.02f);
+            var centre = contact.point + normal * (radius + 0.05f);
             if (cfg.Crawl)
             {
                 BeginCrawl(normal, centre);
@@ -292,6 +294,7 @@ namespace Ror2Common
             transform.position = centre;
             Puff(cfg.BouncePuff, centre);
             Arc(centre);
+            surfaceLock = 2;
             if (cfg.BounceSound != 0) cfg.PlaySound?.Invoke(cfg.BounceSound);
         }
 
