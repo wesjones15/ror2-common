@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace Ror2Common
 {
-    public enum SkillIconSource : byte { None, Effect, Article, ArticleCharacter, Ball, Character, EffectCharacter, Item, Model }
+    public enum SkillIconSource : byte { None, Effect, Article, ArticleCharacter, Ball, Character, EffectCharacter, Item, Model, ModelCharacter }
 
     /// One generated skill portrait's source. Effect is a source efSync/efAlt cue,
     /// which resolves to an effect model or a particle emitter; Article is a fighter
@@ -118,7 +118,16 @@ namespace Ror2Common
             {
                 var px = tex.GetPixels32();
                 int w = tex.width, h = tex.height;
-                string dir = System.IO.Path.Combine(Application.persistentDataPath, "MeleeSkillIcons");
+                // Keep review BMPs beside the plugin, not in AppData. Fall back
+                // to persistentDataPath only if the assembly path is unavailable.
+                string dir = null;
+                try
+                {
+                    string loc = typeof(SkillIcons).Assembly.Location;
+                    if (!string.IsNullOrEmpty(loc)) dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(loc), "skill-icons");
+                }
+                catch { }
+                if (string.IsNullOrEmpty(dir)) dir = System.IO.Path.Combine(Application.persistentDataPath, "MeleeSkillIcons");
                 System.IO.Directory.CreateDirectory(dir);
                 using (var stream = new System.IO.FileStream(System.IO.Path.Combine(dir, name + ".bmp"), System.IO.FileMode.Create))
                 using (var bw = new System.IO.BinaryWriter(stream))
@@ -159,10 +168,10 @@ namespace Ror2Common
             var layers = new List<(GameObject, int)>();
             try
             {
-                bool wantCharacter = icon.source == SkillIconSource.Character || icon.source == SkillIconSource.EffectCharacter || icon.source == SkillIconSource.ArticleCharacter;
+                bool wantCharacter = icon.source == SkillIconSource.Character || icon.source == SkillIconSource.EffectCharacter || icon.source == SkillIconSource.ArticleCharacter || icon.source == SkillIconSource.ModelCharacter;
                 bool wantEffect = icon.source == SkillIconSource.Effect || icon.source == SkillIconSource.EffectCharacter
                     || icon.source == SkillIconSource.Article || icon.source == SkillIconSource.ArticleCharacter || icon.source == SkillIconSource.Ball
-                    || icon.source == SkillIconSource.Item || icon.source == SkillIconSource.Model;
+                    || icon.source == SkillIconSource.Item || icon.source == SkillIconSource.Model || icon.source == SkillIconSource.ModelCharacter;
 
                 Vector3 at = stage.position + icon.offset;
                 var rot = Quaternion.Euler(icon.rotation);
@@ -190,6 +199,7 @@ namespace Ror2Common
                     var view = new MeleeFighterView(assetsDir, job.kind, icon.id, icon.state);
                     views.Add(view);
                     view.ObjectPose(icon.frame);
+                    if (icon.glow) { view.BlackToGlow = icon.color; view.ForceAdditive = true; }
                     view.Models.Update(1f, d => (at + rot * new Vector3(d.pos.x, d.pos.y, d.pos.z),
                         stage.rotation * rot * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)));
                 }
@@ -209,7 +219,7 @@ namespace Ror2Common
                     view.Models.Update(1f, d => (at + rot * new Vector3(d.pos.x, d.pos.y, d.pos.z),
                         stage.rotation * rot * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)));
                 }
-                else if (icon.source == SkillIconSource.Model)
+                else if (icon.source == SkillIconSource.Model || icon.source == SkillIconSource.ModelCharacter)
                 {
                     var view = MeleeFighterView.Effect(assetsDir, job.kind, icon.id);
                     views.Add(view);
@@ -421,8 +431,8 @@ namespace Ror2Common
             new MeleeSkillIcon { source = SkillIconSource.Effect, id = id, color = color, zoom = zoom, frame = frame, trail = trail, trailFrames = trailFrames };
         static MeleeSkillIcon A(uint article, uint state, Color color, float zoom = 1f, float frame = 4f, uint trail = 0, int trailFrames = 20, Vector3 rotation = default, Vector3 trailOffset = default, bool glow = false) =>
             new MeleeSkillIcon { source = SkillIconSource.Article, id = article, state = state, color = color, zoom = zoom, frame = frame, trail = trail, trailFrames = trailFrames, rotation = rotation, trailOffset = trailOffset, glow = glow };
-        static MeleeSkillIcon AC(uint article, uint state, string clip, float clipFrame, Color color, float zoom = 1f, float frame = 4f, Vector3 offset = default, Vector3 charOffset = default) =>
-            new MeleeSkillIcon { source = SkillIconSource.ArticleCharacter, id = article, state = state, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, frame = frame, offset = offset, charOffset = charOffset };
+        static MeleeSkillIcon AC(uint article, uint state, string clip, float clipFrame, Color color, float zoom = 1f, float frame = 4f, Vector3 offset = default, Vector3 charOffset = default, uint trail = 0, int trailFrames = 20, Vector3 trailOffset = default, Vector3 rotation = default, bool glow = false) =>
+            new MeleeSkillIcon { source = SkillIconSource.ArticleCharacter, id = article, state = state, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, frame = frame, offset = offset, charOffset = charOffset, trail = trail, trailFrames = trailFrames, trailOffset = trailOffset, rotation = rotation, glow = glow };
         static MeleeSkillIcon B(Color color, float zoom = 1f) =>
             new MeleeSkillIcon { source = SkillIconSource.Ball, color = color, zoom = zoom };
         static MeleeSkillIcon C(string clip, float clipFrame, Color color, float zoom = 1f, bool tongue = false, uint trail = 0, int trailFrames = 20, Vector3 trailOffset = default) =>
@@ -431,6 +441,8 @@ namespace Ror2Common
             new MeleeSkillIcon { source = SkillIconSource.EffectCharacter, id = id, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, frame = frame, offset = offset, charOffset = charOffset };
         static MeleeSkillIcon M(uint model, Color color, float zoom = 1f, float frame = 4f) =>
             new MeleeSkillIcon { source = SkillIconSource.Model, id = model, color = color, zoom = zoom, frame = frame };
+        static MeleeSkillIcon MC(uint model, string clip, float clipFrame, Color color, float zoom = 1f, float frame = 4f, Vector3 offset = default, Vector3 charOffset = default) =>
+            new MeleeSkillIcon { source = SkillIconSource.ModelCharacter, id = model, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, frame = frame, offset = offset, charOffset = charOffset };
         static MeleeSkillIcon I(uint item, uint state, Color color, float zoom = 1f) =>
             new MeleeSkillIcon { source = SkillIconSource.Item, id = item, state = state, color = color, zoom = zoom };
 
@@ -439,56 +451,56 @@ namespace Ror2Common
             switch (defName)
             {
                 // Samus
-                case "MeleeSamus0": return A(1, 0, Orange, 1.5f, 4);
+                case "MeleeSamus0": return AC(1, 0, "SpecialNHold", 20, Orange, 1.5f, 4, new Vector3(3f, 8f, 7f), new Vector3(-2f, 0f, 1f));
                 case "MeleeSamusBomb": return B(Orange);
-                case "MeleeShield": return M(14, Blue, 1.2f, 4);
-                case "MeleeSamus2": return A(2, 0, Red, 1.4f, 4, 2014, 12, new Vector3(0f, -1.45f, 0.22f), new Vector3(0f, 0f, -6f));
+                case "MeleeShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeSamus2": return AC(2, 0, "SpecialS", 8, Red, 1.4f, 4, new Vector3(2f, 7f, 8f), new Vector3(-2f, 0f, 1f), 2014, 12, new Vector3(0f, 0f, -6f), new Vector3(0f, -1.45f, 0.22f));
                 case "MeleeSamus3": return EC(1154, "SpecialHi", 10, Green, 1f, 16, new Vector3(0f, 6f, 0f), new Vector3(0f, 8f, 0f));
                 // Fox
-                case "MeleeFox0": return A(0, 0, Red, 2.0f, 4);
-                case "MeleeFoxReflector": return E(1160, Blue, 1.1f, 4);
-                case "MeleeFoxShield": return M(14, Blue, 1.2f, 4);
-                case "MeleeFox2": return A(2, 0, Blue, 1f, 4);
-                case "MeleeFox3": return E(1163, Orange, 1f, 4);
+                case "MeleeFox0": return AC(0, 0, "SpecialN", 2, Red, 1.2f, 4, new Vector3(0f, 6f, 6f));
+                case "MeleeFoxReflector": return EC(1160, "SpecialLw", 4, Blue, 1f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeFoxShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeFox2": return AC(2, 0, "SpecialS", 2, Blue, 1f, 4, new Vector3(0f, 6f, 4f));
+                case "MeleeFox3": return EC(1164, "SpecialHi", 8, Orange, 1f, 4, new Vector3(0f, 6f, 0f));
                 // Luigi
                 case "MeleeLuigi0": return AC(0, 0, "SpecialN", 4, Green, 1.4f, 4, new Vector3(0f, 6f, 4f));
                 case "MeleeLuigiScope": return I(0x15, 0, Green, 1.1f);
-                case "MeleeLuigiCyclone": return E(1289, Green, 1f, 4);
-                case "MeleeLuigiShield": return M(14, Blue, 1.2f, 4);
+                case "MeleeLuigiCyclone": return EC(1289, "SpecialLw", 6, Green, 1f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeLuigiShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
                 case "MeleeLuigi2": return C("SpecialS", 8, Green, 0.9f, false, 66, 3, new Vector3(0f, 0f, 1f));
                 case "MeleeLuigi3": return C("SpecialHi", 6, Red);
                 case "MeleeLuigiScopeSpecial": return I(0x15, 0, Green, 1.1f);
                 // Pikachu
-                case "MeleePikachu0": return A(1, 0, Yellow, 1f, 4, 7000, 10);
+                case "MeleePikachu0": return AC(1, 0, "SpecialN", 4, Yellow, 1f, 4, new Vector3(0f, 6f, 6f), default, 7000, 10);
                 case "MeleePikachuEggLay": return C("SpecialLwStart", 15, Green, 1.7f, true);
-                case "MeleePikachu2": return A(0, 0, Yellow, 1.2f, 4, 0, 20, default, default, true);
-                case "MeleePikachuShield": return M(14, Blue, 1.2f, 4);
+                case "MeleePikachu2": return AC(0, 0, "SpecialLwStart", 4, Yellow, 0.8f, 4, new Vector3(0f, 10f, 0f), default, 0, 20, default, default, true);
+                case "MeleePikachuShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
                 case "MeleePikachuSkullBash": return C("SpecialS", 8, Yellow, 0.9f, false, 66, 3, new Vector3(0f, 0f, 1f));
-                case "MeleePikachu3": return EC(1012, "SpecialHiStart", 4, Yellow, 0.9f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleePikachu3": return C("SpecialHiStart", 2, Yellow, 1f);
                 // Captain Falcon
-                case "MeleeCaptain0": return E(1167, Red, 1f, 6);
-                case "MeleeCaptainKick": return E(1169, Orange, 1f, 6);
-                case "MeleeCaptainShield": return M(14, Blue, 1.2f, 4);
-                case "MeleeCaptain2": return E(1170, Blue, 1f, 6);
-                case "MeleeCaptain3": return E(1168, Blue, 1f, 6);
+                case "MeleeCaptain0": return EC(1167, "SpecialN", 20, Red, 1f, 6, new Vector3(0f, 7f, 6f));
+                case "MeleeCaptainKick": return EC(1168, "SpecialLw", 10, Orange, 1f, 6, new Vector3(0f, 5f, 6f));
+                case "MeleeCaptainShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeCaptain2": return EC(1170, "SpecialS", 8, Blue, 1f, 6, new Vector3(0f, 6f, 4f));
+                case "MeleeCaptain3": return C("SpecialHi", 10, Blue, 1f);
                 // Link
-                case "MeleeLink0": return A(0, 0, Green, 1f, 4);
-                case "MeleeLinkBomb": return A(2, 0, Green, 1f, 4);
-                case "MeleeLinkShield": return M(14, Blue, 1.2f, 4);
-                case "MeleeLink2": return A(1, 0, Green, 1f, 4);
+                case "MeleeLink0": return AC(0, 0, "SpecialN", 8, Green, 0.9f, 4, new Vector3(0f, 8f, 8f));
+                case "MeleeLinkBomb": return AC(2, 0, "SpecialLw", 6, Green, 1f, 4, new Vector3(0f, 6f, 4f));
+                case "MeleeLinkShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeLink2": return AC(1, 0, "SpecialS", 4, Green, 0.9f, 4, new Vector3(0f, 8f, 7f));
                 case "MeleeLink3": return EC(1211, "SpecialHi", 8, Green, 1.2f, 4, new Vector3(0f, 6f, 0f));
                 // Yoshi
-                case "MeleeYoshi0": return C("SpecialN1", 14, Green, 1.7f, true);
-                case "MeleeYoshiBomb": return A(1, 0, Green, 1f, 4);
-                case "MeleeYoshiShield": return M(14, Blue, 1.2f, 4);
-                case "MeleeYoshi2": return E(1230, Green, 1f, 4);
-                case "MeleeYoshi3": return A(0, 0, Green, 1f, 4);
+                case "MeleeYoshi0": return C("SpecialN", 14, Green, 1.7f, true);
+                case "MeleeYoshiBomb": return AC(1, 0, "SpecialLw", 8, Green, 1f, 4, new Vector3(0f, 4f, 4f));
+                case "MeleeYoshiShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeYoshi2": return M(2000, Green, 1.1f, 4);
+                case "MeleeYoshi3": return AC(0, 0, "SpecialHi", 6, Green, 0.9f, 4, new Vector3(0f, 8f, 6f));
                 // Donkey Kong
-                case "MeleeDonkey0": return E(1224, Brown, 1f, 4);
-                case "MeleeDonkeySlap": return E(1222, Brown, 1f, 4);
-                case "MeleeDonkeyShield": return M(14, Blue, 1.2f, 4);
+                case "MeleeDonkey0": return EC(1224, "SpecialN", 12, Brown, 1f, 4, new Vector3(0f, 7f, 6f));
+                case "MeleeDonkeySlap": return EC(1222, "SpecialLw", 6, Brown, 1f, 4, new Vector3(0f, 3f, 5f));
+                case "MeleeDonkeyShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
                 case "MeleeDonkey2": return C("SpecialS", 6, Brown);
-                case "MeleeDonkey3": return E(1226, Brown, 1f, 4);
+                case "MeleeDonkey3": return EC(1226, "SpecialHi", 8, Brown, 1f, 4, new Vector3(0f, 6f, 0f));
                 default: return default;
             }
         }
