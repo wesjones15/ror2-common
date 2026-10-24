@@ -29,16 +29,24 @@ namespace Ror2Common
             return hold ? Mathf.Max(0f, hold.until - Time.time) : 0f;
         }
 
-        /// Holds `victim` for at least `seconds` from now. Returns false for players and when
-        /// not on the server.
-        public static bool Hold(CharacterBody victim, float seconds)
+        /// Holds `victim` for at least `seconds` from now, or for exactly that long with
+        /// `extend: false` (an egg takes over from Yoshi's full belly). Returns false for
+        /// players and when not on the server.
+        public static bool Hold(CharacterBody victim, float seconds, bool extend = true)
         {
             if (!NetworkServer.active) return MeleeNet.RemoteHold(victim, seconds);
             if (!victim || victim.isPlayerControlled || seconds <= 0f) return false;
             var hold = victim.GetComponent<EnemyHold>();
             if (!hold) hold = victim.gameObject.AddComponent<EnemyHold>();
-            hold.until = Mathf.Max(hold.until, Time.time + seconds);
+            hold.until = extend ? Mathf.Max(hold.until, Time.time + seconds) : Time.time + seconds;
             return true;
+        }
+        /// Frees a held victim immediately (Yoshi dropping an eaten enemy, a death).
+        public static void Release(CharacterBody victim)
+        {
+            if (!victim) return;
+            var hold = victim.GetComponent<EnemyHold>();
+            if (hold) Destroy(hold);
         }
 
         void Awake()

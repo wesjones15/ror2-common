@@ -76,6 +76,9 @@ namespace Ror2Common
         protected abstract bool AssetsReady { get; }
         protected abstract bool AssetsBusy { get; }
         protected abstract uint AllowedButtons { get; }
+        /// Last chance to drop a button before the sim sees it. A fighter whose own state
+        /// consumes a press (Yoshi's full belly reuses Egg Lay to lay the egg) masks it here.
+        protected virtual uint FilterButtons(uint buttons) => buttons;
         protected abstract bool ShieldSelected { get; }
         protected abstract MeleeControlLayout Layout { get; }
         // --- Grab: every fighter captures enemies with its disc grab hitboxes ---
@@ -219,6 +222,7 @@ namespace Ror2Common
                 lastHealth = health;
                 var control = native.Control();
                 var ps = pad.Take(AllowedButtons, control == NativeBody.Hold.All);
+                ps.buttons = FilterButtons(ps.buttons);
                 var p = new MeleeNative.Pad { movement = new MeleeNative.Vec3(ps.movement.x, ps.movement.y, ps.movement.z), aim = new MeleeNative.Vec3(ps.aim.x, ps.aim.y, ps.aim.z), buttons = ps.buttons, allowed = ps.allowed };
                 if (control == NativeBody.Hold.All) MeleeNative.ssbm_sim_hold_knockdown(sim);
                 if (GrabAttached && ((p.buttons & 1) != 0 || control != NativeBody.Hold.None)) { GrabDetach(); MeleeNative.ssbm_sim_interrupt(sim); }
