@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using RoR2;
 using RoR2.Skills;
 using RoR2.UI;
@@ -8,7 +9,7 @@ using UnityEngine;
 
 namespace Ror2Common
 {
-    public enum SkillIconSource : byte { None, Effect, Article, Ball, Character, EffectCharacter, Item, Model }
+    public enum SkillIconSource : byte { None, Effect, Article, ArticleCharacter, Ball, Character, EffectCharacter, Item, Model }
 
     /// One generated skill portrait's source. Effect is a source efSync/efAlt cue,
     /// which resolves to an effect model or a particle emitter; Article is a fighter
@@ -23,6 +24,7 @@ namespace Ror2Common
         public float frame, clipFrame, zoom;
         public int trailFrames;
         public Vector3 offset, charOffset, rotation, trailOffset;
+        public bool glow, tongue;
         public Color color;
     }
 
@@ -88,6 +90,7 @@ namespace Ror2Common
                         var tex = Render(job, dir);
                         if (!tex) continue;
                         job.def.icon = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
+                        Dump(tex, job.defName);
                         Refresh(job.def);
                         pending.RemoveAt(i);
                         queued.Remove(job.defName);
@@ -105,6 +108,29 @@ namespace Ror2Common
                 retryAt = Time.unscaledTime + 0.25f;
                 rendering = false;
             }
+        }
+
+        // Local review copy of the actual Unity render; never packaged.
+        // 32-bit BMP so this works without Unity's ImageConversion module.
+        static void Dump(Texture2D tex, string name)
+        {
+            try
+            {
+                var px = tex.GetPixels32();
+                int w = tex.width, h = tex.height;
+                string dir = System.IO.Path.Combine(Application.persistentDataPath, "MeleeSkillIcons");
+                System.IO.Directory.CreateDirectory(dir);
+                using (var stream = new System.IO.FileStream(System.IO.Path.Combine(dir, name + ".bmp"), System.IO.FileMode.Create))
+                using (var bw = new System.IO.BinaryWriter(stream))
+                {
+                    bw.Write((byte)'B'); bw.Write((byte)'M');
+                    bw.Write(54 + w * h * 4); bw.Write(0); bw.Write(54);
+                    bw.Write(40); bw.Write(w); bw.Write(h); bw.Write((short)1); bw.Write((short)32);
+                    bw.Write(0); bw.Write(w * h * 4); bw.Write(2835); bw.Write(2835); bw.Write(0); bw.Write(0);
+                    foreach (var c in px) { bw.Write(c.b); bw.Write(c.g); bw.Write(c.r); bw.Write(c.a); }
+                }
+            }
+            catch (Exception e) { CommonLog.Warn($"skill portrait dump {name}: {e.Message}"); }
         }
 
         static void Refresh(SkillDef def)
@@ -126,15 +152,16 @@ namespace Ror2Common
             var stage = new GameObject("skill icon stage").transform;
             stage.position = new Vector3(0f, -2000f, 0f);
             var views = new List<MeleeFighterView>();
+            var materials = new List<Material>();
             MeleeParticles particles = null;
             GameObject camGo = null, lightGo = null;
             RenderTexture rt = null;
             var layers = new List<(GameObject, int)>();
             try
             {
-                bool wantCharacter = icon.source == SkillIconSource.Character || icon.source == SkillIconSource.EffectCharacter;
+                bool wantCharacter = icon.source == SkillIconSource.Character || icon.source == SkillIconSource.EffectCharacter || icon.source == SkillIconSource.ArticleCharacter;
                 bool wantEffect = icon.source == SkillIconSource.Effect || icon.source == SkillIconSource.EffectCharacter
-                    || icon.source == SkillIconSource.Article || icon.source == SkillIconSource.Ball
+                    || icon.source == SkillIconSource.Article || icon.source == SkillIconSource.ArticleCharacter || icon.source == SkillIconSource.Ball
                     || icon.source == SkillIconSource.Item || icon.source == SkillIconSource.Model;
 
                 Vector3 at = stage.position + icon.offset;
@@ -147,8 +174,18 @@ namespace Ror2Common
                     catch { view.IdlePose(); }
                     view.Models.Update(1f, d => (stage.position + icon.charOffset + new Vector3(d.pos.x, d.pos.y, d.pos.z),
                         stage.rotation * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)));
+                    if (icon.tongue) AddTongue(stage, layer, icon, job.kind, layers, materials);
                 }
                 if (icon.source == SkillIconSource.Article)
+                {
+                    var view = new MeleeFighterView(assetsDir, job.kind, icon.id, icon.state);
+                    views.Add(view);
+                    view.ObjectPose(icon.frame);
+                    if (icon.glow) { view.BlackToGlow = icon.color; view.ForceAdditive = true; }
+                    view.Models.Update(1f, d => (at + rot * new Vector3(d.pos.x, d.pos.y, d.pos.z),
+                        stage.rotation * rot * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)));
+                }
+                else if (icon.source == SkillIconSource.ArticleCharacter)
                 {
                     var view = new MeleeFighterView(assetsDir, job.kind, icon.id, icon.state);
                     views.Add(view);
@@ -293,7 +330,7 @@ namespace Ror2Common
                     filterMode = FilterMode.Bilinear,
                 };
                 tex.SetPixels(px);
-                tex.Apply(false, true);
+                tex.Apply(false, false);
                 return tex;
             }
             finally
@@ -306,6 +343,24 @@ namespace Ror2Common
                 foreach (var view in views) view.Dispose();
                 UnityEngine.Object.Destroy(stage.gameObject);
             }
+        }
+
+        static void AddTongue(Transform stage, int layer, MeleeSkillIcon icon, uint kind, List<(GameObject, int)> layers, List<Material> materials)
+        {
+            bool yoshi = kind == MeleeNative.FighterYoshi;
+            float len = yoshi ? 4.5f : 3.2f;
+            Vector3 mouth = yoshi ? new Vector3(0f, 9f, 3f) : new Vector3(0f, 7f, 2.5f);
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = "skill icon tongue";
+            go.transform.position = stage.position + icon.charOffset + mouth + new Vector3(0f, 0f, len * 0.5f);
+            go.transform.localScale = new Vector3(0.28f, 0.28f, len);
+            go.layer = layer;
+            var collider = go.GetComponent<Collider>(); if (collider) UnityEngine.Object.Destroy(collider);
+            var mat = new Material(Shaders.HgStandard()) { name = "skill icon tongue" };
+            mat.SetColor("_Color", new Color(0.85f, 0.10f, 0.10f));
+            var renderer = go.GetComponent<Renderer>(); if (renderer) renderer.sharedMaterial = mat;
+            materials.Add(mat);
+            layers.Add((go, 0));
         }
 
         static void Pose(MeleeFighterView view, string clip, float frame)
@@ -364,12 +419,14 @@ namespace Ror2Common
 
         static MeleeSkillIcon E(uint id, Color color, float zoom = 1f, float frame = 4f, uint trail = 0, int trailFrames = 20) =>
             new MeleeSkillIcon { source = SkillIconSource.Effect, id = id, color = color, zoom = zoom, frame = frame, trail = trail, trailFrames = trailFrames };
-        static MeleeSkillIcon A(uint article, uint state, Color color, float zoom = 1f, float frame = 4f, uint trail = 0, int trailFrames = 20, Vector3 rotation = default, Vector3 trailOffset = default) =>
-            new MeleeSkillIcon { source = SkillIconSource.Article, id = article, state = state, color = color, zoom = zoom, frame = frame, trail = trail, trailFrames = trailFrames, rotation = rotation, trailOffset = trailOffset };
+        static MeleeSkillIcon A(uint article, uint state, Color color, float zoom = 1f, float frame = 4f, uint trail = 0, int trailFrames = 20, Vector3 rotation = default, Vector3 trailOffset = default, bool glow = false) =>
+            new MeleeSkillIcon { source = SkillIconSource.Article, id = article, state = state, color = color, zoom = zoom, frame = frame, trail = trail, trailFrames = trailFrames, rotation = rotation, trailOffset = trailOffset, glow = glow };
+        static MeleeSkillIcon AC(uint article, uint state, string clip, float clipFrame, Color color, float zoom = 1f, float frame = 4f, Vector3 offset = default, Vector3 charOffset = default) =>
+            new MeleeSkillIcon { source = SkillIconSource.ArticleCharacter, id = article, state = state, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, frame = frame, offset = offset, charOffset = charOffset };
         static MeleeSkillIcon B(Color color, float zoom = 1f) =>
             new MeleeSkillIcon { source = SkillIconSource.Ball, color = color, zoom = zoom };
-        static MeleeSkillIcon C(string clip, float clipFrame, Color color, float zoom = 1f) =>
-            new MeleeSkillIcon { source = SkillIconSource.Character, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom };
+        static MeleeSkillIcon C(string clip, float clipFrame, Color color, float zoom = 1f, bool tongue = false) =>
+            new MeleeSkillIcon { source = SkillIconSource.Character, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, tongue = tongue };
         static MeleeSkillIcon EC(uint id, string clip, float clipFrame, Color color, float zoom = 1f, float frame = 4f, Vector3 offset = default, Vector3 charOffset = default) =>
             new MeleeSkillIcon { source = SkillIconSource.EffectCharacter, id = id, clip = clip, clipFrame = clipFrame, color = color, zoom = zoom, frame = frame, offset = offset, charOffset = charOffset };
         static MeleeSkillIcon M(uint model, Color color, float zoom = 1f, float frame = 4f) =>
@@ -388,25 +445,25 @@ namespace Ror2Common
                 case "MeleeSamus2": return A(2, 0, Red, 1.4f, 4, 2014, 12, new Vector3(0f, -1.45f, 0.22f), new Vector3(0f, 0f, -6f));
                 case "MeleeSamus3": return EC(1154, "SpecialHi", 10, Green, 1f, 16, new Vector3(0f, 6f, 0f), new Vector3(0f, 8f, 0f));
                 // Fox
-                case "MeleeFox0": return A(1, 0, Green, 1.2f, 4);
+                case "MeleeFox0": return A(0, 0, Red, 2.0f, 4);
                 case "MeleeFoxReflector": return E(1160, Blue, 1.1f, 4);
                 case "MeleeFoxShield": return M(14, Blue, 1.2f, 4);
                 case "MeleeFox2": return A(2, 0, Blue, 1f, 4);
                 case "MeleeFox3": return E(1163, Orange, 1f, 4);
                 // Luigi
-                case "MeleeLuigi0": return A(0, 0, Green, 1f, 4);
+                case "MeleeLuigi0": return AC(0, 0, "SpecialN", 4, Green, 1.4f, 4, new Vector3(0f, 6f, 4f));
                 case "MeleeLuigiScope": return I(0x15, 0, Green, 1.1f);
                 case "MeleeLuigiCyclone": return E(1289, Green, 1f, 4);
                 case "MeleeLuigiShield": return M(14, Blue, 1.2f, 4);
-                case "MeleeLuigi2": return EC(0x50A, "SpecialS", 8, Green, 0.9f, 4, new Vector3(0f, 4f, 0f));
+                case "MeleeLuigi2": return EC(0x50A, "SpecialS", 8, Green, 0.9f, 4, new Vector3(0f, 0f, 0f));
                 case "MeleeLuigi3": return C("SpecialHi", 6, Red);
                 case "MeleeLuigiScopeSpecial": return I(0x15, 0, Green, 1.1f);
                 // Pikachu
                 case "MeleePikachu0": return A(1, 0, Yellow, 1f, 4, 7000, 10);
-                case "MeleePikachuEggLay": return E(1229, Green, 1f, 4);
-                case "MeleePikachu2": return A(0, 0, Yellow, 0.8f, 4, 588, 10);
+                case "MeleePikachuEggLay": return C("SpecialLwStart", 15, Green, 1.7f, true);
+                case "MeleePikachu2": return A(0, 0, Yellow, 1.2f, 4, 0, 20, default, default, true);
                 case "MeleePikachuShield": return M(14, Blue, 1.2f, 4);
-                case "MeleePikachuSkullBash": return EC(1215, "SpecialS", 8, Yellow, 0.9f, 4, new Vector3(0f, 4f, 0f));
+                case "MeleePikachuSkullBash": return EC(1215, "SpecialS", 8, Yellow, 0.9f, 4, new Vector3(0f, 0f, 0f));
                 case "MeleePikachu3": return EC(1012, "SpecialHiStart", 4, Yellow, 0.9f, 4, new Vector3(0f, 6f, 0f));
                 // Captain Falcon
                 case "MeleeCaptain0": return E(1167, Red, 1f, 6);
@@ -419,9 +476,9 @@ namespace Ror2Common
                 case "MeleeLinkBomb": return A(2, 0, Green, 1f, 4);
                 case "MeleeLinkShield": return M(14, Blue, 1.2f, 4);
                 case "MeleeLink2": return A(1, 0, Green, 1f, 4);
-                case "MeleeLink3": return E(1211, Green, 1f, 4);
+                case "MeleeLink3": return EC(1211, "SpecialHi", 8, Green, 1.2f, 4, new Vector3(0f, 6f, 0f));
                 // Yoshi
-                case "MeleeYoshi0": return E(1229, Green, 1f, 4);
+                case "MeleeYoshi0": return C("SpecialN1", 14, Green, 1.7f, true);
                 case "MeleeYoshiBomb": return A(1, 0, Green, 1f, 4);
                 case "MeleeYoshiShield": return M(14, Blue, 1.2f, 4);
                 case "MeleeYoshi2": return E(1230, Green, 1f, 4);
