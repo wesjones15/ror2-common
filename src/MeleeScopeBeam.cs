@@ -28,7 +28,6 @@ namespace Ror2Common
             public float MaxSeconds = 6f;
         }
 
-        static readonly RaycastHit[] hits = new RaycastHit[32];
         // The ten levels' speed, scale, life, damage, radius and element, read once from the disc.
         static float[] table;
         static string tableFor;
@@ -92,31 +91,9 @@ namespace Ror2Common
             else { transform.position = contact.point; End(); }
         }
 
-        /// The nearest enemy or world surface along the sweep; allies, the owner and other bodies' non-hurtbox
-        /// colliders are ignored.
+        // Shared terrain/enemy radii with Samus Charge Shot.
         bool Sweep(Vector3 from, Vector3 dir, float length, float radius, out RaycastHit contact)
-        {
-            int n = Physics.SphereCastNonAlloc(from, radius, dir, hits, length,
-                WorldProbe.Mask | LayerIndex.entityPrecise.mask, QueryTriggerInteraction.Ignore);
-            int best = -1;
-            for (int i = 0; i < n; i++)
-            {
-                var h = hits[i];
-                if (!h.collider || h.distance <= 0f && h.normal == Vector3.zero) continue;
-                var body = h.collider.GetComponentInParent<CharacterBody>();
-                if (body == owner) continue;
-                var hurt = h.collider.GetComponent<HurtBox>();
-                if (hurt && hurt.healthComponent)
-                {
-                    var team = hurt.healthComponent.body && hurt.healthComponent.body.teamComponent ? hurt.healthComponent.body.teamComponent.teamIndex : TeamIndex.None;
-                    if (team == owner.teamComponent.teamIndex || !hurt.healthComponent.alive) continue;
-                }
-                else if (body) continue;
-                if (best < 0 || h.distance < hits[best].distance) best = i;
-            }
-            contact = best >= 0 ? hits[best] : default;
-            return best >= 0;
-        }
+            => MeleeSweep.Ranged(owner, from, radius, dir, length, out contact);
 
         void Strike(Vector3 at, Vector3 heading)
         {
