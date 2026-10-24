@@ -20,6 +20,14 @@ class Program
         // The drawn lash and Samus's Charge Shot share the narrow terrain probe.
         Physics.Query=(radius,mask)=>{Check(radius==MeleeSweep.TerrainRadius,"lash terrain probe is not the narrow centreline");return new[]{new RaycastHit {collider=wall,distance=2.5f}};};
         Check(MeleeSweep.Terrain(owner,default,default,10,out hit)&&hit.collider==wall&&hit.distance==2.5f,"lash did not stop at terrain");
+        // A laid egg's floor probe must only see terrain: the trapped victim's own body
+        // capsule and hurtboxes are on layers WorldProbe.Mask can include.
+        var victimBody=new CharacterBody { teamComponent=new TeamComponent {teamIndex=2} };
+        var bodyCollider=new Collider { body=victimBody };
+        Physics.Query=(radius,mask)=>new[]{new RaycastHit {collider=bodyCollider,distance=1},new RaycastHit {collider=wall,distance=2}};
+        Check(MeleeSweep.TerrainOnly(owner,default,MeleeSweep.TerrainRadius,default,10,out hit)&&hit.collider==wall,"egg floor probe read a trapped victim as terrain");
+        Physics.Query=(radius,mask)=>new[]{new RaycastHit {collider=target,distance=1},new RaycastHit {collider=wall,distance=2}};
+        Check(MeleeSweep.TerrainOnly(owner,default,MeleeSweep.TerrainRadius,default,10,out hit)&&hit.collider==wall,"egg floor probe read a hurtbox as terrain");
         Physics.Query=(radius,mask)=>new[]{new RaycastHit {collider=mask==1?wall:target,distance=mask==1?2:4}};
         Check(MeleeSweep.Ranged(owner,default,3,default,10,out hit)&&hit.collider==wall,"enemy assist bypassed nearer wall");
         Physics.Query=(radius,mask)=>new[]{new RaycastHit {collider=mask==1?wall:target,distance=mask==1?6:4}};
@@ -31,6 +39,7 @@ class Program
         Check(MeleeSweep.Terrain(owner,default,default,10,out hit)&&hit.collider==wall,"a lash starting inside geometry must stop, not pass through");
         Console.WriteLine("PASS: shared energy-shot terrain radius, full enemy radius, nearest wall/enemy ordering, ally filtering and overlap sentinel");
         Console.WriteLine("PASS: the drawn lash reuses the narrow terrain probe and stops at the contact, including when it starts inside geometry");
+        Console.WriteLine("PASS: the laid egg's terrain probe skips character bodies and hurtboxes, so a trapped victim cannot be its floor");
     }
 }
 namespace UnityEngine

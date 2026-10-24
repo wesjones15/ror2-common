@@ -18,7 +18,16 @@ namespace Ror2Common
         public static bool Terrain(CharacterBody owner, Vector3 from, Vector3 direction,
             float distance, out RaycastHit hit, bool ignoreInitialOverlap = false)
             => FirstFiltered(owner, from, TerrainRadius, direction, distance, WorldProbe.Mask,
-                false, ignoreInitialOverlap, out hit);
+                false, ignoreInitialOverlap, false, out hit);
+
+        /// The nearest collider that is terrain, ignoring every character body and hurtbox.
+        /// Yoshi's laid egg must not read the trapped victim's own capsule as the floor: a
+        /// small victim's head is above the egg, so the ground clamp would lift the egg every
+        /// tick, while a large victim's capsule contains the probe and the ray misses it.
+        public static bool TerrainOnly(CharacterBody owner, Vector3 from, float radius,
+            Vector3 direction, float distance, out RaycastHit best)
+            => FirstFiltered(owner, from, radius, direction, distance, WorldProbe.Mask,
+                false, false, true, out best);
 
         /// Large energy shots keep their generous enemy radius, but terrain
         /// tests use a narrow centerline probe so nearby floors do not eat them.
@@ -29,16 +38,16 @@ namespace Ror2Common
         {
             bool world = Terrain(owner, from, direction, distance, out var wall, true);
             bool enemy = FirstFiltered(owner, from, enemyRadius, direction,
-                distance, LayerIndex.entityPrecise.mask, true, true, out var target);
+                distance, LayerIndex.entityPrecise.mask, true, true, false, out var target);
             best = enemy && (!world || target.distance < wall.distance) ? target : wall;
             return world || enemy;
         }
 
         public static bool First(CharacterBody owner, Vector3 from, float radius, Vector3 direction, float distance, int mask, out RaycastHit best)
-            => FirstFiltered(owner, from, radius, direction, distance, mask, false, false, out best);
+            => FirstFiltered(owner, from, radius, direction, distance, mask, false, false, false, out best);
 
         static bool FirstFiltered(CharacterBody owner, Vector3 from, float radius, Vector3 direction,
-            float distance, int mask, bool enemiesOnly, bool ignoreInitialOverlap, out RaycastHit best)
+            float distance, int mask, bool enemiesOnly, bool ignoreInitialOverlap, bool terrainOnly, out RaycastHit best)
         {
             best = default;
             int n = Physics.SphereCastNonAlloc(from, radius, direction, hits, distance, mask, QueryTriggerInteraction.Ignore);
@@ -49,6 +58,7 @@ namespace Ror2Common
                 var hit = hits[i];
                 if (!hit.collider) continue;
                 if (ignoreInitialOverlap && hit.distance <= 0f && hit.normal == Vector3.zero) continue;
+                if (terrainOnly && (hit.collider.GetComponent<HurtBox>() || hit.collider.GetComponentInParent<CharacterBody>())) continue;
                 var hurt = hit.collider.GetComponent<HurtBox>();
                 if (hurt && hurt.healthComponent) {
                     var body = hurt.healthComponent.body;
