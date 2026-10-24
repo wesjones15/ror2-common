@@ -155,6 +155,7 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_spawn(IntPtr handle,uint id,float[] transform,ulong key);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_attach(IntPtr handle,ulong key,float[] transform);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_particles_stop(IntPtr handle,ulong key);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_tune(IntPtr handle,uint id,float scale,float alpha);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_step(IntPtr handle,double dt);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_draws(IntPtr handle,[Out]ViewParticle[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_texture(IntPtr handle,uint id,out ViewTexture info,[Out]byte[] rgba,uint len);
