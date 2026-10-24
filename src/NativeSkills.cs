@@ -88,7 +88,11 @@ namespace Ror2Common
             var skill = body.AddComponent<GenericSkill>();
             skill.skillName = name;
             skill.loadoutTitleToken = titleToken;
-            skill.hideInCharacterSelect = skill.hideInLoadoutSelect = false;
+            // The fifth Melee slot is the contextual A attack, not a loadout choice
+            // and not a cooldown. Keep it off the character-select/loadout rows; the
+            // pause control sheet still names it. Its old row was the icon that sat
+            // on top of the character portrait and reported no input binding.
+            skill.hideInCharacterSelect = skill.hideInLoadoutSelect = true;
             if (!SetFamily(skill, body.name + name + "Family", pack, variants))
                 throw new InvalidOperationException("Cannot register extra native skill " + name);
             return skill;

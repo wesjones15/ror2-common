@@ -181,12 +181,10 @@ namespace Ror2Common
                 NativeSkills.AddExtra(body, layout.extraName, layout.extraTitleToken, pack, set.Extra, set.ExtraAlt);
             else
                 NativeSkills.AddExtra(body, layout.extraName, layout.extraTitleToken, pack, set.Extra);
-            var hud = body.AddComponent<ExtraSkillIcon>();
-            hud.skillName = layout.extraName;
-            // "Cancel" is not a RoR2 input action in this build; the fifth slot is on B,
-            // which is bound to Interact, so use that for the HUD key glyph.
-            hud.actionName = layout.extraActionName == "Cancel" ? "Interact" : layout.extraActionName;
-            hud.glyphFrom = layout.extraGlyphFrom > 0 ? layout.extraGlyphFrom : 3;
+            // The fifth slot is the contextual A attack, not a cooldown: it has no
+            // HUD icon of its own. The old clone was placed beside the stock row and
+            // could overlap it or the character portrait, and its "Interact" glyph
+            // read as the X grab. The loadout hides it too; the pause sheet names it.
             VanillaIcons.Use(set.Extra, layout.extra.icon);
             if (set.ExtraAlt != null) VanillaIcons.Use(set.ExtraAlt, layout.extraAlt.icon);
             return set;
