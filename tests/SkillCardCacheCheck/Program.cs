@@ -11,7 +11,7 @@ static class Program
         var root = Path.Combine(AppContext.BaseDirectory, "skill-card-cache-test-" + Guid.NewGuid().ToString("N"));
         try
         {
-            var path = SkillCardCache.FileName(root, "approved-v2", "MarioFludd");
+            var path = SkillCardCache.FileName(root, SkillCardCache.Revision, "MarioFludd");
             Check(path.StartsWith(Path.Combine(root, "skill-icons")), "cache escaped assets");
             Check(!SkillCardCache.TryRead(path, out _), "missing cache must regenerate");
             Check(!SkillCardCache.TryRead(null, out _), "unconfigured cache must generate");
@@ -21,7 +21,9 @@ static class Program
             Check(SkillCardCache.TryRead(path, out var read) && pixels.SequenceEqual(read), "RGBA/row orientation changed");
             var disk = File.ReadAllBytes(path);
             Check(disk[54] == pixels[2] && disk[56] == pixels[0], "BMP must store BGRA");
-            Check(!SkillCardCache.TryRead(SkillCardCache.FileName(root, "approved-v3", "MarioFludd"), out _), "stale recipe reused");
+            var old = SkillCardCache.FileName(root, "approved-v2", "OlimarWhistle");
+            SkillCardCache.Write(old, pixels);
+            Check(!SkillCardCache.TryRead(SkillCardCache.FileName(root, SkillCardCache.Revision, "OlimarWhistle"), out _), "old contaminated whistle reused");
             pixels[0] ^= 42; SkillCardCache.Write(path, pixels);
             Check(SkillCardCache.TryRead(path, out read) && pixels.SequenceEqual(read), "atomic overwrite failed");
             bool rejected = false;

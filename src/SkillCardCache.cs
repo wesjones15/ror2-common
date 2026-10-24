@@ -8,6 +8,7 @@ namespace Ror2Common
     public static class SkillCardCache
     {
         public const int Size = 256;
+        public const string Revision = "approved-v3";
 
         public static string FileName(string assetsDir, string revision, string name)
         {

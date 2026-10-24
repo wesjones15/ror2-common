@@ -15,7 +15,7 @@ ownership, dynamic fallback and material-state updates with a recording host.
 
 `SkillCard` renders native skill scenes in Unity after disc extraction completes, one
 portrait per frame. Pass the plugin's assets-directory delegate to `Request` to persist
-the 256x256 result under `assets/skill-icons/approved-v2/<skill-name>.bmp`. Subsequent
+the 256x256 result under `assets/skill-icons/approved-v3/<skill-name>.bmp`. Subsequent
 starts load these pixels without building a portrait sim. Missing, malformed or old
 revision caches regenerate. Change the revision when a recipe changes; deleting a
 cached image also regenerates it next launch. The BMP codec is Unity-independent and
@@ -26,6 +26,12 @@ viewer captures. `BeforeRender` receives the actual camera to orient native part
 The scene renders directly on its chosen background so additive fire and refraction
 survive capture. Run `dotnet run --project tests/SkillCardCacheCheck -c Release` for cache
 round-trip, regeneration, replacement and path checks.
+
+Capture visibility is scoped to the stage's hierarchy. Other plugins' renderers on
+ManualRender are hidden only during the camera render and restored on failure too.
+Stage objects, cameras and lights deactivate before deferred destruction, preventing
+same-frame contamination between plugin runners. `tests/SkillCardRenderCheck` checks
+this ownership boundary. Revision v3 automatically replaces v2's contaminated captures.
 
 C# shared by the Risk of Rain 2 hosts: `../ror2-mario` (libsms) and `../ror2-olimar`
 (libpikmin). It targets RoR2 1.2.4.4 (Unity 2019.4, BepInEx 5, no R2API).

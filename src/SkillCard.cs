@@ -43,6 +43,7 @@ namespace Ror2Common
 
         public void Dispose()
         {
+            if (Root) Root.gameObject.SetActive(false);
             try { Disposing?.Invoke(); }
             catch (Exception e) { CommonLog.Warn($"skill card release: {e.Message}"); }
             if (Root) UnityEngine.Object.Destroy(Root.gameObject);
@@ -73,7 +74,7 @@ namespace Ror2Common
         /// Queues a portrait for `def`. `build` returns null if the disc files aren't usable
         /// yet; it will be called again on a later retry.
         public static void Request(SkillDef def, string defName, Func<bool> ready, Func<SkillCardStage> build,
-            Func<string> assetsDir = null, string revision = "approved-v2")
+            Func<string> assetsDir = null, string revision = SkillCardCache.Revision)
         {
             if (!def || build == null || !queued.Add(defName)) return;
             pending.Add(new Job
@@ -87,7 +88,7 @@ namespace Ror2Common
 
         /// An icon with no SkillDef (a passive slot): the caller assigns the sprite itself.
         public static void Request(Action<Sprite> assign, string defName, Func<bool> ready, Func<SkillCardStage> build,
-            Func<string> assetsDir = null, string revision = "approved-v2")
+            Func<string> assetsDir = null, string revision = SkillCardCache.Revision)
         {
             if (assign == null || build == null || !queued.Add(defName)) return;
             pending.Add(new Job
@@ -239,6 +240,7 @@ namespace Ror2Common
                 cam.farClipPlane = distance * 6f + 10f;
                 cam.allowHDR = false;
                 cam.allowMSAA = false;
+                cam.depthTextureMode = DepthTextureMode.Depth;
                 cam.renderingPath = RenderingPath.DeferredShading;
                 camGo.transform.position = cameraAt;
                 camGo.transform.rotation = Quaternion.LookRotation(center - cameraAt, Vector3.up);
@@ -260,7 +262,10 @@ namespace Ror2Common
                 };
                 // Render directly on the approved backdrop. Black/white alpha recovery
                 // discards additive-only fire and cannot recover scene-refraction ribbons.
-                var px = Grab(cam, rt, stage.Tint, before);
+                Color[] px;
+                before();
+                using (new PortraitIsolation(stage.Root, layer))
+                    px = Grab(cam, rt, stage.Tint);
                 var tex = new Texture2D(256, 256, TextureFormat.RGBA32, false)
                 {
                     name = "skill portrait",
@@ -274,16 +279,15 @@ namespace Ror2Common
             finally
             {
                 foreach (var (go, l) in layers) if (go) go.layer = l;
-                if (camGo) UnityEngine.Object.Destroy(camGo);
-                if (lightGo) UnityEngine.Object.Destroy(lightGo);
+                if (camGo) { camGo.SetActive(false); UnityEngine.Object.Destroy(camGo); }
+                if (lightGo) { lightGo.SetActive(false); UnityEngine.Object.Destroy(lightGo); }
                 if (rt) { rt.Release(); UnityEngine.Object.Destroy(rt); }
             }
         }
 
-        static Color[] Grab(Camera cam, RenderTexture rt, Color background, Action before)
+        static Color[] Grab(Camera cam, RenderTexture rt, Color background)
         {
             cam.backgroundColor = background;
-            before?.Invoke();
             cam.Render();
             var prev = RenderTexture.active;
             RenderTexture.active = rt;
