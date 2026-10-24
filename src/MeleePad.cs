@@ -10,6 +10,8 @@ namespace Ror2Common
     {
         uint held,previous,pending,blocked;
         int attackBuffer;
+        uint queuedPress;
+        bool queuedRelease;
         Vector3 move,aim;
         bool grabbing;
         /// A brain presses this fighter's buttons (Press) instead of a player or the AI's input bank.
@@ -17,11 +19,15 @@ namespace Ror2Common
         readonly InteractGuard interactGuard=new InteractGuard();InteractionDriver interaction;bool suppressed,interactionEnabled;
         public bool GrabHeld=>(held&MeleeControls.Grab)!=0;
         public bool JumpHeld=>(held&MeleeControls.Jump)!=0;
+        public bool Held(uint bits)=>(held&bits)!=0;
+        /// Queue one real press (release tick, then press tick) after a move ends. Used by
+        /// Pikachu's Quick Attack so holding LB spends the next stored charge.
+        public void QueuePress(uint bits){if(bits!=0){queuedPress=bits;queuedRelease=false;}}
         public void ReleaseInteraction(){if(suppressed&&interaction)interaction.enabled=interactionEnabled;suppressed=false;}
         public void Read(CharacterBody body,InputBankTest input,bool grabbing=false,Vector3? cameraAim=null,bool shield=false,MeleeControlLayout layout=default)
         {
             if(layout.Primary==0&&layout.Secondary==0&&layout.Utility==0&&layout.Special==0)layout=MeleeControlLayout.Samus;
-            if(this.grabbing!=grabbing){blocked=2|4|128|256;held=previous=pending=0;attackBuffer=0;}this.grabbing=grabbing;
+            if(this.grabbing!=grabbing){blocked=2|4|128|256;held=previous=pending=0;attackBuffer=0;queuedPress=0;queuedRelease=false;}this.grabbing=grabbing;
             LocalUser user=null;foreach(var u in LocalUserManager.readOnlyLocalUsersList)if(u.cachedBody==body){user=u;break;}
             // A brain owns this fighter's controls; its Press is the last word for the step.
             if(Brained&&user==null)return;
@@ -73,6 +79,10 @@ namespace Ror2Common
         public MeleePadState Take(uint allowed,bool locked=false)
         {
             uint buttons=held|pending;pending=0;
+            if(queuedPress!=0&&!locked){
+                if(!queuedRelease){buttons&=~queuedPress;queuedRelease=true;}
+                else{buttons|=queuedPress;queuedPress=0;queuedRelease=false;}
+            }
             if(locked&&((buttons&MeleeControls.Attack)!=0))attackBuffer=90;
             if(!locked&&attackBuffer>0&&(allowed&2)!=0){buttons|=MeleeControls.Attack;attackBuffer=0;}
             else if(!locked&&attackBuffer>0)attackBuffer--;
