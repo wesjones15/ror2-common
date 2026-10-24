@@ -120,6 +120,7 @@ namespace Ror2Common
                 ssbm_sim_break_roll(IntPtr.Zero);
                 ssbm_sim_mobile_moves(IntPtr.Zero,0);
                 ssbm_sim_play_sound(IntPtr.Zero,0);
+                ssbm_sim_play_sound_from(IntPtr.Zero,0,0);
                 ssbm_sim_hold_knockdown(IntPtr.Zero);
             }catch(EntryPointNotFoundException e){throw new InvalidOperationException("Melee requires its matching ssbm.dll behavior exports.",e);}
         }
@@ -172,6 +173,7 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_hitboxes(IntPtr sim,[Out]HitboxSample[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_audio(IntPtr sim,[Out]float[] stereo,uint frames);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_play_sound(IntPtr sim,uint sound);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_play_sound_from(IntPtr sim,uint fighterKind,uint sound);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_audio_active(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_tuning(IntPtr sim,Tuning tuning);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_mobile_moves(IntPtr sim,ulong mask);
@@ -186,6 +188,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern float ssbm_sim_shield_scale(IntPtr sim);
         /// Ends Yoshi's egg roll on the next tick (his host armor ran out); 1 if a roll was out.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_break_roll(IntPtr sim);
+        /// Bounces a held Samus Morph Ball off an enemy; 1 if a morph roll was out.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_bonk_roll(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_facing_locked(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_interrupt(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_hurt(IntPtr sim);
