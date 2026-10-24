@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 using RoR2;
 using UnityEngine;
 
@@ -34,6 +35,11 @@ namespace Ror2Common
         /// does not (the Melee plugin's config sets it before any view is made). Effects and articles are not touched.
         public static float FighterBrightness = 1f;
         float brightness = 1f;
+        /// Optional tint for a borrowed model. The air-jolt arc is authored white and
+        /// gets its blue from Melee's item colour overlay, which the view does not carry.
+        public Color Tint = Color.white;
+        Color[] tinted = Array.Empty<Color>();
+        GCHandle tintPin;
         readonly MaterialAlphaBuffer alpha = new MaterialAlphaBuffer();
         byte drawFlags;
         public ViewDraw[] InstanceDraws;
@@ -120,9 +126,24 @@ namespace Ror2Common
         public IntPtr Colors(out uint count)
         {
             var colors = MeleeNative.ssbm_view_colors(Handle, out count);
-            if (!MeleeNative.HasMaterialAlpha) return brightness == 1f ? colors : alpha.Resolve(colors, count, IntPtr.Zero, 0, brightness);
-            var sources = MeleeNative.ssbm_view_alpha_sources(Handle, out uint n);
-            return alpha.Resolve(colors, count, sources, n, brightness);
+            if (!MeleeNative.HasMaterialAlpha) colors = brightness == 1f ? colors : alpha.Resolve(colors, count, IntPtr.Zero, 0, brightness);
+            else {
+                var sources = MeleeNative.ssbm_view_alpha_sources(Handle, out uint n);
+                colors = alpha.Resolve(colors, count, sources, n, brightness);
+            }
+            return Tinted(colors, count);
+        }
+        unsafe IntPtr Tinted(IntPtr source, uint count)
+        {
+            if (Tint == Color.white || source == IntPtr.Zero || count == 0) return source;
+            int n = (int)count;
+            if (tinted.Length < n) tinted = new Color[n];
+            if (tintPin.IsAllocated) tintPin.Free();
+            var src = (Color*)source;
+            for (int i = 0; i < n; i++)
+                tinted[i] = new Color(src[i].r * Tint.r, src[i].g * Tint.g, src[i].b * Tint.b, src[i].a * Tint.a);
+            tintPin = GCHandle.Alloc(tinted, GCHandleType.Pinned);
+            return tintPin.AddrOfPinnedObject();
         }
         public IntPtr TextureIds(out uint count) => MeleeNative.ssbm_view_texture_ids(Handle, out count);
         public IntPtr FrameUvs(out uint count) => MeleeNative.ssbm_view_frame_uvs(Handle, out count);
@@ -130,6 +151,7 @@ namespace Ror2Common
         public void Dispose()
         {
             Models?.Dispose(); Models = null; alpha.Dispose();
+            if (tintPin.IsAllocated) tintPin.Free();
             if (Handle != IntPtr.Zero) { MeleeNative.ssbm_view_free(Handle); Handle = IntPtr.Zero; }
         }
     }

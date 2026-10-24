@@ -412,6 +412,9 @@ namespace Ror2Common
             try
             {
                 arc.view = new MeleeFighterView(cfg.AssetsDir, cfg.Fighter, cfg.BounceViewArticle, cfg.BounceViewState);
+                // The air-jolt model is white in the archive; Melee's item colour overlay
+                // makes it blue. Tint the borrowed model to that in-game colour.
+                arc.view.Tint = new Color(0.18f, 0.55f, 1f, 1f);
                 arc.view.ObjectPose(0f);
             }
             catch (Exception e)
