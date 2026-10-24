@@ -69,6 +69,12 @@ namespace Ror2Common
             body.AddComponent<MeleeRecovery>();
             body.AddComponent<MeleeDefense>();
             var skills = MeleeSkills.Build(body, pack, def.skills);
+            // Goobo Jr., Artifact of Vengeance and the like need an AI master whose body is
+            // this survivor's. It only walks; MeleeDriver's brain presses the fighter's buttons.
+            var monster = SurvivorAi.Register(pack, body, "Prefabs/CharacterMasters/CommandoMonsterMaster",
+                def.bodyName + "MonsterMaster", guid);
+            // Goobo's Melee clone is a brawler: get in close and re-decide almost every frame.
+            if (monster) SurvivorAi.Drivers(monster, 1.8f, 12f, aggressive: true);
             var lobby = Prefabs.Clone(display, def.displayName, guid);
             // The display factory id must be per-fighter: it is the key in the
             // shared DisplayModel factory table, so a shared guid would let one

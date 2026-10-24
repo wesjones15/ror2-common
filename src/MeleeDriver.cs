@@ -40,6 +40,9 @@ namespace Ror2Common
         protected MeleeNative.HitboxSample[] hitboxes = new MeleeNative.HitboxSample[64];
         protected readonly HashSet<string> presentationErrors = new HashSet<string>();
         protected readonly MeleePad pad = new MeleePad();
+        // A fighter no player controls (Goobo Jr.'s clone): this brain presses its buttons.
+        MeleeBrain brain;
+        protected bool brained;
         // --- Multiplayer (MeleeNet) -------------------------------------------------
         // The machine that owns the body runs the real sim; every other machine runs a view-only
         // shadow of it (`puppet`) on the owner's recorded calls. A shadow draws and sounds the
@@ -184,17 +187,25 @@ namespace Ror2Common
             bool mobileCharge = IsChargeMove(state.move_id) && state.phase == 4;
             MeleeAim.FacingTarget(body, direction, input ? input.moveVector : Vector3.zero, MeleeAim.CameraRay(body, input).direction, FacingLocked, new Vector3(state.facing.x, 0, state.facing.z), IsContextualAttack(state.move_id), mobileCharge);
         }
-        protected void Awake() { body = GetComponent<CharacterBody>(); motor = GetComponent<CharacterMotor>(); input = GetComponent<InputBankTest>(); native = GetComponent<NativeBody>(); direction = GetComponent<CharacterDirection>(); }
+        /// The generic policy; a fighter with a move that needs a condition the slot and state
+        /// cannot express can return a MeleeBrain subclass here instead.
+        protected virtual MeleeBrain CreateBrain() =>
+            new MeleeBrain(IsRangedMove(MeleeMoveset.SpecialN), IsRangedMove(MeleeMoveset.SpecialS) || IsRangedMove(MeleeMoveset.SpecialS2));
+        protected void Awake() { body = GetComponent<CharacterBody>(); motor = GetComponent<CharacterMotor>(); input = GetComponent<InputBankTest>(); native = GetComponent<NativeBody>(); direction = GetComponent<CharacterDirection>(); brain = CreateBrain(); }
         protected void Update()
         {
             if (failed || !body) return;
             if (puppet || !IsOwner)
             {
+                brained = false; pad.Brained = false;
                 // Another player's fighter: no pad, no camera. Its sound fades with distance.
                 if (puppet) { MeleeAudio.SetGain(sim, PuppetGain()); UpdateAudio(); }
                 if (body.healthComponent && !body.healthComponent.alive) BeginDeath();
                 return;
             }
+            // Goobo Jr.'s clone (or an umbra): the AI master walks, MeleeBrain presses the buttons.
+            brained = !body.isPlayerControlled && SurvivorAi.HasAi(body);
+            pad.Brained = brained;
             pad.Read(body, input, GrabHolding, MeleeAim.CameraRay(body, input).direction, ShieldSelected, Layout);
             UpdateAudio();
             if (body.healthComponent && !body.healthComponent.alive) { BeginDeath(); return; }
@@ -238,6 +249,25 @@ namespace Ror2Common
                 }
                 lastHealth = health;
                 var control = native.Control();
+                if (brained)
+                {
+                    var move = input ? input.moveVector : Vector3.zero;
+                    if (control == NativeBody.Hold.None && !Recovering && !Arriving)
+                    {
+                        var commands = brain.Think(body, SkillSet, Layout, state, move, Time.fixedDeltaTime);
+                        var aim = commands.aim.sqrMagnitude > 0.0001f
+                            ? commands.aim.normalized : (input ? input.aimDirection : Vector3.forward);
+                        if (input)
+                        {
+                            input.aimDirection = aim;
+                            // A contextual A attack faces the stick; face the enemy instead
+                            // when the AI master has stopped at its hold range.
+                            if (commands.buttons != 0) input.moveVector = aim;
+                        }
+                        pad.Press(commands.move, aim, commands.buttons);
+                    }
+                    else pad.Press(move, input ? input.aimDirection : Vector3.forward, 0);
+                }
                 var ps = pad.Take(AllowedButtons, control == NativeBody.Hold.All);
                 ps.buttons = FilterButtons(ps.buttons);
                 var p = new MeleeNative.Pad { movement = new MeleeNative.Vec3(ps.movement.x, ps.movement.y, ps.movement.z), aim = new MeleeNative.Vec3(ps.aim.x, ps.aim.y, ps.aim.z), buttons = ps.buttons, allowed = ps.allowed };
@@ -390,6 +420,7 @@ namespace Ror2Common
             if (MeleeNative.HasReplay && MeleeNative.ssbm_sim_record(sim, 1) == 1) { recording = true; recordedSteps = 0; }
             if (MeleeNative.ssbm_sim_begin_arrival(sim, NativeLib.CString(AssetsDir)) != 1) throw new InvalidOperationException(MeleeNative.Error);
             recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim); recovery?.Refresh();
+            if (MeleeNative.ssbm_sim_state(sim, out state) != 1) throw new InvalidOperationException(MeleeNative.Error);
             host = new MeleeNative.Host { user = GCHandle.ToIntPtr(self), collide = Marshal.GetFunctionPointerForDelegate(collideFn), evt = Marshal.GetFunctionPointerForDelegate(eventFn) };
             WorldProbe.UseBodyCollision(motor, gameObject); motor.Motor.enabled = false;
             smoother = new StepSmoother(transform); cameraPivot = new CameraPivot(body); cameraPivot.Use(true); active = true;

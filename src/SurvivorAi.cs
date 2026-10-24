@@ -33,21 +33,23 @@ namespace Ror2Common
         /// Replaces `master`'s skill drivers with movement alone: stand and face the enemy while
         /// it is within `holdRange` metres and in sight, otherwise run at it (sprinting, by the
         /// node graph), and with no enemy follow the leader once it is `followRange` away. No
-        /// driver presses a skill; the plugin reads its buttons from Enemy.
-        public static void Drivers(GameObject master, float holdRange, float followRange = 12f)
+        /// driver presses a skill; the plugin reads its buttons from Enemy. `aggressive` makes
+        /// the drivers re-decide every few frames rather than four times a second.
+        public static void Drivers(GameObject master, float holdRange, float followRange = 12f, bool aggressive = false)
         {
             foreach (var d in master.GetComponents<AISkillDriver>())
                 Object.DestroyImmediate(d);
             Add(master, "Hold", 0f, holdRange, AISkillDriver.MovementType.Stop, AISkillDriver.TargetType.CurrentEnemy,
-                AISkillDriver.AimType.AtCurrentEnemy, true, true, false);
+                AISkillDriver.AimType.AtCurrentEnemy, true, true, false, aggressive);
             Add(master, "Chase", 0f, 512f, AISkillDriver.MovementType.ChaseMoveTarget, AISkillDriver.TargetType.CurrentEnemy,
-                AISkillDriver.AimType.MoveDirection, false, false, true);
+                AISkillDriver.AimType.MoveDirection, false, false, true, aggressive);
             Add(master, "Follow", followRange, 512f, AISkillDriver.MovementType.ChaseMoveTarget, AISkillDriver.TargetType.CurrentLeader,
-                AISkillDriver.AimType.MoveDirection, false, false, false);
+                AISkillDriver.AimType.MoveDirection, false, false, false, aggressive);
         }
 
         static void Add(GameObject master, string name, float min, float max, AISkillDriver.MovementType move,
-            AISkillDriver.TargetType target, AISkillDriver.AimType aim, bool needSight, bool ignoreGraph, bool sprint)
+            AISkillDriver.TargetType target, AISkillDriver.AimType aim, bool needSight, bool ignoreGraph, bool sprint,
+            bool aggressive)
         {
             var d = master.AddComponent<AISkillDriver>();
             d.customName = name;
@@ -65,7 +67,7 @@ namespace Ror2Common
             d.moveInputScale = 1f;
             d.shouldSprint = sprint;
             d.buttonPressType = AISkillDriver.ButtonPressType.Abstain;
-            d.driverUpdateTimerOverride = 0.25f;
+            d.driverUpdateTimerOverride = aggressive ? 0.05f : 0.25f;
             d.minUserHealthFraction = d.minTargetHealthFraction = float.NegativeInfinity;
             d.maxUserHealthFraction = d.maxTargetHealthFraction = float.PositiveInfinity;
         }

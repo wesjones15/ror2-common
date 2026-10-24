@@ -30,6 +30,8 @@ namespace Ror2Common
         /// Whether fighter views draw the colour programs' rim light (the Melee plugin's config sets it
         /// before any view is made; effects and articles never draw one).
         public static bool RimLight = true;
+        /// Draw a fighter no player controls (Goobo Jr.'s clone) in RoR2's gummy clone material.
+        public static bool GummyClones = true;
         /// How much brighter than the source's material colour fighter bodies are drawn. Every Melee fighter material
         /// has a diffuse colour of 0.70, which the source's stage lighting more than makes up for; RoR2's lighting
         /// does not (the Melee plugin's config sets it before any view is made). Effects and articles are not touched.
@@ -49,7 +51,14 @@ namespace Ror2Common
         public ViewDraw[] InstanceDraws;
 
         public MeleeFighterView(string assetsDir, uint kind, uint costume)
-            : this(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)), RimLight) { brightness = FighterBrightness; }
+            : this(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)), RimLight, null, true) { }
+        /// A fighter's body view, in RoR2's gummy clone material when no player controls it.
+        public static MeleeFighterView ForBody(CharacterBody body, string assetsDir, uint kind, uint costume)
+        {
+            var skin = GummyClones && body && SurvivorAi.HasAi(body) ? GummyClone.Material() : null;
+            return new MeleeFighterView(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)),
+                RimLight, skin, true);
+        }
         public MeleeFighterView(string assetsDir, uint kind, uint article, uint state)
             : this(MeleeNative.ssbm_article_new(NativeLib.CString(assetsDir), kind, article, state)) { }
         public static MeleeFighterView Effect(string assetsDir, uint kind, uint model)
@@ -81,11 +90,12 @@ namespace Ror2Common
         public static MeleeFighterView Grapple(string assetsDir, uint part)
             => new MeleeFighterView(MeleeNative.ssbm_grapple_new(NativeLib.CString(assetsDir), part));
 
-        MeleeFighterView(IntPtr handle, bool rim = false)
+        MeleeFighterView(IntPtr handle, bool rim = false, Material skin = null, bool fighter = false)
         {
             Handle = handle;
             if (Handle == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
-            Models = ModelView.Create(this, "Melee", translucentOpacity: 1f, rim: rim && MeleeNative.HasLight);
+            if (fighter) brightness = FighterBrightness;
+            Models = ModelView.Create(this, "Melee", skin: skin, translucentOpacity: 1f, rim: rim && MeleeNative.HasLight);
             if (Models == null) { Dispose(); throw new InvalidOperationException("Melee ModelView creation failed"); }
         }
 

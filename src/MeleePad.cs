@@ -12,6 +12,8 @@ namespace Ror2Common
         int attackBuffer;
         Vector3 move,aim;
         bool grabbing;
+        /// A brain presses this fighter's buttons (Press) instead of a player or the AI's input bank.
+        public bool Brained;
         readonly InteractGuard interactGuard=new InteractGuard();InteractionDriver interaction;bool suppressed,interactionEnabled;
         public bool GrabHeld=>(held&MeleeControls.Grab)!=0;
         public bool JumpHeld=>(held&MeleeControls.Jump)!=0;
@@ -21,6 +23,8 @@ namespace Ror2Common
             if(layout.Primary==0&&layout.Secondary==0&&layout.Utility==0&&layout.Special==0)layout=MeleeControlLayout.Samus;
             if(this.grabbing!=grabbing){blocked=2|4|128|256;held=previous=pending=0;attackBuffer=0;}this.grabbing=grabbing;
             LocalUser user=null;foreach(var u in LocalUserManager.readOnlyLocalUsersList)if(u.cachedBody==body){user=u;break;}
+            // A brain owns this fighter's controls; its Press is the last word for the step.
+            if(Brained&&user==null)return;
             uint buttons=0;move=input?input.moveVector:Vector3.zero;aim=cameraAim??(input?input.aimDirection:Vector3.forward);
             if(user!=null&&user.isUIFocused){held=previous=pending=0;attackBuffer=0;move=Vector3.zero;ReleaseInteraction();return;}
             bool defend=false;
@@ -57,6 +61,14 @@ namespace Ror2Common
             if(grabbing&&(buttons&MeleeControls.NeutralB)!=0){buttons&=~MeleeControls.NeutralB;buttons|=MeleeControls.Special;}
             blocked&=buttons;buttons&=~blocked;
             pending|=buttons&~previous;previous=buttons;held=buttons;
+        }
+        /// A brain's controls for the next sim step: held buttons (a press is the rising edge),
+        /// movement and aim. Call once per fixed step, after Read, before Take.
+        public void Press(Vector3 movement,Vector3 aim,uint buttons)
+        {
+            move=movement;this.aim=aim;
+            pending|=buttons&~previous;
+            previous=buttons;held=buttons;
         }
         public MeleePadState Take(uint allowed,bool locked=false)
         {

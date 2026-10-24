@@ -87,6 +87,12 @@ namespace Ror2Common
         public bool ShieldSelected(CharacterBody body) =>
             (ExtraAlt != null && Get(body, 4)?.skillDef == ExtraAlt)
             || (SecondaryAlt != null && Get(body, 1)?.skillDef == SecondaryAlt);
+        /// The B slot holds its A attack (not the shield alternate).
+        public bool AttackSelected(CharacterBody body) => Extra != null && Get(body, 4)?.skillDef == Extra;
+        /// The shield alternate is in the B slot.
+        public bool ShieldOnExtra(CharacterBody body) => ExtraAlt != null && Get(body, 4)?.skillDef == ExtraAlt;
+        /// The shield alternate is in the secondary (LT) slot.
+        public bool ShieldOnSecondary(CharacterBody body) => SecondaryAlt != null && Get(body, 1)?.skillDef == SecondaryAlt;
 
         /// The loadout holds the primary slot's alternate.
         public bool PrimaryAltSelected(CharacterBody body) => PrimaryAlt != null && body && body.skillLocator && Get(body, 0)?.skillDef == PrimaryAlt;
