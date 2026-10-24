@@ -48,9 +48,10 @@ namespace Ror2Common
             string jump = ControlGlyphs.Key(eventSystem, "Jump", "Jump");
             string sprint = ControlGlyphs.Key(eventSystem, "Sprint", "Sprint");
 
-            // The loadout can swap the primary (Luigi's Super Scope) and the B skill (the shield),
-            // so read the names from the body's current skills rather than the layout alone.
+            // The loadout can swap the primary (Luigi's Super Scope) and the secondary (the
+            // shield), so read the names from the body's current skills rather than the layout.
             string primaryName = Name(body, SkillSlot.Primary, skills.primary.displayName);
+            string secondaryName = Name(body, SkillSlot.Secondary, skills.secondary.displayName);
             string utilityName = Name(body, SkillSlot.Utility, skills.utility.displayName);
             string specialName = Name(body, SkillSlot.Special, skills.special.displayName);
             string extraName = ExtraName(body, skills);
@@ -60,26 +61,28 @@ namespace Ror2Common
                 .Add(rt, primaryName)
                 .Add(rb, utilityName)
                 .Add(lb, specialName)
+                .Add(lt, secondaryName)
                 .Add(b, extraName);
             sheet.Keys("Specials")
                 .Add(primary, primaryName)
                 .Add(utility, utilityName)
                 .Add(special, specialName)
+                .Add(secondary, secondaryName)
                 .Add("C", extraName);
 
             // The A attack, in its directions: aim up or down with the camera.
             sheet.Pad("Attacks")
-                .Add(lt, jab)
-                .Add("LS + " + lt, "Tilts (aim up/down)")
-                .Add("Flick + " + lt, "Smashes (hold to charge)")
-                .Add(click + " + " + lt, "Dash attack")
-                .Add(lt + " in air", "Aerials");
+                .Add(b, jab)
+                .Add("LS + " + b, "Tilts (aim up/down)")
+                .Add("Flick + " + b, "Smashes (hold to charge)")
+                .Add(click + " + " + b, "Dash attack")
+                .Add(b + " in air", "Aerials");
             sheet.Keys("Attacks")
-                .Add(secondary, jab)
-                .Add("Move + " + secondary, "Tilts (aim up/down)")
-                .Add("Flick + " + secondary, "Smashes (hold to charge)")
-                .Add(sprint + " + " + secondary, "Dash attack")
-                .Add(secondary + " in air", "Aerials");
+                .Add("C", jab)
+                .Add("Move + C", "Tilts (aim up/down)")
+                .Add("Flick + C", "Smashes (hold to charge)")
+                .Add(sprint + " + C", "Dash attack")
+                .Add("C in air", "Aerials");
 
             var padGrab = sheet.Pad("Grab");
             var keysGrab = sheet.Keys("Grab");
@@ -87,9 +90,9 @@ namespace Ror2Common
             else
             {
                 padGrab.Add(x, dashGrab ? "Grab (Sprint + X: dash grab)" : "Grab")
-                    .Add("While held", "LT pummel, LS + LT throw");
+                    .Add("While held", b + " pummel, LS + " + b + " throw");
                 keysGrab.Add(interact, dashGrab ? "Grab (Sprint: dash grab)" : "Grab")
-                    .Add("While held", "Secondary pummel, Move throw");
+                    .Add("While held", "C pummel, Move throw");
             }
 
             sheet.Pad("Moving")

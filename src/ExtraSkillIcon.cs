@@ -11,6 +11,9 @@ namespace Ror2Common
     public sealed class ExtraSkillIcon : MonoBehaviour
     {
         public string skillName, actionName="Interact";
+        /// Which stock skill icon supplies the clone's key glyph: 0..3 (Yoshi's extra
+        /// slot is on LT, so it clones the secondary icon). Placement still follows slot 3.
+        public int glyphFrom=3;
         readonly Dictionary<HUD,SkillIcon> icons=new Dictionary<HUD,SkillIcon>();
         readonly List<HUD> remove=new List<HUD>();
         void Update()
@@ -22,15 +25,17 @@ namespace Ror2Common
             foreach(var hud in remove)icons.Remove(hud);
             foreach(var hud in HUD.readOnlyInstanceList){
                 if(!hud||hud.targetBodyObject!=gameObject||icons.ContainsKey(hud)||hud.skillIcons==null||hud.skillIcons.Length<4)continue;
-                var source=hud.skillIcons[3];if(!source)continue;
+                var glyph=hud.skillIcons[Mathf.Clamp(glyphFrom,0,3)];
+                var source=glyph?glyph:hud.skillIcons[3];if(!source)continue;
                 var clone=Instantiate(source.gameObject,source.transform.parent,false);
                 clone.name="NativeExtraSkill";
                 var layout=clone.GetComponent<LayoutElement>()??clone.AddComponent<LayoutElement>();layout.ignoreLayout=true;
                 var rect=clone.GetComponent<RectTransform>();var original=source.GetComponent<RectTransform>();
-                Place(hud,rect,original);
+                var last=hud.skillIcons[3]?hud.skillIcons[3].GetComponent<RectTransform>():original;
+                Place(hud,rect,last);
                 var icon=clone.GetComponent<SkillIcon>();icon.targetSkill=skill;icon.targetSkillSlot=SkillSlot.None;
                 icon.playerCharacterMasterController=source.playerCharacterMasterController;
-                foreach(var binding in clone.GetComponentsInChildren<InputBindingDisplayController>(true)){
+                if(!string.IsNullOrEmpty(actionName))foreach(var binding in clone.GetComponentsInChildren<InputBindingDisplayController>(true)){
                     binding.actionName=actionName;binding.SendMessage("Refresh",SendMessageOptions.DontRequireReceiver);
                 }
                 icons.Add(hud,icon);

@@ -28,11 +28,16 @@ namespace Ror2Common
         public MeleeSkillInfo primary, secondary, utility, special;
         /// An alternate for the primary slot (Luigi's Super Scope in place of the Fireball); `defName` null: none.
         public MeleeSkillInfo primaryAlt;
+        /// An alternate for the secondary slot (Yoshi's Shield / Air Feint in place of the Bomb); `defName` null: none.
+        public MeleeSkillInfo secondaryAlt;
         public MeleeSkillInfo extra, extraAlt;
         public string extraName;        // GenericSkill name for the fifth slot
         public string extraTitleToken;  // loadout title for that fifth slot
         public string extraTitle;       // displayed loadout title
-        public string extraActionName;  // input prompt shown on the extra icon
+        public string extraActionName;  // input prompt shown on the extra icon (empty keeps the clone's stock binding)
+        /// Stock skill icon to clone for the extra slot's key glyph/cooldown style: 0..3,
+        /// or 0 for the default fourth slot. Yoshi's fifth slot is on LT, so he uses 1.
+        public int extraGlyphFrom;
         /// Native move id -> skill slot index (0..4). Null uses the shared
         /// default (neutral->primary, side->utility, up->special, down->extra,
         /// else secondary). Fighters whose specials sit on different buttons
@@ -48,6 +53,8 @@ namespace Ror2Common
         public NativeSkillDef Extra, ExtraAlt;
         /// The primary slot's alternate, if the fighter has one.
         public NativeSkillDef PrimaryAlt;
+        /// The secondary slot's alternate (Yoshi's shield), if the fighter has one.
+        public NativeSkillDef SecondaryAlt;
         public string ExtraName;
         readonly Func<uint, int> slotForMove;
         public static readonly SkillSlot[] Slots =
@@ -55,11 +62,11 @@ namespace Ror2Common
 
         internal MeleeSkillSet(Func<uint, int> slotForMove) { this.slotForMove = slotForMove; }
 
-        /// The shared default mapping: native specials 20..24 sit in the stock
-        /// slot order (neutral->primary, side/super->utility, up->special,
-        /// down->extra); every other move (contextual A, grabs) is the secondary.
+        /// The shared default mapping: neutral->primary, side/super->utility,
+        /// up->special, down->secondary (the slot that sits on LT), and every other
+        /// move (contextual A, grabs) is the extra slot on B.
         public static int DefaultSlot(uint move) =>
-            move == 20 ? 0 : move == 21 || move == 22 ? 2 : move == 23 ? 3 : move == 24 ? 4 : 1;
+            move == 20 ? 0 : move == 21 || move == 22 ? 2 : move == 23 ? 3 : move == 24 ? 1 : 4;
 
         /// This fighter's native move -> skill slot index (0..4).
         public int Slot(uint move) => slotForMove(move);
@@ -67,13 +74,20 @@ namespace Ror2Common
         public GenericSkill Get(CharacterBody body, int slot) =>
             slot == 4 ? body.skillLocator.FindSkill(ExtraName) : body.skillLocator.GetSkill(Slots[slot]);
 
-        public bool ShieldSelected(CharacterBody body) => Get(body, 4)?.skillDef == ExtraAlt;
+        public bool ShieldSelected(CharacterBody body) =>
+            (ExtraAlt != null && Get(body, 4)?.skillDef == ExtraAlt)
+            || (SecondaryAlt != null && Get(body, 1)?.skillDef == SecondaryAlt);
 
         /// The loadout holds the primary slot's alternate.
         public bool PrimaryAltSelected(CharacterBody body) => PrimaryAlt != null && body && body.skillLocator && Get(body, 0)?.skillDef == PrimaryAlt;
+        /// The loadout holds the secondary slot's alternate (Yoshi's shield).
+        public bool SecondaryAltSelected(CharacterBody body) => SecondaryAlt != null && body && body.skillLocator && Get(body, 1)?.skillDef == SecondaryAlt;
 
         public NativeSkillDef Expected(CharacterBody body, int slot) =>
-            slot == 4 ? (ShieldSelected(body) ? ExtraAlt : Extra) : slot == 0 && PrimaryAltSelected(body) ? PrimaryAlt : Stock[slot];
+            slot == 4 ? (ShieldSelected(body) && ExtraAlt != null ? ExtraAlt : Extra)
+            : slot == 0 && PrimaryAltSelected(body) ? PrimaryAlt
+            : slot == 1 && SecondaryAltSelected(body) ? SecondaryAlt
+            : Stock[slot];
 
         public uint Allowed(CharacterBody body)
         {
@@ -99,28 +113,35 @@ namespace Ror2Common
                 var def = NativeSkills.Make(info.defName, info.nameToken, info.descriptionToken, null,
                     info.recharge, info.stock, info.combat);
                 set.Stock[i] = def;
-                if (i == 0 && layout.primaryAlt.defName != null)
+                var alt = i == 0 ? layout.primaryAlt : i == 1 ? layout.secondaryAlt : default;
+                if (alt.defName != null)
                 {
-                    var alt = layout.primaryAlt;
-                    set.PrimaryAlt = NativeSkills.Make(alt.defName, alt.nameToken, alt.descriptionToken, null,
+                    var altDef = NativeSkills.Make(alt.defName, alt.nameToken, alt.descriptionToken, null,
                         alt.recharge, alt.stock, alt.combat);
-                    var primary = body.GetComponent<SkillLocator>() ? body.GetComponent<SkillLocator>().GetSkill(MeleeSkillSet.Slots[0]) : null;
-                    NativeSkills.SetFamily(primary, body.name + MeleeSkillSet.Slots[0] + "Family", pack, def, set.PrimaryAlt);
-                    VanillaIcons.Use(set.PrimaryAlt, alt.icon);
+                    if (i == 0) set.PrimaryAlt = altDef; else set.SecondaryAlt = altDef;
+                    var slot = body.GetComponent<SkillLocator>() ? body.GetComponent<SkillLocator>().GetSkill(MeleeSkillSet.Slots[i]) : null;
+                    NativeSkills.SetFamily(slot, body.name + MeleeSkillSet.Slots[i] + "Family", pack, def, altDef);
+                    VanillaIcons.Use(altDef, alt.icon);
                 }
                 else NativeSkills.SetFamily(body, MeleeSkillSet.Slots[i], def, pack);
                 VanillaIcons.Use(def, info.icon);
             }
             set.Extra = NativeSkills.Make(layout.extra.defName, layout.extra.nameToken, layout.extra.descriptionToken, null,
                 layout.extra.recharge, layout.extra.stock, layout.extra.combat);
-            set.ExtraAlt = NativeSkills.Make(layout.extraAlt.defName, layout.extraAlt.nameToken, layout.extraAlt.descriptionToken, null,
-                layout.extraAlt.recharge, layout.extraAlt.stock, layout.extraAlt.combat);
-            NativeSkills.AddExtra(body, layout.extraName, layout.extraTitleToken, pack, set.Extra, set.ExtraAlt);
+            set.ExtraAlt = layout.extraAlt.defName != null
+                ? NativeSkills.Make(layout.extraAlt.defName, layout.extraAlt.nameToken, layout.extraAlt.descriptionToken, null,
+                    layout.extraAlt.recharge, layout.extraAlt.stock, layout.extraAlt.combat)
+                : null;
+            if (set.ExtraAlt != null)
+                NativeSkills.AddExtra(body, layout.extraName, layout.extraTitleToken, pack, set.Extra, set.ExtraAlt);
+            else
+                NativeSkills.AddExtra(body, layout.extraName, layout.extraTitleToken, pack, set.Extra);
             var hud = body.AddComponent<ExtraSkillIcon>();
             hud.skillName = layout.extraName;
             hud.actionName = layout.extraActionName;
+            hud.glyphFrom = layout.extraGlyphFrom > 0 ? layout.extraGlyphFrom : 3;
             VanillaIcons.Use(set.Extra, layout.extra.icon);
-            VanillaIcons.Use(set.ExtraAlt, layout.extraAlt.icon);
+            if (set.ExtraAlt != null) VanillaIcons.Use(set.ExtraAlt, layout.extraAlt.icon);
             return set;
         }
 
@@ -132,16 +153,15 @@ namespace Ror2Common
                 l.SetStringByToken(stock[i].nameToken, stock[i].displayName);
                 l.SetStringByToken(stock[i].descriptionToken, stock[i].description);
             }
-            if (layout.primaryAlt.defName != null)
+            foreach (var alt in new[] { layout.primaryAlt, layout.secondaryAlt, layout.extraAlt })
             {
-                l.SetStringByToken(layout.primaryAlt.nameToken, layout.primaryAlt.displayName);
-                l.SetStringByToken(layout.primaryAlt.descriptionToken, layout.primaryAlt.description);
+                if (alt.defName == null) continue;
+                l.SetStringByToken(alt.nameToken, alt.displayName);
+                l.SetStringByToken(alt.descriptionToken, alt.description);
             }
             l.SetStringByToken(layout.extraTitleToken, layout.extraTitle);
             l.SetStringByToken(layout.extra.nameToken, layout.extra.displayName);
             l.SetStringByToken(layout.extra.descriptionToken, layout.extra.description);
-            l.SetStringByToken(layout.extraAlt.nameToken, layout.extraAlt.displayName);
-            l.SetStringByToken(layout.extraAlt.descriptionToken, layout.extraAlt.description);
         }
     }
 }

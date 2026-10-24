@@ -22,10 +22,14 @@ namespace Ror2Common
     public struct MeleeControlLayout
     {
         public uint Primary,Secondary,Utility,Special,Extra,ExtraAlt;
+        /// The fifth slot and its shield alternate live on the physical secondary (LT);
+        /// the physical extra (B) is the A attack. Yoshi uses this layout.
+        public bool ExtraOnSecondary;
         public static readonly MeleeControlLayout Samus=new MeleeControlLayout{
-            Primary=MeleeControls.NeutralB,Secondary=MeleeControls.Attack,
+            Primary=MeleeControls.NeutralB,Secondary=MeleeControls.DownB,
             Utility=MeleeControls.SideB,Special=MeleeControls.UpB,
-            Extra=MeleeControls.DownB,ExtraAlt=MeleeControls.Defend,
+            Extra=MeleeControls.Attack,ExtraAlt=MeleeControls.Defend,
+            ExtraOnSecondary=true,
         };
     }
 }
