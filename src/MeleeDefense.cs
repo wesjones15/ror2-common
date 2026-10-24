@@ -8,6 +8,12 @@ namespace Ror2Common
         bool MeleeInvulnerable { get; }
         bool BlockMeleeDamage(float healthFraction);
     }
+    /// A fighter state that also absorbs damage which normally bypasses blocking (Yoshi's
+    /// egg-roll armor). Optional: the actor may implement it alongside {@link IMeleeDefense}.
+    public interface IMeleeBypassDefense
+    {
+        bool BlockBypassDamage(float healthFraction);
+    }
     /// Uses RoR2's incoming-damage receiver; no damage detour or global immunity.
     public sealed class MeleeDefense:MonoBehaviour,IOnIncomingDamageServerReceiver
     {
@@ -19,8 +25,12 @@ namespace Ror2Common
         {
             if(!NetworkServer.active||!isActiveAndEnabled||actor==null||!body||!body.healthComponent||!body.healthComponent.alive||info.rejected)return;
             if(actor.MeleeInvulnerable){info.rejected=true;return;}
-            if((info.damageType.damageType&DamageType.BypassBlock)!=0)return;
-            if(actor.BlockMeleeDamage(Mathf.Max(0,info.damage)/Mathf.Max(1,body.maxHealth)))info.rejected=true;
+            float fraction=Mathf.Max(0,info.damage)/Mathf.Max(1,body.maxHealth);
+            if((info.damageType.damageType&DamageType.BypassBlock)!=0){
+                if(actor is IMeleeBypassDefense bypass&&bypass.BlockBypassDamage(fraction))info.rejected=true;
+                return;
+            }
+            if(actor.BlockMeleeDamage(fraction))info.rejected=true;
         }
     }
 }

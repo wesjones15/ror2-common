@@ -50,7 +50,7 @@ namespace Ror2Common
         public bool IsOwner => body && body.hasEffectiveAuthority;
 
         public bool MeleeInvulnerable => active && !Recovering && (MeleeNative.ssbm_sim_defense_flags(sim) & (2 | 64 | 128)) != 0;
-        public bool BlockMeleeDamage(float amount) { if (!active || Recovering) return false; uint flags = MeleeNative.ssbm_sim_defense_flags(sim); return (flags & 1) != 0 && MeleeNative.ssbm_sim_shield_hit(sim, amount) != 0; }
+        public virtual bool BlockMeleeDamage(float amount) { if (!active || Recovering) return false; uint flags = MeleeNative.ssbm_sim_defense_flags(sim); return (flags & 1) != 0 && MeleeNative.ssbm_sim_shield_hit(sim, amount) != 0; }
         public bool Recovering => (recoveryFlags & 1) != 0;
         public bool RecoveryInvulnerable => (recoveryFlags & 2) != 0;
         public bool Arriving { get; set; }
@@ -77,7 +77,7 @@ namespace Ror2Common
         protected abstract bool AssetsBusy { get; }
         protected abstract uint AllowedButtons { get; }
         /// Last chance to drop a button before the sim sees it. A fighter whose own state
-        /// consumes a press (Yoshi's full belly reuses Egg Lay to lay the egg) masks it here.
+        /// owns a slot (Yoshi's full belly masks Egg Lay until he lays the egg) drops it here.
         protected virtual uint FilterButtons(uint buttons) => buttons;
         protected abstract bool ShieldSelected { get; }
         protected abstract MeleeControlLayout Layout { get; }
