@@ -110,7 +110,7 @@ namespace Ror2Common
                 var rotation=Quaternion.LookRotation(look,view.up)*Quaternion.AngleAxis(-p.rotation*Mathf.Rad2Deg,Vector3.forward);
                 var size=new Vector3(p.size*scale,p.size*scale,1);
                 if((p.flags&(1<<18))!=0)size.x=-size.x;if((p.flags&(1<<19))!=0)size.y=-size.y;
-                Graphics.DrawMesh(quad,Matrix4x4.TRS(point,rotation,size),Material(in p),layer,camera,0,properties,ShadowCastingMode.Off,false);
+                Graphics.DrawMesh(quad,Matrix4x4.TRS(point,rotation,size),Material(in p),layer,null,0,properties,ShadowCastingMode.Off,false);
             }
             // Animated colour variants are transient; keep current/recent draws.
             if(variants.Count>256)foreach(var entry in new List<KeyValuePair<(uint,uint,uint,uint,bool),(Texture2D,Material,float)>>(variants))
