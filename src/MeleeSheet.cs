@@ -101,6 +101,8 @@ namespace Ror2Common
                 .Add(jump, "Jump; again in the air");
 
             extras?.Invoke(sheet);
+            // Same breathing room between rows as Olimar's sheet.
+            ControlSheetLayout.SpaceRows(sheet);
             return sheet;
         }
 
