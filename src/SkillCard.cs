@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using RoR2.Skills;
 using RoR2.UI;
 using UnityEngine;
@@ -17,17 +16,19 @@ namespace Ror2Common
         /// Posed points in world metres (the model renderers are added automatically too).
         public readonly List<Vector3> Points = new List<Vector3>();
 
-        /// Called before each of the two background renders; set effect object layers here.
+        /// Called with the actual portrait camera; set native billboard axes and layers here.
         public Action<Camera, int> BeforeRender;
 
         /// Override the automatic framing. Radius is the half-size of the subject.
         public Vector3? Center;
         public float? Radius;
         public float Zoom = 1f;
-        /// Camera orbit: 0 looks from +Z (the character's front, if it faces +Z).
+        /// Camera orbit in radians: 0 looks from +Z (front for a +Z-facing character).
         public float Yaw = 0.42f, Pitch = 0.2f;
         /// Camera distance as a multiple of the radius.
         public float Distance = 1.55f;
+        /// Absolute world distance, when matching an approved viewer composition.
+        public float? CameraDistance;
         public float FieldOfView = 30f;
         public Color Tint = Color.white;
 
@@ -61,6 +62,8 @@ namespace Ror2Common
             public Func<SkillCardStage> build;
             public Action<Sprite> assign;
             public Action refresh;
+            public Func<string> assetsDir;
+            public string revision;
         }
 
         static readonly List<Job> pending = new List<Job>();
@@ -69,24 +72,28 @@ namespace Ror2Common
 
         /// Queues a portrait for `def`. `build` returns null if the disc files aren't usable
         /// yet; it will be called again on a later retry.
-        public static void Request(SkillDef def, string defName, Func<bool> ready, Func<SkillCardStage> build)
+        public static void Request(SkillDef def, string defName, Func<bool> ready, Func<SkillCardStage> build,
+            Func<string> assetsDir = null, string revision = "approved-v2")
         {
             if (!def || build == null || !queued.Add(defName)) return;
             pending.Add(new Job
             {
                 defName = defName, ready = ready, build = build,
                 assign = s => def.icon = s, refresh = () => Refresh(def),
+                assetsDir = assetsDir, revision = revision,
             });
             EnsureRunner();
         }
 
         /// An icon with no SkillDef (a passive slot): the caller assigns the sprite itself.
-        public static void Request(Action<Sprite> assign, string defName, Func<bool> ready, Func<SkillCardStage> build)
+        public static void Request(Action<Sprite> assign, string defName, Func<bool> ready, Func<SkillCardStage> build,
+            Func<string> assetsDir = null, string revision = "approved-v2")
         {
             if (assign == null || build == null || !queued.Add(defName)) return;
             pending.Add(new Job
             {
                 defName = defName, ready = ready, build = build, assign = assign,
+                assetsDir = assetsDir, revision = revision,
             });
             EnsureRunner();
         }
@@ -121,17 +128,40 @@ namespace Ror2Common
                     try
                     {
                         if (job.ready != null && !job.ready()) continue;
-                        stage = job.build();
-                        if (stage == null) continue;
-                        var tex = Render(stage);
+                        string cache = SkillCardCache.FileName(job.assetsDir?.Invoke(), job.revision, job.defName);
+                        Texture2D tex;
+                        bool cached = SkillCardCache.TryRead(cache, out var rgba);
+                        if (cached)
+                        {
+                            tex = new Texture2D(SkillCardCache.Size, SkillCardCache.Size, TextureFormat.RGBA32, false)
+                            { name = job.defName, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+                            tex.LoadRawTextureData(rgba); tex.Apply(false, false);
+                        }
+                        else
+                        {
+                            stage = job.build();
+                            if (stage == null) continue;
+                            tex = Render(stage);
+                            if (tex && cache != null)
+                            {
+                                try
+                                {
+                                    var colors = tex.GetPixels32();
+                                    rgba = new byte[colors.Length * 4];
+                                    for (int p = 0; p < colors.Length; p++)
+                                    { rgba[p*4] = colors[p].r; rgba[p*4+1] = colors[p].g; rgba[p*4+2] = colors[p].b; rgba[p*4+3] = colors[p].a; }
+                                    SkillCardCache.Write(cache, rgba);
+                                }
+                                catch (Exception e) { CommonLog.Warn($"skill portrait cache {cache}: {e.Message}"); }
+                            }
+                        }
                         if (!tex) continue;
                         var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
                         job.assign(sprite);
-                        Dump(tex, job.defName);
                         job.refresh?.Invoke();
                         pending.RemoveAt(i);
                         queued.Remove(job.defName);
-                        CommonLog.Info($"skill portrait for {job.defName} ready");
+                        CommonLog.Info($"skill portrait for {job.defName} {(cached ? "loaded" : "generated")}: {cache ?? "memory"}");
                     }
                     catch (Exception e)
                     {
@@ -186,8 +216,9 @@ namespace Ror2Common
                     radius = stage.Radius ?? Mathf.Max(0.1f, (hi - lo).magnitude * 0.5f);
                 }
                 float zoom = stage.Zoom > 0f ? stage.Zoom : 1f;
-                float distance = radius * Mathf.Max(1f, stage.Distance) / zoom;
-                float yaw = stage.Yaw * Mathf.Deg2Rad;
+                float distance = stage.CameraDistance ?? (radius * Mathf.Max(1f, stage.Distance) / zoom);
+                distance = Mathf.Max(0.05f, distance);
+                float yaw = stage.Yaw;
                 float pitch = Mathf.Clamp(stage.Pitch, -1.35f, 1.35f);
                 var dir = new Vector3(Mathf.Sin(yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(yaw) * Mathf.Cos(pitch));
                 var cameraAt = center + dir * distance;
@@ -222,23 +253,14 @@ namespace Ror2Common
 
                 rt = new RenderTexture(256, 256, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
-                Action before = () => stage.BeforeRender?.Invoke(cam, layer);
-                var black = Grab(cam, rt, Color.black, before);
-                var white = Grab(cam, rt, Color.white, before);
-                var px = new Color[256 * 256];
-                for (int y = 0; y < 256; y++)
-                {
-                    for (int x = 0; x < 256; x++)
-                    {
-                        int i = y * 256 + x;
-                        var b = black[i];
-                        var w = white[i];
-                        float a = Mathf.Clamp01(1f - Mathf.Max(w.r - b.r, Mathf.Max(w.g - b.g, w.b - b.b)));
-                        var fg = a > 0.004f ? new Color(Mathf.Clamp01(b.r / a), Mathf.Clamp01(b.g / a), Mathf.Clamp01(b.b / a), a) : Color.clear;
-                        var bg = Backdrop(x, y, stage.Tint);
-                        px[i] = new Color(fg.r * a + bg.r * (1f - a), fg.g * a + bg.g * (1f - a), fg.b * a + bg.b * (1f - a), 1f);
-                    }
-                }
+                Action before = () => {
+                    stage.BeforeRender?.Invoke(cam, layer);
+                    // Reframing may create an effect group after the initial layer pass.
+                    foreach (var t in stage.Root.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = layer;
+                };
+                // Render directly on the approved backdrop. Black/white alpha recovery
+                // discards additive-only fire and cannot recover scene-refraction ribbons.
+                var px = Grab(cam, rt, stage.Tint, before);
                 var tex = new Texture2D(256, 256, TextureFormat.RGBA32, false)
                 {
                     name = "skill portrait",
@@ -256,20 +278,6 @@ namespace Ror2Common
                 if (lightGo) UnityEngine.Object.Destroy(lightGo);
                 if (rt) { rt.Release(); UnityEngine.Object.Destroy(rt); }
             }
-        }
-
-        // RoR2's skill icons are square. A full-bleed card with a soft centre and a thin
-        // square frame, matching the Melee portraits.
-        static Color Backdrop(int x, int y, Color tint)
-        {
-            float dx = (x + 0.5f) / 256f * 2f - 1f;
-            float dy = (y + 0.5f) / 256f * 2f - 1f;
-            float core = Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy) * 0.72f);
-            var dark = new Color(0.035f, 0.050f, 0.075f);
-            var c = Color.Lerp(dark, tint, 0.18f + 0.58f * core);
-            int edge = Mathf.Min(Mathf.Min(x, y), Mathf.Min(255 - x, 255 - y));
-            if (edge < 3) c = Color.Lerp(c, tint, 0.75f);
-            return c;
         }
 
         static Color[] Grab(Camera cam, RenderTexture rt, Color background, Action before)
@@ -302,36 +310,6 @@ namespace Ror2Common
             icon.enabled = false;
             icon.enabled = true;
             icon.SendMessage("Update", SendMessageOptions.DontRequireReceiver);
-        }
-
-        // Local review copy of the actual Unity render; never packaged. 32-bit BMP so this
-        // works without Unity's ImageConversion module. Beside the plugin that requested it.
-        static void Dump(Texture2D tex, string name)
-        {
-            try
-            {
-                var px = tex.GetPixels32();
-                int w = tex.width, h = tex.height;
-                string dir = null;
-                try
-                {
-                    string loc = typeof(SkillCard).Assembly.Location;
-                    if (!string.IsNullOrEmpty(loc)) dir = Path.Combine(Path.GetDirectoryName(loc), "skill-icons");
-                }
-                catch { }
-                if (string.IsNullOrEmpty(dir)) dir = Path.Combine(Application.persistentDataPath, "SkillIcons");
-                Directory.CreateDirectory(dir);
-                using (var stream = new FileStream(Path.Combine(dir, name + ".bmp"), FileMode.Create))
-                using (var bw = new BinaryWriter(stream))
-                {
-                    bw.Write((byte)'B'); bw.Write((byte)'M');
-                    bw.Write(54 + w * h * 4); bw.Write(0); bw.Write(54);
-                    bw.Write(40); bw.Write(w); bw.Write(h); bw.Write((short)1); bw.Write((short)32);
-                    bw.Write(0); bw.Write(w * h * 4); bw.Write(2835); bw.Write(2835); bw.Write(0); bw.Write(0);
-                    foreach (var c in px) { bw.Write(c.b); bw.Write(c.g); bw.Write(c.r); bw.Write(c.a); }
-                }
-            }
-            catch (Exception e) { CommonLog.Warn($"skill portrait dump {name}: {e.Message}"); }
         }
 
         static int PortraitLayer()
