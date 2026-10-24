@@ -160,7 +160,7 @@ namespace Ror2Common
                 {
                     var view = MeleeFighterView.FighterChoice(assetsDir, job.kind, 0, 1);
                     views.Add(view);
-                    try { view.ClipPose("Wait", 0f); } catch { view.IdlePose(); }
+                    Pose(view, "Wait", 0f);
                     view.Models.Update(1f, d => (at + rot * new Vector3(d.pos.x, d.pos.y, d.pos.z),
                         stage.rotation * rot * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)));
                 }
@@ -229,7 +229,7 @@ namespace Ror2Common
                     radius = Mathf.Max(1f, (hi - lo).magnitude * 0.5f);
                 }
                 float zoom = icon.zoom > 0f ? icon.zoom : 1f;
-                float distance = radius * 2.2f / zoom;
+                float distance = radius * 1.55f / zoom;
                 const float yaw = 0.42f;
                 var cameraAt = center + new Vector3(Mathf.Sin(yaw) * distance, distance * 0.2f, Mathf.Cos(yaw) * distance);
 
@@ -308,6 +308,12 @@ namespace Ror2Common
             }
         }
 
+        static void Pose(MeleeFighterView view, string clip, float frame)
+        {
+            try { view.ClipPose(clip, frame); return; } catch { }
+            try { view.IdlePose(); } catch { }
+        }
+
         static Color Backdrop(int x, int y, Color tint)
         {
             // RoR2's skill icons are square. A full-bleed card with a soft
@@ -316,7 +322,7 @@ namespace Ror2Common
             float dy = (y + 0.5f) / 256f * 2f - 1f;
             float core = Mathf.Clamp01(1f - Mathf.Sqrt(dx * dx + dy * dy) * 0.72f);
             var dark = new Color(0.035f, 0.050f, 0.075f);
-            var c = Color.Lerp(dark, tint, 0.38f * core);
+            var c = Color.Lerp(dark, tint, 0.18f + 0.58f * core);
             int edge = Mathf.Min(Mathf.Min(x, y), Mathf.Min(255 - x, 255 - y));
             if (edge < 3) c = Color.Lerp(c, tint, 0.75f);
             return c;
