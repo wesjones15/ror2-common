@@ -10,9 +10,11 @@ namespace Ror2Common
         // Installed DLC4 GenericCharacterMain.HandleMovements selects aim vs move
         // using CharacterBody.shouldAim; CharacterDirection.Update owns smoothing.
         // Keep those real game decisions, including alwaysAim and sprint gating.
-        public static void FacingTarget(CharacterBody body,CharacterDirection direction,Vector3 move,Vector3 aim,bool actionLocked,Vector3 actionFacing)
+        public static void FacingTarget(CharacterBody body,CharacterDirection direction,Vector3 move,Vector3 aim,bool actionLocked,Vector3 actionFacing,bool contextual=false)
         {
-            if(direction)direction.moveVector=actionLocked?actionFacing:(body.shouldAim?aim:move);
+            // `contextual` is a contextual A attack (B button): it faces the stick instead of
+            // the camera ray, so it must not follow the aim timer a skill set (`shouldAim`).
+            if(direction)direction.moveVector=actionLocked?actionFacing:(contextual?move:(body.shouldAim?aim:move));
         }
 
         public static void BeginAttack(CharacterBody body,CharacterDirection direction,Vector3 aim)
@@ -41,15 +43,30 @@ namespace Ror2Common
         }
 
         /// The world point under the crosshair, for a projectile that keeps converging on it
-        /// while its muzzle moves (Yoshi's tongue head bobs through Egg Lay). The nearest
-        /// non-owner hit along the camera ray within `range`, else `muzzle + forward * range`;
-        /// a hit behind the muzzle (camera obstruction) falls back to the forward point.
-        public static Vector3 ProjectilePoint(CharacterBody body,Vector3 muzzle,Ray cameraRay,float range)
+        /// while its muzzle moves (Yoshi's tongue head bobs through Egg Lay). True with the
+        /// nearest non-owner hit along the camera ray within `range`; false (and the point
+        /// `muzzle + forward * range`) for empty sky or a hit behind the muzzle, where the
+        /// caller picks the point along the ray that its projectile can actually reach.
+        public static bool ProjectilePoint(CharacterBody body,Vector3 muzzle,Ray cameraRay,float range,out Vector3 point)
         {
             var forward=cameraRay.direction.normalized;
             if(CrosshairPoint(body,cameraRay,range,out var hit)
-                &&Vector3.Dot(hit-muzzle,forward)>0.05f)return hit;
-            return muzzle+forward*range;
+                &&Vector3.Dot(hit-muzzle,forward)>0.05f) { point=hit; return true; }
+            point=muzzle+forward*range;
+            return false;
+        }
+
+        /// The point on `ray` at `reach` from `muzzle`, on the forward side. For an empty
+        /// crosshair: a line parallel to the camera from the muzzle sits below the reticle
+        /// at every finite distance, so a converging shot aims at this point instead.
+        public static Vector3 PointOnRayAtReach(Vector3 muzzle,Ray ray,float reach)
+        {
+            var forward=ray.direction.normalized;
+            var offset=muzzle-ray.origin;
+            float along=Vector3.Dot(offset,forward);
+            float perpendicular=Mathf.Max(0f,offset.sqrMagnitude-along*along);
+            float distance=along+Mathf.Sqrt(Mathf.Max(0f,reach*reach-perpendicular));
+            return ray.origin+forward*Mathf.Max(0.1f,distance);
         }
 
         static bool CrosshairPoint(CharacterBody body,Ray cameraRay,float range,out Vector3 point)

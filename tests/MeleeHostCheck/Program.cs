@@ -37,14 +37,17 @@ static class Program
         direction=MeleeAim.ProjectileDirection(body,muzzle,ray);Check(direction.z==1&&direction.x==0,"camera obstruction reversed projectile into owner");
         Physics.hits=Array.Empty<RaycastHit>();direction=MeleeAim.ProjectileDirection(body,muzzle,ray);Check(direction.z>.999f,"empty sky shot did not follow camera");
         // A converging shot that keeps its crosshair point while its muzzle moves (the tongue).
-        var point=MeleeAim.ProjectilePoint(body,muzzle,ray,20f);
+        Check(!MeleeAim.ProjectilePoint(body,muzzle,ray,20f,out var point),"empty sky reported a crosshair hit");
         Check(Math.Abs(point.z-20f)<1e-4f&&Math.Abs(point.x-muzzle.x)<1e-4f,"empty sky point did not extend from the muzzle");
         Physics.hits=new[]{new RaycastHit{collider=enemy,distance=10,point=new Vector3(0,3,5)}};
-        point=MeleeAim.ProjectilePoint(body,muzzle,ray,20f);
+        Check(MeleeAim.ProjectilePoint(body,muzzle,ray,20f,out point),"crosshair target was not found");
         Check(Math.Abs(point.z-5f)<1e-4f&&Math.Abs(point.y-3f)<1e-4f,"crosshair point missed the target");
         Physics.hits=new[]{new RaycastHit{collider=own,distance=5,point=new Vector3(0,3,0)},new RaycastHit{collider=enemy,distance=10,point=new Vector3(0,3,5)}};
-        point=MeleeAim.ProjectilePoint(body,muzzle,ray,20f);
+        Check(MeleeAim.ProjectilePoint(body,muzzle,ray,20f,out point),"crosshair target behind the owner was not found");
         Check(Math.Abs(point.z-5f)<1e-4f,"crosshair point used the owner's own collider");
+        var sky=MeleeAim.PointOnRayAtReach(muzzle,ray,20f);
+        Check(Math.Abs((sky-muzzle).sqrMagnitude-400f)<1e-3f,"empty-sky reach point is not at the reach from the muzzle");
+        Check(Math.Abs(sky.x)<1e-4f&&sky.z>0,"empty-sky reach point is not on the camera ray");
         var facing=go.AddComponent<CharacterDirection>();var move=new Vector3(1,0,0);var aim=Vector3.forward;
         body.shouldAim=false;MeleeAim.FacingTarget(body,facing,move,aim,false,default);Check(facing.moveVector.x==1,"normal facing must use vanilla movement rule");
         body.shouldAim=true;MeleeAim.FacingTarget(body,facing,move,aim,false,default);Check(facing.moveVector.z==1,"aim facing must use real CharacterBody.shouldAim");
@@ -109,7 +112,7 @@ namespace UnityEngine {
     public class Rigidbody:MonoBehaviour{public Vector3 velocity;public void MovePosition(Vector3 p){transform.position=p;}}
     public struct RaycastHit {public Collider collider;public float distance;public Vector3 point;}
     public enum QueryTriggerInteraction{Ignore,Collide}
-    public static class Mathf {public const float Infinity=float.PositiveInfinity;public static float Max(float a,float b)=>Math.Max(a,b);public static float Min(float a,float b)=>Math.Min(a,b);}
+    public static class Mathf {public const float Infinity=float.PositiveInfinity;public static float Max(float a,float b)=>Math.Max(a,b);public static float Min(float a,float b)=>Math.Min(a,b);public static float Sqrt(float a)=>(float)Math.Sqrt(a);}
     public static class Physics {public static float lastSphereLength;public static RaycastHit[] hits=Array.Empty<RaycastHit>();public static RaycastHit[] RaycastAll(Ray r,float d,int m,QueryTriggerInteraction q)=>hits;public static RaycastHit[] SphereCastAll(Vector3 o,float radius,Vector3 dir,float length,int mask,QueryTriggerInteraction q){lastSphereLength=length;return hits;}}
 }
 namespace UnityEngine.Networking {public static class NetworkServer {public static bool active=true;}}
