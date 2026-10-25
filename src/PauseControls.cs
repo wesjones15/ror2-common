@@ -42,6 +42,8 @@ namespace Ror2Common
     /// (either may be empty; the window shows the set for the last device used, else the other).
     public sealed class ControlSheet
     {
+        /// Shown as the name; null uses the body's own display name (a skin-specific name).
+        public string Title;
         /// Shown under the name ("Sunshine's plumber with FLUDD"); optional.
         public string Subtitle;
         /// The face beside the name; null uses the body's own portrait (`CharacterBody.portraitIcon`).
@@ -145,7 +147,7 @@ namespace Ror2Common
         void Fill(CharacterBody body, bool pad)
         {
             if (!PauseControls.TrySheet(body, out var sheet)) return;
-            title.text = body.GetDisplayName();
+            title.text = sheet.Title ?? body.GetDisplayName();
             subtitle.text = sheet.Subtitle ?? "";
             portrait.texture = sheet.Portrait ? sheet.Portrait : body.portraitIcon;
             portrait.color = portrait.texture ? Color.white : Color.clear;
