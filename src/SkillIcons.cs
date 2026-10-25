@@ -362,6 +362,9 @@ namespace Ror2Common
             Vector3 mouth = yoshi ? new Vector3(0f, 9f, 3f) : new Vector3(0f, 7f, 2.5f);
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = "skill icon tongue";
+            // Parent it to the stage: the capture's finally only destroys the stage, so a root
+            // tongue would survive every capture and hang in the live scene for good.
+            go.transform.SetParent(stage, true);
             go.transform.position = stage.position + icon.charOffset + mouth + new Vector3(0f, 0f, len * 0.5f);
             go.transform.localScale = new Vector3(0.28f, 0.28f, len);
             go.layer = layer;
