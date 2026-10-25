@@ -27,6 +27,10 @@ namespace Ror2Common
         protected readonly Unstuck unstuck = new Unstuck();
         protected readonly WallGuard wallGuard = new WallGuard();
         protected static readonly float[] sweepHeights = { 0.1f, 0.6f, 1.2f, 1.7f };
+        /// Slopes flatter than this (surface normal.y above it) count as ground, steeper as a wall.
+        /// Mario's host uses 0.2 (Sunshine's value) and Olimar's 0.5; Melee's old 0.6 treated RoR2's
+        /// common 50-60 degree slopes as walls and caught a charging fighter. 0.5 matches Olimar.
+        protected const float WallNormalY = 0.5f;
         protected readonly List<Vector3> walls = new List<Vector3>();
         protected bool active, failed, permitDamage, deathStarted;
         uint startedMove; ulong lastBatchSerial = ulong.MaxValue;
@@ -326,7 +330,10 @@ namespace Ror2Common
                     unstuck.Step(feet, false, true, false, 0.25f, 1.8f, RecoveryGround, out _);
                     ResetEntryPlatform();
                 }
-                bool supported = RecoveryGround(feet, 0.45f, 0.45f, out var support) && Mathf.Abs(support.y - feet.y) < 0.15f;
+                // A plain floor probe with the step's own wall threshold, not the recovery probe's
+                // strict 0.7-normal/4-sided test: a slope a charging fighter walks on must not read
+                // as "blocked" and hand Unstuck a 3 s teleport.
+                bool supported = WorldProbe.Ground(feet + Vector3.up * 0.15f, 0.3f, out var support) && support.normal.y > WallNormalY;
                 bool embedded = WorldProbe.InsideSolid(feet + Vector3.up * 0.9f);
                 bool blocked = (new Vector3(p.movement.x, 0, p.movement.z).sqrMagnitude > 0.05f && !supported) || embedded;
                 bool fallen = state.grounded == 0 && state.velocity.y <= 0;
@@ -334,7 +341,7 @@ namespace Ror2Common
                     CommonLog.Info(FighterName + " falloff: common threshold, Melee KO and figurine recovery");
                 } else if (!Recovering && unstuck.Step(feet, fallen || blocked, state.grounded != 0 && supported, control != NativeBody.Hold.None || GrabAttached, Time.fixedDeltaTime, 1.8f, RecoveryGround, out var recovered)) {
                     Recover(recovered); feet = ToWorld(state.position); CommonLog.Info(FighterName + " recovered using common Unstuck");
-                } else if (!Recovering && wallGuard.Step(feet, 1.8f, sweepHeights, 0.6f, control != NativeBody.Hold.None || GrabAttached, false, out var back, out var why)) {
+                } else if (!Recovering && wallGuard.Step(feet, 1.8f, sweepHeights, WallNormalY, control != NativeBody.Hold.None || GrabAttached, false, out var back, out var why)) {
                     Recover(back); feet = ToWorld(state.position); CommonLog.Info(FighterName + " wall recovery: " + why);
                 }
                 smoother.Stepped(feet + feetOffset); native.WroteVelocity(ToWorld(state.velocity) * 60f);
@@ -554,20 +561,20 @@ namespace Ror2Common
             float radius = 0.3f, height = 1.8f;
             if (delta.sqrMagnitude > 0.000001f && Physics.CapsuleCast(start + Vector3.up * radius, start + Vector3.up * (height - radius), radius, delta.normalized, out var hit, delta.magnitude, WorldProbe.Mask, QueryTriggerInteraction.Ignore)) {
                 end = start + delta.normalized * Mathf.Max(0, hit.distance - 0.01f);
-                if (hit.normal.y > 0.6f && delta.y <= 0) land = true; if (hit.normal.y < -0.6f) roof = true;
+                if (hit.normal.y > WallNormalY && delta.y <= 0) land = true; if (hit.normal.y < -WallNormalY) roof = true;
                 var remain = Vector3.ProjectOnPlane(delta - (end - start), hit.normal);
                 end += remain;
             }
-            end = WorldProbe.PushOutOfWalls(end + Vector3.up * 0.6f, radius, 0.6f, walls, 8) - Vector3.up * 0.6f;
+            end = WorldProbe.PushOutOfWalls(end + Vector3.up * 0.6f, radius, WallNormalY, walls, 8) - Vector3.up * 0.6f;
             float above = Mathf.Max(start.y, end.y) + 0.35f;
-            if (delta.y <= 0 && WorldProbe.Ground(new Vector3(end.x, above, end.z), above - end.y + 0.15f, out var floor) && floor.normal.y > 0.6f && floor.point.y >= end.y - 0.12f) {
+            if (delta.y <= 0 && WorldProbe.Ground(new Vector3(end.x, above, end.z), above - end.y + 0.15f, out var floor) && floor.normal.y > WallNormalY && floor.point.y >= end.y - 0.12f) {
                 end.y = floor.point.y; land = true;
             }
             if (delta.y > 0 && WorldProbe.Roof(start + Vector3.up * height, delta.y + 0.05f, out var ceiling)) { end.y = Mathf.Min(end.y, ceiling.point.y - height - 0.01f); roof = true; }
-            // Never end a step inside solid geometry. A cast that starts inside a mesh finds no back
-            // face, so once the feet are in the world the sim falls straight through it; keeping the
-            // step the body already had stops it happening instead of relying on WallGuard's undo.
-            if (WorldProbe.InsideSolid(end + Vector3.up * 0.6f)) end = start;
+            // A step is never reverted here: WallGuard.Step (right after this step) already sweeps
+            // crossed walls and recovers a body that sits inside geometry a few steps in a row, which
+            // is Mario's model. A hard "inside solid -> keep the old step" froze a charging fighter on
+            // bumps and slope seams.
             return new MeleeNative.Collision { position = ToSim(end), grounded = land ? 1u : 0u, ceiling = roof ? 1u : 0u };
         }
         static void Event(IntPtr user, in MeleeNative.Event e)
