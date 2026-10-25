@@ -14,6 +14,10 @@ namespace Ror2Common
     /// own `IEggLayer`; this only bridges the assembly boundary.
     public static class EggLay
     {
+        /// Show the egg-lay tongue toward `target` (world space); it lashes, catches what it
+        /// touches (the shared `YoshiFull` hold) and lays the egg on the catch's own sequence.
+        public static Action<CharacterBody, Vector3> Show;
+
         /// Queue a caught victim on `owner` (the shared `YoshiFull` hold); the eggs are laid
         /// by the owner's own lay sequence, as Yoshi's and Pikachu's are.
         public static Func<CharacterBody, CharacterBody, bool> Catch;
@@ -26,6 +30,13 @@ namespace Ror2Common
 
         /// The Melee plugin is loaded and has published the egg.
         public static bool Ready => Catch != null && Lay != null;
+
+        public static bool TryShow(CharacterBody owner, Vector3 target)
+        {
+            if (Show == null || !owner) return false;
+            Show(owner, target);
+            return true;
+        }
 
         public static bool TryCatch(CharacterBody owner, CharacterBody victim)
             => Catch != null && owner && victim && Catch(owner, victim);
