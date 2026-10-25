@@ -37,6 +37,8 @@ namespace Ror2Common
         // its horizontal speed is scaled (deferred so the sim is not mutated from
         // inside its own event callback).
         bool quailOwed;
+        // H3AD-5T v2: when its landing blast may next fire (the item's cooldown).
+        float stomperReadyAt;
         uint startedMove; ulong lastBatchSerial = ulong.MaxValue;
         uint lastButtons; int upBTicks;
         EnemyCapture capture;
@@ -201,6 +203,49 @@ namespace Ror2Common
             return 1f + extra;
         }
 
+        /// H3AD-5T v2: a stomp landed `drop` metres down. Fires the item's blast on its
+        /// cooldown, sized by the fall (HeadstompersFall.DoStompExplosionAuthority's numbers,
+        /// as Mario/Olimar read them).
+        void Stomp(float drop)
+        {
+            if (MeleeItems.StompScale <= 0f || !body) return;
+            int n = ByName.Count(body, "FallBoots");
+            if (n <= 0 || Time.fixedTime < stomperReadyAt) return;
+            float maxDistance = Stat("HeadstompersFall", "maxDistance", 30f);
+            float t = Mathf.InverseLerp(0f, maxDistance, drop);
+            float damage = Mathf.Lerp(Stat("HeadstompersFall", "minimumDamageCoefficient", 10f),
+                Stat("HeadstompersFall", "maximumDamageCoefficient", 100f), t);
+            float radius = Mathf.Lerp(Stat("HeadstompersFall", "minimumRadius", 5f),
+                Stat("HeadstompersFall", "maximumRadius", 100f), t);
+            stomperReadyAt = Time.fixedTime + Stat("HeadstompersCooldown", "baseDuration", 10f) / n;
+            new BlastAttack
+            {
+                attacker = body.gameObject,
+                inflictor = body.gameObject,
+                teamIndex = TeamComponent.GetObjectTeam(body.gameObject),
+                position = body.footPosition,
+                procCoefficient = 1f,
+                radius = radius * Mathf.Max(0f, MeleeItems.StompScale),
+                baseForce = 200f * damage,
+                bonusForce = Vector3.up * 2000f,
+                baseDamage = body.damage * damage * Mathf.Max(0f, MeleeItems.StompScale),
+                falloffModel = BlastAttack.FalloffModel.SweetSpot,
+                crit = body.RollCrit(),
+                damageColorIndex = DamageColorIndex.Item,
+                attackerFiltering = AttackerFiltering.NeverHitSelf,
+            }.Fire();
+            var fx = LegacyResourcesAPI.Load<GameObject>("Prefabs/Effects/ImpactEffects/BootShockwave");
+            if (fx) EffectManager.SpawnEffect(fx, new EffectData { origin = body.footPosition, scale = radius }, true);
+        }
+
+        /// A RoR2 entity state's tuning (static, from its config), or `fallback`.
+        static float Stat(string state, string field, float fallback)
+        {
+            var t = ByName.Type("EntityStates.Headstompers." + state);
+            var f = t?.GetField(field, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            return f != null && f.GetValue(null) is float v && v > 0f ? v : fallback;
+        }
+
         // --- Generic core -----------------------------------------------------
         protected void FaceTarget()
         {
@@ -307,6 +352,7 @@ namespace Ror2Common
                 if (body.isSprinting) speedScale /= Mathf.Max(0.1f, body.sprintingSpeedMultiplier);
                 MeleeNative.ssbm_sim_tuning(sim, new MeleeNative.Tuning { speed_scale = speedScale, jump_scale = JumpScale * NativeBody.JumpScale(body), extra_jumps = extra, hold_charge = HoldCharge ? 1u : 0u, smash_max_frames = 60 });
                 MeleeNative.ssbm_sim_jump_height(sim, MeleeControls.JumpHeight(body.jumpPower, Physics.gravity.y, motor.jumpPowerPenaltyCoefficient) / scale);
+                if (MeleeNative.HasStomp) MeleeNative.ssbm_sim_set_stomp(sim, ByName.Count(body, "FallBoots") > 0 ? 1u : 0u);
                 FaceTarget();
                 if (direction) { var facing = direction.forward; MeleeNative.ssbm_sim_facing(sim, new MeleeNative.Vec3(facing.x, 0, facing.z)); }
                 BeforeStep(in p);
@@ -615,6 +661,7 @@ namespace Ror2Common
             else if (e.kind == 6) GrabThrow(e);
             else if (e.kind == 3) { if (e.strength <= 1f && body.isSprinting) quailOwed = true; native.Jumped(); OnJump(e.strength); }
             else if (e.kind == 4) native.Landed(Vector3.down * e.strength * scale * 60f);
+            else if (e.kind == 7) Stomp(e.strength * scale);
         }
         // A move the sim started: its slot spends a charge (RoR2's bookkeeping: cooldown, items that
         // watch skill use), and `permitDamage` says whether it may hit. The pad already refused a press

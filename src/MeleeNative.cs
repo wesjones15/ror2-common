@@ -36,6 +36,8 @@ namespace Ror2Common
         public static bool HasNudge {get;private set;}
         /// Scales a jump's horizontal speed (Wax Quail). Optional.
         public static bool HasBoostJump {get;private set;}
+        /// The H3AD-5T v2 stomp (jump in the air with no jumps left). Optional.
+        public static bool HasStomp {get;private set;}
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_rebirth(IntPtr sim,byte[] dir,Vec3 destination);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_rebirth_flags(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_camera(IntPtr view,Vec3 camera);
@@ -107,6 +109,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasNudge=false;}
             try {ssbm_sim_boost_jump(IntPtr.Zero,0f);HasBoostJump=true;}
             catch(EntryPointNotFoundException){HasBoostJump=false;}
+            try {ssbm_sim_set_stomp(IntPtr.Zero,0);HasStomp=true;}
+            catch(EntryPointNotFoundException){HasStomp=false;}
             var sizes = new uint[14]; uint count=ssbm_struct_sizes(sizes,(uint)sizes.Length);
             error=NativeLib.CompareSizes(sizes,count,new[] {
                 ("Vec3",NativeLib.Size<Vec3>()),("Pad",NativeLib.Size<Pad>()),("State",NativeLib.Size<State>()),
@@ -213,6 +217,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_launch_pad(IntPtr sim,Vec3 velocity,Vec3 gravity);
         /// Scales the horizontal speed of the jump in progress by `factor` (Wax Quail); 1 does nothing.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_boost_jump(IntPtr sim,float factor);
+        /// Enables (1) or disables (0) the H3AD-5T v2 stomp.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_set_stomp(IntPtr sim,uint enabled);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new(byte[] dir,uint kind,uint costume);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new_choice(byte[] dir,uint kind,uint costume,uint choice);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_article_new(byte[] dir,uint fighterKind,uint articleKind,uint state);

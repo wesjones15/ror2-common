@@ -7,5 +7,7 @@ namespace Ror2Common
     {
         /// Wax Quail's boost to a sprinting jump, times this (1: RoR2's).
         public static float QuailScale = 1f;
+        /// H3AD-5T v2's landing blast, times this (1: RoR2's; 0 disables).
+        public static float StompScale = 1f;
     }
 }
