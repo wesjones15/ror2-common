@@ -71,6 +71,9 @@ namespace Ror2Common
         IntPtr projectile;
         MeleeNative.ProjectileState state;
         MeleeFighterView view;
+        MeleeFighterView arcView;
+        int arcTicks;
+        bool arcVisible;
         ulong trailKey;
         float age;
         bool finished;
@@ -100,6 +103,23 @@ namespace Ror2Common
                 MeleeNative.ssbm_projectile_straight(shot.projectile, cfg.StraightMetres / cfg.Scale);
             if (cfg.ViewArticle != uint.MaxValue)
                 shot.view = new MeleeFighterView(cfg.AssetsDir, cfg.Fighter, cfg.ViewArticle, cfg.ViewState);
+            if (cfg.BounceViewArticle != uint.MaxValue)
+            {
+                try
+                {
+                    shot.arcView = new MeleeFighterView(cfg.AssetsDir, cfg.Fighter, cfg.BounceViewArticle, cfg.BounceViewState);
+                    // The air-jolt model is white in the archive; Melee's item colour overlay
+                    // makes it blue. Tint the borrowed model to that in-game colour.
+                    shot.arcView.Tint = new Color(0.18f, 0.55f, 1f, 1f);
+                    shot.arcView.ObjectPose(0f);
+                }
+                catch (Exception e)
+                {
+                    CommonLog.Warn("Melee shot arc: " + e.Message);
+                    shot.arcView?.Dispose();
+                    shot.arcView = null;
+                }
+            }
             shot.ReadState();
             if (cfg.TrailParticle != 0 && cfg.Particles != null)
             {
@@ -127,6 +147,9 @@ namespace Ror2Common
             var next = origin + new Vector3(state.position.x, state.position.y, state.position.z) * cfg.Scale;
             var step = next - from;
             float length = step.magnitude;
+            // A shot that has left the playable volume is culled instead of being drawn
+            // under the map and bouncing off unseen geometry.
+            if (WorldProbe.InMapZone(next)) { End(true); return; }
             if (!measured && length > 1e-5f) { measured = true; speed = length / Time.fixedDeltaTime; }
             if (length < 1e-5f) { transform.position = next; return; }
             if (surfaceLock > 0) { surfaceLock--; transform.position = next; return; }
@@ -294,15 +317,17 @@ namespace Ror2Common
             transform.position = centre;
             Puff(cfg.BouncePuff, centre);
             Arc(centre);
-            surfaceLock = 2;
+            surfaceLock = 1;
             if (cfg.BounceSound != 0) cfg.PlaySound?.Invoke(cfg.BounceSound);
         }
 
         void Arc(Vector3 at)
         {
-            if (cfg.BounceViewArticle == uint.MaxValue) return;
-            var velocity = new Vector3(state.velocity.x, state.velocity.y, state.velocity.z);
-            ShotArc.Spawn(cfg, at, velocity, owner ? owner.transform.forward : Vector3.forward);
+            // The air-jolt arc follows the shot from now on; a new contact restarts its
+            // 24-tick source animation in place instead of spawning a static flash.
+            if (arcView == null) return;
+            arcTicks = 0;
+            arcVisible = true;
         }
 
         void Strike(Vector3 at)
@@ -372,6 +397,24 @@ namespace Ror2Common
                 try { cfg.Particles.Attach(trailKey, MeleeParticles.At(transform.position, rotation, cfg.Scale)); }
                 catch (Exception) { trailKey = 0; }
             }
+            if (arcVisible && arcView != null)
+            {
+                arcTicks++;
+                float arcScale = cfg.Scale * Mathf.Max(0.05f, cfg.BounceViewScale);
+                int frames = Mathf.Max(1, cfg.BounceViewFrames);
+                try
+                {
+                    arcView.ObjectPose(arcTicks % frames);
+                    arcView.FaceCamera(transform.position, rotation, arcScale);
+                    arcView.Models.Update(arcScale, d => (transform.position, rotation));
+                }
+                catch (Exception e)
+                {
+                    CommonLog.Warn("Melee shot arc: " + e.Message);
+                    arcView?.Dispose();
+                    arcView = null;
+                }
+            }
             if (view == null) return;
             try
             {
@@ -389,6 +432,7 @@ namespace Ror2Common
                 foreach (var puff in puffs) { try { cfg.Particles.Stop(puff.key); } catch (Exception) { } }
             puffs.Clear();
             view?.Dispose(); view = null;
+            arcView?.Dispose(); arcView = null;
             if (projectile != IntPtr.Zero) { MeleeNative.ssbm_projectile_free(projectile); projectile = IntPtr.Zero; }
         }
     }
