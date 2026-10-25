@@ -149,7 +149,7 @@ namespace Ror2Common
             float length = step.magnitude;
             // A shot that has left the playable volume is culled instead of being drawn
             // under the map and bouncing off unseen geometry.
-            if (WorldProbe.InMapZone(next)) { End(true); return; }
+            if (WorldProbe.InMapZone(next) || next.y < origin.y - 60f) { End(true); return; }
             if (!measured && length > 1e-5f) { measured = true; speed = length / Time.fixedDeltaTime; }
             if (length < 1e-5f) { transform.position = next; return; }
             if (surfaceLock > 0) { surfaceLock--; transform.position = next; return; }
