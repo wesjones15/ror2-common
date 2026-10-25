@@ -144,7 +144,10 @@ namespace Ror2Common
         public static bool Ready(GenericSkill slot, SkillDef own)
         {
             if (!slot) return false;
-            if (slot.skillDef != own) return slot.IsReady();
+            // A native skill's charges are stock, never the slot's cooldown. The expected
+            // def can differ by reference after a loadout family swap; the slot still holds
+            // a NativeSkillDef, so treat it as native rather than falling into IsReady().
+            if (slot.skillDef != own && !(slot.skillDef is NativeSkillDef)) return slot.IsReady();
             return Unlimited(slot.characterBody) || slot.stock >= 1;
         }
 
@@ -158,7 +161,7 @@ namespace Ror2Common
         {
             if (!slot) return false;
             var body = slot.characterBody;
-            if (slot.skillDef != own) return slot.ExecuteIfReady();
+            if (slot.skillDef != own && !(slot.skillDef is NativeSkillDef)) return slot.ExecuteIfReady();
             if (Unlimited(body))
             {
                 if (body) body.OnSkillActivated(slot);
