@@ -53,7 +53,12 @@ namespace Ror2Common
                     if (!hurt || !hurt.healthComponent || !hurt.healthComponent.alive || seen.Contains(hurt.healthComponent)) continue;
                     var target = hurt.healthComponent.body;
                     if (!target || !target.teamComponent || target.teamComponent.teamIndex == owner.teamComponent.teamIndex) continue;
-                    bool ground = target.characterMotor && target.characterMotor.isGrounded;
+                    // A body held in place (Yoshi's egg, a buried or slap-stunned enemy) is
+                    // planted where it was put and its motor is not simulating, so it can
+                    // report airborne while it sits on the floor. Treat it as standing or
+                    // every ground-only hitbox whiffs and the egg can never be pushed.
+                    bool ground = target.characterMotor
+                        && (target.characterMotor.isGrounded || EnemyHold.IsHeld(target));
                     if ((hit.flags & (ground ? 1u : 2u)) == 0) continue;
                     if (hit.damage <= 0) continue;
                     float angle = hit.angle == 361 ? 45f : Mathf.Min(hit.angle, 360u);
