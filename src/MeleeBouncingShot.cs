@@ -71,7 +71,9 @@ namespace Ror2Common
         IntPtr projectile;
         MeleeNative.ProjectileState state;
         MeleeFighterView view;
-        MeleeFighterView arcView;
+        const int ArcTrailLength = 8;
+        readonly MeleeFighterView[] arcViews = new MeleeFighterView[ArcTrailLength];
+        readonly List<Vector3> arcPoints = new List<Vector3>();
         int arcTicks;
         bool arcVisible;
         ulong trailKey;
@@ -105,19 +107,21 @@ namespace Ror2Common
                 shot.view = new MeleeFighterView(cfg.AssetsDir, cfg.Fighter, cfg.ViewArticle, cfg.ViewState);
             if (cfg.BounceViewArticle != uint.MaxValue)
             {
-                try
+                for (int i = 0; i < ArcTrailLength; i++)
                 {
-                    shot.arcView = new MeleeFighterView(cfg.AssetsDir, cfg.Fighter, cfg.BounceViewArticle, cfg.BounceViewState);
-                    // The air-jolt model is white in the archive; Melee's item colour overlay
-                    // makes it blue. Tint the borrowed model to that in-game colour.
-                    shot.arcView.Tint = new Color(0.18f, 0.55f, 1f, 1f);
-                    shot.arcView.ObjectPose(0f);
-                }
-                catch (Exception e)
-                {
-                    CommonLog.Warn("Melee shot arc: " + e.Message);
-                    shot.arcView?.Dispose();
-                    shot.arcView = null;
+                    try
+                    {
+                        shot.arcViews[i] = new MeleeFighterView(cfg.AssetsDir, cfg.Fighter, cfg.BounceViewArticle, cfg.BounceViewState);
+                        shot.arcViews[i].Tint = new Color(0.18f, 0.55f, 1f, 1f);
+                        shot.arcViews[i].ObjectPose(0f);
+                        shot.arcViews[i].Models.HideAll();
+                    }
+                    catch (Exception e)
+                    {
+                        CommonLog.Warn("Melee shot arc: " + e.Message);
+                        shot.arcViews[i]?.Dispose();
+                        shot.arcViews[i] = null;
+                    }
                 }
             }
             shot.ReadState();
@@ -323,9 +327,11 @@ namespace Ror2Common
 
         void Arc(Vector3 at)
         {
-            // The air-jolt arc follows the shot from now on; a new contact restarts its
-            // 24-tick source animation in place instead of spawning a static flash.
-            if (arcView == null) return;
+            // The air-jolt arc is the shot's actual travel path: a trail of arc models at
+            // its recent positions, restarted at each surface contact.
+            if (arcViews[0] == null) return;
+            arcPoints.Clear();
+            arcPoints.Add(at);
             arcTicks = 0;
             arcVisible = true;
         }
@@ -397,22 +403,36 @@ namespace Ror2Common
                 try { cfg.Particles.Attach(trailKey, MeleeParticles.At(transform.position, rotation, cfg.Scale)); }
                 catch (Exception) { trailKey = 0; }
             }
-            if (arcVisible && arcView != null)
+            if (arcVisible && arcViews[0] != null)
             {
                 arcTicks++;
+                Vector3 here = transform.position;
+                if (arcPoints.Count == 0 || (here - arcPoints[arcPoints.Count - 1]).sqrMagnitude > 0.0025f)
+                    arcPoints.Add(here);
+                while (arcPoints.Count > ArcTrailLength) arcPoints.RemoveAt(0);
                 float arcScale = cfg.Scale * Mathf.Max(0.05f, cfg.BounceViewScale);
                 int frames = Mathf.Max(1, cfg.BounceViewFrames);
-                try
+                for (int i = 0; i < ArcTrailLength; i++)
                 {
-                    arcView.ObjectPose(arcTicks % frames);
-                    arcView.FaceCamera(transform.position, rotation, arcScale);
-                    arcView.Models.Update(arcScale, d => (transform.position, rotation));
-                }
-                catch (Exception e)
-                {
-                    CommonLog.Warn("Melee shot arc: " + e.Message);
-                    arcView?.Dispose();
-                    arcView = null;
+                    var arc = arcViews[i];
+                    if (arc == null) continue;
+                    if (i >= arcPoints.Count) { arc.Models.HideAll(); continue; }
+                    Vector3 dir = i > 0 ? arcPoints[i] - arcPoints[i - 1] : here - arcPoints[i];
+                    var arcRotation = dir.sqrMagnitude > 1e-5f ? Quaternion.LookRotation(dir) : rotation;
+                    float fade = Mathf.Lerp(0.18f, 1f, (i + 1f) / arcPoints.Count);
+                    arc.Tint = new Color(0.18f, 0.55f, 1f, fade);
+                    try
+                    {
+                        arc.ObjectPose((arcTicks + i * 2) % frames);
+                        arc.FaceCamera(arcPoints[i], arcRotation, arcScale);
+                        arc.Models.Update(arcScale, d => (arcPoints[i], arcRotation));
+                    }
+                    catch (Exception e)
+                    {
+                        CommonLog.Warn("Melee shot arc: " + e.Message);
+                        arc.Dispose();
+                        arcViews[i] = null;
+                    }
                 }
             }
             if (view == null) return;
@@ -432,7 +452,7 @@ namespace Ror2Common
                 foreach (var puff in puffs) { try { cfg.Particles.Stop(puff.key); } catch (Exception) { } }
             puffs.Clear();
             view?.Dispose(); view = null;
-            arcView?.Dispose(); arcView = null;
+            for (int i = 0; i < ArcTrailLength; i++) { arcViews[i]?.Dispose(); arcViews[i] = null; }
             if (projectile != IntPtr.Zero) { MeleeNative.ssbm_projectile_free(projectile); projectile = IntPtr.Zero; }
         }
     }
