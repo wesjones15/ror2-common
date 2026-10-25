@@ -41,6 +41,9 @@ namespace Ror2Common
             public int size;
             public Func<ViewDraw, bool> hide;
             public Func<Texture2D> texture;
+            /// Receives the rendered portrait instead of it being assigned to the body's
+            /// `portraitIcon` (a skin's icon, say).
+            public Action<Texture2D> onTexture;
         }
 
         static readonly List<Job> pending = new List<Job>();
@@ -53,6 +56,15 @@ namespace Ror2Common
             PortraitFraming framing = default)
         {
             pending.Add(new Job { body = bodyPrefab, make = make, size = size, hide = hide, framing = framing });
+            EnsureRunner();
+        }
+
+        /// [`Request`] handing the rendered portrait to `onTexture` (a skin's icon) instead of
+        /// the body's `portraitIcon`.
+        public static void Request(GameObject bodyPrefab, Func<IDisplayActor> make, Action<Texture2D> onTexture,
+            Func<ViewDraw, bool> hide = null, int size = 256, PortraitFraming framing = default)
+        {
+            pending.Add(new Job { body = bodyPrefab, make = make, onTexture = onTexture, size = size, hide = hide, framing = framing });
             EnsureRunner();
         }
 
@@ -117,13 +129,20 @@ namespace Ror2Common
                     try { tex = job.texture != null ? job.texture() : Render(job); }
                     catch (Exception e) { CommonLog.Error($"portrait for {(job.body ? job.body.name : "?")}: {e}"); }
                     if (!tex) continue;
-                    var cb = job.body ? job.body.GetComponent<CharacterBody>() : null;
-                    if (cb) cb.portraitIcon = tex;
-                    // A late asset extraction can finish while character select is open.
-                    // Its icon controllers cache the texture when their grid is built.
-                    foreach (var icon in UnityEngine.Object.FindObjectsOfType<RoR2.UI.SurvivorIconController>())
-                        if (icon.survivorDef && icon.survivorDef.bodyPrefab == job.body && icon.survivorIcon)
-                            icon.survivorIcon.texture = tex;
+                    if (job.onTexture != null)
+                    {
+                        job.onTexture(tex);
+                    }
+                    else
+                    {
+                        var cb = job.body ? job.body.GetComponent<CharacterBody>() : null;
+                        if (cb) cb.portraitIcon = tex;
+                        // A late asset extraction can finish while character select is open.
+                        // Its icon controllers cache the texture when their grid is built.
+                        foreach (var icon in UnityEngine.Object.FindObjectsOfType<RoR2.UI.SurvivorIconController>())
+                            if (icon.survivorDef && icon.survivorDef.bodyPrefab == job.body && icon.survivorIcon)
+                                icon.survivorIcon.texture = tex;
+                    }
                     pending.RemoveAt(i);
                     CommonLog.Info($"portrait for {job.body.name} ready");
                 }
