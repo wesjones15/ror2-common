@@ -33,6 +33,10 @@ namespace Ror2Common
         protected const float WallNormalY = 0.5f;
         protected readonly List<Vector3> walls = new List<Vector3>();
         protected bool active, failed, permitDamage, deathStarted;
+        // Wax Quail: the last jump was a sprinting ground jump, so after the step
+        // its horizontal speed is scaled (deferred so the sim is not mutated from
+        // inside its own event callback).
+        bool quailOwed;
         uint startedMove; ulong lastBatchSerial = ulong.MaxValue;
         uint lastButtons; int upBTicks;
         EnemyCapture capture;
@@ -182,6 +186,21 @@ namespace Ror2Common
             } catch (Exception) { }
         }
 
+        /// GenericCharacterMain.ProcessJump's Wax Quail, as a share of a full run: the boost's
+        /// speed, `sqrt(10 * stacks * accel * air control)`, over RoR2's move speed, plus 1. The
+        /// jump's horizontal speed is then scaled by this. Mirrors Mario's `QuailBoost`.
+        float QuailBoost()
+        {
+            int n = ByName.Count(body, "JumpBoost");
+            if (n <= 0 || !body) return 1f;
+            var motor = body.characterMotor;
+            float accel = body.acceleration * (motor ? motor.airControl : 0.25f);
+            float speed = Mathf.Max(1f, body.moveSpeed);
+            if (accel <= 0f) return 1f;
+            float extra = Mathf.Sqrt(10f * n * accel) / speed * Mathf.Max(0f, MeleeItems.QuailScale);
+            return 1f + extra;
+        }
+
         // --- Generic core -----------------------------------------------------
         protected void FaceTarget()
         {
@@ -292,6 +311,12 @@ namespace Ror2Common
                 if (direction) { var facing = direction.forward; MeleeNative.ssbm_sim_facing(sim, new MeleeNative.Vec3(facing.x, 0, facing.z)); }
                 BeforeStep(in p);
                 MeleeNative.ssbm_sim_step(sim, in host, in p, Time.fixedDeltaTime);
+                if (quailOwed)
+                {
+                    quailOwed = false;
+                    float quail = QuailBoost();
+                    if (quail > 1f && MeleeNative.HasBoostJump) MeleeNative.ssbm_sim_boost_jump(sim, quail);
+                }
                 FlushOps();
                 uint previousRecovery = recoveryFlags; recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim);
                 // Map falloff only: the blast-zone lines are drawn in front of the camera while the fall
@@ -588,7 +613,7 @@ namespace Ror2Common
             if (e.kind == 1) { BeginMove(e); OnEventStarted(e); NativeBody.MarkCombat(body); if (!IsContextualAttack(e.move_id)) MeleeAim.BeginAttack(body, direction, MeleeAim.CameraRay(body, input).direction); }
             else if (e.kind == 2) { if (permitDamage) OnEventHit(e); }
             else if (e.kind == 6) GrabThrow(e);
-            else if (e.kind == 3) { native.Jumped(); OnJump(e.strength); }
+            else if (e.kind == 3) { if (e.strength <= 1f && body.isSprinting) quailOwed = true; native.Jumped(); OnJump(e.strength); }
             else if (e.kind == 4) native.Landed(Vector3.down * e.strength * scale * 60f);
         }
         // A move the sim started: its slot spends a charge (RoR2's bookkeeping: cooldown, items that
