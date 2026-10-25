@@ -44,6 +44,10 @@ namespace Ror2Common
     {
         /// Shown under the name ("Sunshine's plumber with FLUDD"); optional.
         public string Subtitle;
+        /// The face beside the name; null uses the body's own portrait (`CharacterBody.portraitIcon`).
+        /// A sheet whose character has skins sets this so the face follows the selected one, the
+        /// way a skin-specific survivor portrait would.
+        public Texture Portrait;
         public readonly List<ControlSection> Gamepad = new List<ControlSection>();
         public readonly List<ControlSection> Keyboard = new List<ControlSection>();
         /// Shown at the foot of the window; optional.
@@ -143,8 +147,8 @@ namespace Ror2Common
             if (!PauseControls.TrySheet(body, out var sheet)) return;
             title.text = body.GetDisplayName();
             subtitle.text = sheet.Subtitle ?? "";
-            portrait.texture = body.portraitIcon;
-            portrait.color = body.portraitIcon ? Color.white : Color.clear;
+            portrait.texture = sheet.Portrait ? sheet.Portrait : body.portraitIcon;
+            portrait.color = portrait.texture ? Color.white : Color.clear;
             var sections = pad ? sheet.Gamepad : sheet.Keyboard;
             bool other = false;
             if (sections.Count == 0) { sections = pad ? sheet.Keyboard : sheet.Gamepad; other = sections.Count > 0; }
