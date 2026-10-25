@@ -353,6 +353,10 @@ namespace Ror2Common
                 MeleeNative.ssbm_sim_tuning(sim, new MeleeNative.Tuning { speed_scale = speedScale, jump_scale = JumpScale * NativeBody.JumpScale(body), extra_jumps = extra, hold_charge = HoldCharge ? 1u : 0u, smash_max_frames = 60 });
                 MeleeNative.ssbm_sim_jump_height(sim, MeleeControls.JumpHeight(body.jumpPower, Physics.gravity.y, motor.jumpPowerPenaltyCoefficient) / scale);
                 if (MeleeNative.HasStomp) MeleeNative.ssbm_sim_set_stomp(sim, ByName.Count(body, "FallBoots") > 0 ? 1u : 0u);
+                if (MeleeNative.HasAttackSpeed) {
+                    float attackSpeed = 1f + Mathf.Max(0f, body.attackSpeed - 1f) * MeleeItems.AttackSpeedScale;
+                    MeleeNative.ssbm_sim_set_attack_speed(sim, attackSpeed);
+                }
                 FaceTarget();
                 if (direction) { var facing = direction.forward; MeleeNative.ssbm_sim_facing(sim, new MeleeNative.Vec3(facing.x, 0, facing.z)); }
                 BeforeStep(in p);

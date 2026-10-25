@@ -38,6 +38,8 @@ namespace Ror2Common
         public static bool HasBoostJump {get;private set;}
         /// The H3AD-5T v2 stomp (jump in the air with no jumps left). Optional.
         public static bool HasStomp {get;private set;}
+        /// RoR2 attack speed (the move-playback multiplier). Optional.
+        public static bool HasAttackSpeed {get;private set;}
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_rebirth(IntPtr sim,byte[] dir,Vec3 destination);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_rebirth_flags(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_camera(IntPtr view,Vec3 camera);
@@ -111,6 +113,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasBoostJump=false;}
             try {ssbm_sim_set_stomp(IntPtr.Zero,0);HasStomp=true;}
             catch(EntryPointNotFoundException){HasStomp=false;}
+            try {ssbm_sim_set_attack_speed(IntPtr.Zero,0f);HasAttackSpeed=true;}
+            catch(EntryPointNotFoundException){HasAttackSpeed=false;}
             var sizes = new uint[14]; uint count=ssbm_struct_sizes(sizes,(uint)sizes.Length);
             error=NativeLib.CompareSizes(sizes,count,new[] {
                 ("Vec3",NativeLib.Size<Vec3>()),("Pad",NativeLib.Size<Pad>()),("State",NativeLib.Size<State>()),
@@ -219,6 +223,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_boost_jump(IntPtr sim,float factor);
         /// Enables (1) or disables (0) the H3AD-5T v2 stomp.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_set_stomp(IntPtr sim,uint enabled);
+        /// Sets RoR2's attack-speed multiplier (1 is the source's rate).
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_set_attack_speed(IntPtr sim,float speed);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new(byte[] dir,uint kind,uint costume);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new_choice(byte[] dir,uint kind,uint costume,uint choice);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_article_new(byte[] dir,uint fighterKind,uint articleKind,uint state);
