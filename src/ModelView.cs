@@ -361,7 +361,7 @@ namespace Ror2Common
             return tex;
         }
 
-        static TextureWrapMode Wrap(byte w) =>
+        public static TextureWrapMode Wrap(byte w) =>
             w == 1 ? TextureWrapMode.Clamp : w == 2 ? TextureWrapMode.Mirror : TextureWrapMode.Repeat;
 
         Material MakeMaterial(ViewBatch b, Texture2D tex, bool forceAdditive)
