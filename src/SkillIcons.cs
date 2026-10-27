@@ -9,13 +9,15 @@ using UnityEngine;
 
 namespace Ror2Common
 {
-    public enum SkillIconSource : byte { None, Effect, Article, ArticleCharacter, Ball, Character, EffectCharacter, Item, Model, ModelCharacter }
+    public enum SkillIconSource : byte { None, Effect, Article, ArticleCharacter, Ball, Character, EffectCharacter, Item, Model, ModelCharacter, Attack }
 
     /// One generated skill portrait's source. Effect is a source efSync/efAlt cue,
     /// which resolves to an effect model or a particle emitter; Article is a fighter
     /// projectile; Ball is the fighter's alternate model (Samus's Morph Ball); Model
     /// is a common effect model (the shield bubble). Character and EffectCharacter
     /// pose the fighter, with the effect placed at Offset in its native units.
+    /// Attack runs the real fighter sim into a move and stills it (MeleeAttackStage):
+    /// the pose, effects and articles all come from the sim, and `color` is its backdrop.
     public struct MeleeSkillIcon
     {
         public SkillIconSource source;
@@ -26,6 +28,12 @@ namespace Ror2Common
         public Vector3 offset, charOffset, rotation, trailOffset;
         public bool glow, tongue;
         public Color color;
+        public MeleeAttack attack;
+        /// Frame the subject's largest extent with this margin (1.2: a fifth of room around it),
+        /// instead of the default zoom framing. 0: off.
+        public float fit;
+        /// Fighters whose icons share a key render once and reuse the picture (the shield bubble).
+        public string share;
     }
 
     /// Renders the Melee skill portraits from the player's extracted disc cache and
@@ -47,6 +55,7 @@ namespace Ror2Common
 
         static readonly List<Job> pending = new List<Job>();
         static readonly HashSet<string> queued = new HashSet<string>();
+        static readonly Dictionary<string, Texture2D> shared = new Dictionary<string, Texture2D>();
         static Runner runner;
 
         public static void Request(SkillDef def, string defName, uint kind, Func<string> assetsDir, Func<bool> ready)
@@ -87,7 +96,14 @@ namespace Ror2Common
                         if (!job.ready()) continue;
                         var dir = job.assetsDir();
                         if (string.IsNullOrEmpty(dir)) continue;
-                        var tex = Render(job, dir);
+                        Texture2D tex = null;
+                        string share = job.icon.share;
+                        if (share != null && shared.TryGetValue(share, out tex) && !tex) tex = null;
+                        if (!tex)
+                        {
+                            tex = Render(job, dir);
+                            if (tex && share != null) shared[share] = tex;
+                        }
                         if (!tex) continue;
                         job.def.icon = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
                         Dump(tex, job.defName);
@@ -163,11 +179,17 @@ namespace Ror2Common
             var views = new List<MeleeFighterView>();
             var materials = new List<Material>();
             MeleeParticles particles = null;
+            MeleeAttackStage attack = null;
             GameObject camGo = null, lightGo = null;
             RenderTexture rt = null;
             var layers = new List<(GameObject, int)>();
             try
             {
+                if (icon.source == SkillIconSource.Attack)
+                {
+                    attack = new MeleeAttackStage(assetsDir, job.kind, icon.attack);
+                    attack.Run();
+                }
                 bool wantCharacter = icon.source == SkillIconSource.Character || icon.source == SkillIconSource.EffectCharacter || icon.source == SkillIconSource.ArticleCharacter || icon.source == SkillIconSource.ModelCharacter;
                 bool wantEffect = icon.source == SkillIconSource.Effect || icon.source == SkillIconSource.EffectCharacter
                     || icon.source == SkillIconSource.Article || icon.source == SkillIconSource.ArticleCharacter || icon.source == SkillIconSource.Ball
@@ -267,18 +289,35 @@ namespace Ror2Common
                     }
                 }
                 Vector3 center = at;
-                float radius = 6f;
+                float radius = 6f, extent = 0f;
                 if (points.Count > 0)
                 {
                     var lo = points[0]; var hi = points[0];
                     foreach (var p in points) { lo = Vector3.Min(lo, p); hi = Vector3.Max(hi, p); }
                     center = (lo + hi) * 0.5f;
                     radius = Mathf.Max(1f, (hi - lo).magnitude * 0.5f);
+                    extent = Mathf.Max(hi.x - lo.x, Mathf.Max(hi.y - lo.y, hi.z - lo.z));
                 }
                 float zoom = icon.zoom > 0f ? icon.zoom : 1f;
                 float distance = radius * 1.55f / zoom;
                 const float yaw = 0.42f;
                 var cameraAt = center + new Vector3(Mathf.Sin(yaw) * distance, distance * 0.2f, Mathf.Cos(yaw) * distance);
+                // The vertical field of view is 30 degrees: half the shown height is distance * tan(15).
+                const float tanHalfFov = 0.26795f;
+                if (attack != null)
+                {
+                    // Framing is part of the attack's description: look at its focus from its yaw/pitch.
+                    var spec = icon.attack;
+                    center = stage.position + spec.Focus;
+                    distance = Mathf.Max(1f, spec.Half) / tanHalfFov;
+                    float pitch = Mathf.Clamp(spec.Pitch, -1.2f, 1.2f);
+                    cameraAt = center + new Vector3(Mathf.Sin(spec.Yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(spec.Yaw) * Mathf.Cos(pitch)) * distance;
+                }
+                else if (icon.fit > 0f && extent > 0f)
+                {
+                    distance = extent * 0.5f * icon.fit / tanHalfFov;
+                    cameraAt = center + new Vector3(Mathf.Sin(yaw) * 0.98f, 0.2f, Mathf.Cos(yaw) * 0.98f).normalized * distance;
+                }
 
                 foreach (var view in views)
                 {
@@ -314,13 +353,38 @@ namespace Ror2Common
 
                 rt = new RenderTexture(256, 256, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
+                Color[] px;
+                if (attack != null)
+                {
+                    // Place the models once the camera exists (billboards face it), then render straight
+                    // onto the backdrop colour: the black/white alpha recovery below cannot keep additive
+                    // glows and exhaust, which this still is mostly made of.
+                    GameSettings.CameraOverride = camGo.transform;
+                    attack.Draw(stage.position);
+                    foreach (var root in attack.Roots())
+                        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                        {
+                            layers.Add((t.gameObject, t.gameObject.layer));
+                            t.gameObject.layer = layer;
+                        }
+                    var placement = MeleeAttackStage.Placement(stage.position);
+                    px = Grab(cam, rt, AttackBackdrop(icon.color), () => attack.Particles.Draw(cam, layer, placement));
+                    for (int y = 0; y < 256; y++)
+                        for (int x = 0; x < 256; x++)
+                        {
+                            int edge = Mathf.Min(Mathf.Min(x, y), Mathf.Min(255 - x, 255 - y));
+                            if (edge < 3) px[y * 256 + x] = Color.Lerp(px[y * 256 + x], icon.color, 0.75f);
+                        }
+                }
+                else
+                {
                 Action drawParticles = () =>
                 {
                     if (particles != null) particles.Draw(cam, layer, Matrix4x4.identity);
                 };
                 var black = Grab(cam, rt, Color.black, drawParticles);
                 var white = Grab(cam, rt, Color.white, drawParticles);
-                var px = new Color[black.Length];
+                px = new Color[black.Length];
                 for (int y = 0; y < 256; y++)
                 {
                     for (int x = 0; x < 256; x++)
@@ -332,6 +396,7 @@ namespace Ror2Common
                         var bg = Backdrop(x, y, icon.color);
                         px[i] = new Color(fg.r * a + bg.r * (1f - a), fg.g * a + bg.g * (1f - a), fg.b * a + bg.b * (1f - a), 1f);
                     }
+                }
                 }
                 var tex = new Texture2D(256, 256, TextureFormat.RGBA32, false)
                 {
@@ -345,11 +410,13 @@ namespace Ror2Common
             }
             finally
             {
+                GameSettings.CameraOverride = null;
                 foreach (var (go, l) in layers) if (go) go.layer = l;
                 if (camGo) UnityEngine.Object.Destroy(camGo);
                 if (lightGo) UnityEngine.Object.Destroy(lightGo);
                 if (rt) { rt.Release(); UnityEngine.Object.Destroy(rt); }
                 particles?.Dispose();
+                attack?.Dispose();
                 foreach (var view in views) view.Dispose();
                 UnityEngine.Object.Destroy(stage.gameObject);
             }
@@ -395,6 +462,9 @@ namespace Ror2Common
             if (edge < 3) c = Color.Lerp(c, tint, 0.75f);
             return c;
         }
+
+        // The flat colour an attack still is rendered on: the soft centre of the other cards' backdrop.
+        static Color AttackBackdrop(Color tint) => Color.Lerp(new Color(0.035f, 0.050f, 0.075f), tint, 0.42f);
 
         static Color[] Grab(Camera cam, RenderTexture rt, Color background, Action before)
         {
@@ -449,27 +519,53 @@ namespace Ror2Common
         static MeleeSkillIcon I(uint item, uint state, Color color, float zoom = 1f) =>
             new MeleeSkillIcon { source = SkillIconSource.Item, id = item, state = state, color = color, zoom = zoom };
 
+        /// An attack still (MeleeAttackStage): the sim is driven into the move and stilled `Ticks` steps in.
+        static MeleeSkillIcon X(MeleeAttack attack, Color background) =>
+            new MeleeSkillIcon { source = SkillIconSource.Attack, attack = attack, color = background };
+
+        /// Every fighter's Shield / Air Feint icon: the shield bubble alone (Yoshi's included), rendered
+        /// once and shared.
+        static MeleeSkillIcon Shield() =>
+            new MeleeSkillIcon { source = SkillIconSource.Model, id = 14, color = Blue, zoom = 1f, frame = 4f, fit = 1.25f, share = "shield" };
+
+        // The articles Samus's moves release on their Hit event (Samus/Combat.cs Attack).
+        static MeleeAttackShot? SamusShot(MeleeNative.Event e)
+        {
+            switch (e.move_id)
+            {
+                case 20: return new MeleeAttackShot { Article = 1, State = (uint)Mathf.Clamp(Mathf.RoundToInt(e.strength * 7f) + 1, 1, 8), Charge = e.strength, Aimed = true, Cues = true };
+                case 21: return new MeleeAttackShot { Article = 2, State = 0, Aimed = true, Cues = true };
+                case 22: return new MeleeAttackShot { Article = 2, State = 1, Aimed = true, Cues = true };
+                case 24: return new MeleeAttackShot { Article = 0, State = 0, Cues = true };
+                default: return null;
+            }
+        }
+
         static MeleeSkillIcon For(string defName)
         {
             switch (defName)
             {
-                // Samus
-                case "MeleeSamus0": return AC(1, 0, "SpecialNHold", 20, Orange, 1.5f, 4, new Vector3(3f, 8f, 7f), new Vector3(-2f, 0f, 1f));
-                case "MeleeSamusBomb": return B(Orange);
-                case "MeleeShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
-                case "MeleeSamus2": return AC(2, 0, "SpecialS", 8, Red, 1.4f, 4, new Vector3(2f, 7f, 8f), new Vector3(-2f, 0f, 1f), 2014, 12, new Vector3(0f, 0f, -6f), new Vector3(0f, -1.45f, 0.22f));
+                // Samus: the attacks are stills of the real moves, aimed toward the camera and a little right.
+                // Ticks is how far into the move the still is taken (60 Hz steps from the press).
+                // Charge Shot: held about a second; the ball sits on the cannon, Samus cropped by the frame.
+                case "MeleeSamus0": return X(new MeleeAttack { Buttons = 256, Ticks = 60, ChargeArticle = 1, Shot = SamusShot, Focus = new Vector3(0f, 9.7f, 1.4f), Half = 5.5f }, Orange);
+                // Morph Ball Bomb: the ball mid-roll with the dropped bomb just behind it, before it goes off.
+                case "MeleeSamusBomb": return X(new MeleeAttack { Buttons = 2048, HostFlags = 4, Stick = new Vector3(0f, 0f, 1f), Ticks = 10, Shot = SamusShot, Focus = new Vector3(1.2f, 4.5f, 7.5f), Half = 9.5f }, Orange);
+                // Missile: just launched, the arm still out, the missile and its exhaust coming at the camera.
+                case "MeleeSamus2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 24, Shot = SamusShot, Focus = new Vector3(0f, 13.5f, 9.5f), Half = 8.5f }, Red);
+                case "MeleeShield": return Shield();
                 case "MeleeSamus3": return EC(1154, "SpecialHi", 10, Green, 1f, 16, new Vector3(0f, 6f, 0f), new Vector3(0f, 8f, 0f));
                 // Fox
                 case "MeleeFox0": return AC(0, 0, "SpecialN", 2, Red, 1.2f, 4, new Vector3(0f, 6f, 6f));
                 case "MeleeFoxReflector": return EC(1160, "SpecialLw", 4, Blue, 1f, 4, new Vector3(0f, 6f, 0f));
-                case "MeleeFoxShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeFoxShield": return Shield();
                 case "MeleeFox2": return AC(2, 0, "SpecialS", 2, Blue, 1f, 4, new Vector3(0f, 6f, 4f));
                 case "MeleeFox3": return EC(1164, "SpecialHi", 8, Orange, 1f, 4, new Vector3(0f, 6f, 0f));
                 // Luigi
                 case "MeleeLuigi0": return AC(0, 0, "SpecialN", 4, Green, 1.4f, 4, new Vector3(0f, 6f, 4f));
                 case "MeleeLuigiScope": return I(0x15, 0, Green, 1.1f);
                 case "MeleeLuigiCyclone": return EC(1289, "SpecialLw", 6, Green, 1f, 4, new Vector3(0f, 6f, 0f));
-                case "MeleeLuigiShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeLuigiShield": return Shield();
                 case "MeleeLuigi2": return C("SpecialS", 8, Green, 0.9f, false, 66, 3, new Vector3(0f, 0f, 1f));
                 case "MeleeLuigi3": return C("SpecialHi", 6, Red);
                 case "MeleeLuigiScopeSpecial": return I(0x15, 0, Green, 1.1f);
@@ -477,31 +573,31 @@ namespace Ror2Common
                 case "MeleePikachu0": return AC(1, 0, "SpecialN", 4, Yellow, 1f, 4, new Vector3(0f, 6f, 6f), default, 7000, 10);
                 case "MeleePikachuEggLay": return C("SpecialLwStart", 15, Green, 1.7f, true);
                 case "MeleePikachu2": return AC(0, 0, "SpecialLwStart", 4, Yellow, 0.8f, 4, new Vector3(0f, 10f, 0f), default, 0, 20, default, default, true);
-                case "MeleePikachuShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleePikachuShield": return Shield();
                 case "MeleePikachuSkullBash": return C("SpecialS", 8, Yellow, 0.9f, false, 66, 3, new Vector3(0f, 0f, 1f));
                 case "MeleePikachu3": return C("SpecialHiStart", 2, Yellow, 1f);
                 // Captain Falcon
                 case "MeleeCaptain0": return EC(1167, "SpecialN", 20, Red, 1f, 6, new Vector3(0f, 7f, 6f));
                 case "MeleeCaptainKick": return EC(1168, "SpecialLw", 10, Orange, 1f, 6, new Vector3(0f, 5f, 6f));
-                case "MeleeCaptainShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeCaptainShield": return Shield();
                 case "MeleeCaptain2": return EC(1170, "SpecialS", 8, Blue, 1f, 6, new Vector3(0f, 6f, 4f));
                 case "MeleeCaptain3": return C("SpecialHi", 10, Blue, 1f);
                 // Link
                 case "MeleeLink0": return AC(0, 0, "SpecialN", 8, Green, 0.9f, 4, new Vector3(0f, 8f, 8f));
                 case "MeleeLinkBomb": return AC(2, 0, "SpecialLw", 6, Green, 1f, 4, new Vector3(0f, 6f, 4f));
-                case "MeleeLinkShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeLinkShield": return Shield();
                 case "MeleeLink2": return AC(1, 0, "SpecialS", 4, Green, 0.9f, 4, new Vector3(0f, 8f, 7f));
                 case "MeleeLink3": return EC(1211, "SpecialHi", 8, Green, 1.2f, 4, new Vector3(0f, 6f, 0f));
                 // Yoshi
                 case "MeleeYoshi0": return C("SpecialN", 14, Green, 1.7f, true);
                 case "MeleeYoshiBomb": return AC(1, 0, "SpecialLw", 8, Green, 1f, 4, new Vector3(0f, 4f, 4f));
-                case "MeleeYoshiShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeYoshiShield": return Shield();
                 case "MeleeYoshi2": return M(2000, Green, 1.1f, 4);
                 case "MeleeYoshi3": return AC(0, 0, "SpecialHi", 6, Green, 0.9f, 4, new Vector3(0f, 8f, 6f));
                 // Donkey Kong
                 case "MeleeDonkey0": return EC(1224, "SpecialN", 12, Brown, 1f, 4, new Vector3(0f, 7f, 6f));
                 case "MeleeDonkeySlap": return EC(1222, "SpecialLw", 6, Brown, 1f, 4, new Vector3(0f, 3f, 5f));
-                case "MeleeDonkeyShield": return MC(14, "GuardOn", 4, Blue, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeDonkeyShield": return Shield();
                 case "MeleeDonkey2": return C("SpecialS", 6, Brown);
                 case "MeleeDonkey3": return EC(1226, "SpecialHi", 8, Brown, 1f, 4, new Vector3(0f, 6f, 0f));
                 default: return default;

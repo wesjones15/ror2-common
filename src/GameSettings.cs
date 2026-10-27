@@ -46,9 +46,14 @@ namespace Ror2Common
             return AudioGain.Percent(cv?.GetString());
         }
 
+        /// While set, `PlayerCamera` answers with this transform. An offscreen capture (the skill
+        /// portraits) sets it so camera-facing billboards turn toward the capture camera, and clears it.
+        public static Transform CameraOverride;
+
         /// The first local player's camera (their rig's scene camera, else Camera.main).
         public static Transform PlayerCamera()
         {
+            if (CameraOverride) return CameraOverride;
             var user = LocalUserManager.GetFirstLocalUser();
             var rig = user != null ? user.cameraRigController : null;
             if (rig && rig.sceneCam) return rig.sceneCam.transform;
