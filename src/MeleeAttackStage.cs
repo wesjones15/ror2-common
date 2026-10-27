@@ -22,6 +22,9 @@ namespace Ror2Common
         public uint Trail;
         /// Draw the article additively in this colour where its texture is black (the thunder bolt's border).
         public bool Glow;
+        /// Release the article from this common fighter part (a hand) instead of the event's position (Luigi's fireball);
+        /// 0: use the event.
+        public uint Bone;
         public Color GlowColor;
     }
 
@@ -189,7 +192,10 @@ namespace Ror2Common
                 CommonLog.Warn("Melee attack still shot view: " + error.Message);
                 if (s.Trail == 0) { if (handle != IntPtr.Zero) MeleeNative.ssbm_projectile_free(handle); return; }
             }
-            var shot = new Shot { handle = handle, view = view, spec = s, key = nextKey++, frame = 0, origin = new Vector3(e.position.x, e.position.y, e.position.z) };
+            var from = new Vector3(e.position.x, e.position.y, e.position.z);
+            var part = new float[16];
+            if (s.Bone != 0 && MeleeNative.ssbm_sim_common_bone(sim, s.Bone, part) == 1) from = new Vector3(part[12], part[13], part[14]);
+            var shot = new Shot { handle = handle, view = view, spec = s, key = nextKey++, frame = 0, origin = from };
             Read(shot);
             shots.Add(shot);
             if (s.Trail != 0)

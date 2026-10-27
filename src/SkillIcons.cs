@@ -499,6 +499,7 @@ namespace Ror2Common
         static readonly Color Blue = new Color(0.25f, 0.55f, 0.95f);
         static readonly Color Red = new Color(0.90f, 0.25f, 0.20f);
         static readonly Color Brown = new Color(0.65f, 0.42f, 0.22f);
+        static readonly Color Purple = new Color(0.55f, 0.28f, 0.75f);
 
         static MeleeSkillIcon E(uint id, Color color, float zoom = 1f, float frame = 4f, uint trail = 0, int trailFrames = 20) =>
             new MeleeSkillIcon { source = SkillIconSource.Effect, id = id, color = color, zoom = zoom, frame = frame, trail = trail, trailFrames = trailFrames };
@@ -532,9 +533,9 @@ namespace Ror2Common
         static MeleeAttackShot? FoxShot(MeleeNative.Event e) =>
             e.move_id == 20 ? new MeleeAttackShot { Article = 0, State = 0, Aimed = true } : (MeleeAttackShot?)null;
 
-        // The other fighters' Hit-event articles (each fighter's Combat.cs). Luigi's fireball is article 0.
+        // The other fighters' Hit-event articles (each fighter's Combat.cs). Luigi's fireball is article 0, thrown from his left hand (common part 23).
         static MeleeAttackShot? LuigiShot(MeleeNative.Event e) =>
-            e.move_id == 20 ? new MeleeAttackShot { Article = 0, State = 0, Aimed = true } : (MeleeAttackShot?)null;
+            e.move_id == 20 ? new MeleeAttackShot { Article = 0, State = 0, Aimed = true, Bone = 23 } : (MeleeAttackShot?)null;
 
         // Pikachu's Thunder Jolt is article 1 (the ground jolt), a particle with no model of its own.
         static MeleeAttackShot? PikachuShot(MeleeNative.Event e) =>
@@ -578,29 +579,29 @@ namespace Ror2Common
                 // Charge Shot: held two seconds, nearly full; the ball sits on the cannon, Samus cropped by the frame.
                 case "MeleeSamus0": return X(new MeleeAttack { Buttons = 256, Ticks = 120, ChargeArticle = 1, Shot = SamusShot, Focus = new Vector3(0f, 9.7f, 1.4f), Half = 7f }, Orange);
                 // Morph Ball Bomb: the ball mid-roll with the dropped bomb just behind it, before it goes off.
-                case "MeleeSamusBomb": return X(new MeleeAttack { Buttons = 2048, HostFlags = 4, Stick = new Vector3(0f, 0f, 1f), Ticks = 10, Shot = SamusShot, Focus = new Vector3(0f, 5.5f, 13.8f), Half = 9.5f }, Orange);
+                case "MeleeSamusBomb": return X(new MeleeAttack { Buttons = 2048, HostFlags = 4, Stick = new Vector3(0f, 0f, 1f), Ticks = 10, Shot = SamusShot, Focus = new Vector3(0f, 5.5f, 13.8f), Half = 6.8f }, Orange);
                 // Missile: just launched, the arm still out, the missile and its exhaust coming at the camera.
                 case "MeleeSamus2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 24, ShotAdvance = 2, Shot = SamusShot, Focus = new Vector3(0.5f, 14f, 11f), Half = 7f }, Red);
                 case "MeleeShield": return Shield();
                 // Screw Attack: rising mid-spin, the spin effect around her.
-                case "MeleeSamus3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 11, Flash = true, Focus = new Vector3(0f, 28f, 0f), Half = 11f }, Green);
+                case "MeleeSamus3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 14, Flash = true, Follow = true, Focus = new Vector3(0f, 5.5f, 0f), Half = 11f }, Green);
                 // Fox
                 // Blaster: the gun out, the muzzle flash and the red laser leaving its tip.
-                case "MeleeFox0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 13, Shot = FoxShot, Focus = new Vector3(1.5f, 9f, 5f), Half = 10f, Yaw = 1f }, Red);
+                case "MeleeFox0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 13, ShotAdvance = 1, Shot = FoxShot, Focus = new Vector3(1.5f, 9f, 5f), Half = 10f, Yaw = 1f }, Red);
                 // Reflector: the dome and its core, the dust ring at the feet; the card keeps the old framing, zoomed out.
                 case "MeleeFoxReflector": return X(new MeleeAttack { Buttons = 2048, Ticks = 8, Focus = new Vector3(0f, 7f, 0f), Half = 13f, Yaw = 0.42f, Pitch = 0.2f }, Blue);
                 case "MeleeFoxShield": return Shield();
                 // Illusion: the blue copies at the launch, coming at the camera, angled 45 degrees toward the right of the icon.
-                case "MeleeFox2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 23, Focus = new Vector3(0f, 6f, 34f), Half = 15f, Yaw = 0.785f, Pitch = 0.1f }, Blue);
+                case "MeleeFox2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 28, Follow = true, Focus = new Vector3(0f, 7f, -10f), Half = 20f, Yaw = 0.785f, Pitch = 0.1f }, Purple);
                 // Fire Fox: launched, in the flame.
                 case "MeleeFox3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 47, Aim = new Vector3(0f, 0.5f, 1f), Focus = new Vector3(0f, 19f, 27.2f), Half = 12f }, Orange);
                 // Luigi
                 case "MeleeLuigi0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Shot = LuigiShot, Focus = new Vector3(1.5f, 8f, 5f), Half = 10f }, Green);
                 case "MeleeLuigiScope": return I(0x15, 0, Green, 1.1f);
-                case "MeleeLuigiCyclone": return X(new MeleeAttack { Buttons = 2048, Ticks = 12, Focus = new Vector3(0f, 8f, 0f), Half = 12f }, Green);
+                case "MeleeLuigiCyclone": return X(new MeleeAttack { Buttons = 2048, Ticks = 24, Focus = new Vector3(0f, 8f, 0f), Half = 9f }, Green);
                 case "MeleeLuigiShield": return Shield();
-                case "MeleeLuigi2": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 47, Follow = true, Focus = new Vector3(0f, 7f, 0f), Half = 14f }, Green);
-                case "MeleeLuigi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 10, Follow = true, Focus = new Vector3(0f, 8f, 0f), Half = 15f }, Red);
+                case "MeleeLuigi2": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 47, Follow = true, Focus = new Vector3(0f, 7f, 0f), Half = 10f }, Green);
+                case "MeleeLuigi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 10, Follow = true, Focus = new Vector3(0f, 8f, 0f), Half = 8f }, Red);
                 case "MeleeLuigiScopeSpecial": return I(0x15, 0, Green, 1.1f);
                 // Pikachu
                 case "MeleePikachu0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Shot = PikachuShot, Focus = new Vector3(1f, 6f, 6f), Half = 10f }, Yellow);
