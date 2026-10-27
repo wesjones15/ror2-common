@@ -39,8 +39,8 @@ namespace Ror2Common
         /// The article shown held on the fighter while charging (Samus's charge ball); -1: none.
         public int ChargeArticle = -1;
         /// The camera aims here and shows `Half` sim units above and below it. The camera looks at a
-        /// fighter that faces +Z from `Yaw` radians off +Z (positive: from the fighter's right, so the
-        /// attack points toward the camera and a little to screen left).
+        /// fighter that faces +Z from `Yaw` radians off +Z (positive, as played: the
+        /// attack points toward the camera and to the right of the icon)
         public Vector3 Focus;
         public float Half = 8f;
         public float Yaw = 0.5f, Pitch = 0.12f;

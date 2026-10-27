@@ -549,7 +549,7 @@ namespace Ror2Common
         {
             switch (defName)
             {
-                // Samus: the attacks are stills of the real moves, aimed toward the camera and a little to screen left.
+                // Samus: the attacks are stills of the real moves, aimed toward the camera and the right of the icon.
                 // Ticks is how far into the move the still is taken (60 Hz steps from the press).
                 // Charge Shot: held two seconds, nearly full; the ball sits on the cannon, Samus cropped by the frame.
                 case "MeleeSamus0": return X(new MeleeAttack { Buttons = 256, Ticks = 120, ChargeArticle = 1, Shot = SamusShot, Focus = new Vector3(0f, 9.7f, 1.4f), Half = 7f }, Orange);
@@ -566,7 +566,7 @@ namespace Ror2Common
                 // Reflector: the dome and its core, the dust ring at the feet; the card keeps the old framing, zoomed out.
                 case "MeleeFoxReflector": return X(new MeleeAttack { Buttons = 2048, Ticks = 8, Focus = new Vector3(0f, 7f, 0f), Half = 13f, Yaw = 0.42f, Pitch = 0.2f }, Blue);
                 case "MeleeFoxShield": return Shield();
-                // Illusion: the blue copies at the launch, coming at the camera from 45 degrees.
+                // Illusion: the blue copies at the launch, coming at the camera, angled 45 degrees toward the right of the icon.
                 case "MeleeFox2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 21, Focus = new Vector3(0f, 6f, 8f), Half = 12f, Yaw = 0.785f, Pitch = 0.1f }, Blue);
                 // Fire Fox: launched, in the flame.
                 case "MeleeFox3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 47, Focus = new Vector3(0f, 5.5f, 30f), Half = 12f }, Orange);
