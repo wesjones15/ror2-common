@@ -38,6 +38,11 @@ namespace Ror2Common
         public Func<MeleeNative.Event, MeleeAttackShot?> Shot;
         /// The article shown held on the fighter while charging (Samus's charge ball); -1: none.
         public int ChargeArticle = -1;
+        /// Extra steps the released articles fly beyond the still's tick, without ageing the fighter's pose
+        /// (a missile a little further from the cannon).
+        public int ShotAdvance;
+        /// Draw the fighter with the move's colour-flash overlay and rim light, as play does (Screw Attack's green pulse).
+        public bool Flash;
         /// The camera aims here and shows `Half` sim units above and below it. The camera looks at a
         /// fighter that faces +Z from `Yaw` radians off +Z (positive, as played: the
         /// attack points toward the camera and to the right of the icon)
@@ -132,7 +137,9 @@ namespace Ror2Common
                 effects.Step(sim, Dt);
                 Particles.Step(Dt);
             }
-            if (MeleeNative.ssbm_view_update(fighter.Handle, sim, Dt) != 1) throw new InvalidOperationException(MeleeNative.Error);
+            for (int i = 0; i < attack.ShotAdvance; i++) { StepShots(); Particles.Step(Dt); }
+            if (attack.Flash) fighter.Pose(sim, Dt);
+            else if (MeleeNative.ssbm_view_update(fighter.Handle, sim, Dt) != 1) throw new InvalidOperationException(MeleeNative.Error);
         }
 
         static MeleeNative.Vec3 V(Vector3 v) => new MeleeNative.Vec3(v.x, v.y, v.z);
