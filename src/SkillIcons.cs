@@ -611,10 +611,10 @@ namespace Ror2Common
                 case "MeleePikachuSkullBash": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 49, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 13f }, Yellow);
                 case "MeleePikachu3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 16, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 14f }, Yellow);
                 // Captain Falcon
-                case "MeleeCaptain0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 56, Follow = true, Focus = new Vector3(0f, 9f, 6f), Half = 14f }, Red);
-                case "MeleeCaptainKick": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 18, Follow = true, Focus = new Vector3(0f, 8f, 4f), Half = 14f }, Orange);
+                case "MeleeCaptain0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 50, Follow = true, Focus = new Vector3(0f, 9f, 6f), Half = 14f }, Red);
+                case "MeleeCaptainKick": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 35, Follow = true, Focus = new Vector3(0f, 8f, 4f), Half = 14f }, Orange);
                 case "MeleeCaptainShield": return Shield();
-                case "MeleeCaptain2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 22, Follow = true, Focus = new Vector3(0f, 8f, 4f), Half = 14f }, Blue);
+                case "MeleeCaptain2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 40, Follow = true, Focus = new Vector3(0f, 8f, 4f), Half = 14f }, Blue);
                 case "MeleeCaptain3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 19, Follow = true, Focus = new Vector3(0f, 9f, 2f), Half = 15f }, Blue);
                 // Link
                 case "MeleeLink0": return X(new MeleeAttack { Buttons = 256, Hold = 50, Ticks = 52, Shot = LinkShot, Focus = new Vector3(-1f, 10f, 2f), Half = 11f }, Green);
