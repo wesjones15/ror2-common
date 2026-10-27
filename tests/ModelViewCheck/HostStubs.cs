@@ -88,6 +88,8 @@ namespace UnityEngine
         public static float Clamp01(float f) => Math.Clamp(f, 0, 1);
         public static float Clamp(float f, float min, float max) => Math.Clamp(f, min, max);
         public static float Max(float a, float b) => Math.Max(a, b);
+        public static int Max(int a, int b) => Math.Max(a, b);
+        public static int RoundToInt(float value) => (int)Math.Round(value);
         public static float Min(float a, float b) => Math.Min(a, b);
     }
     public class Mesh : Object
@@ -125,13 +127,14 @@ namespace UnityEngine
     public enum TextureWrapMode { Clamp, Mirror, Repeat }
     public class Texture2D : Texture
     {
+        public int width, height;
         public static int uploads;
         bool readable = true;
         public FilterMode filterMode;
         public TextureWrapMode wrapModeU, wrapModeV;
         public TextureWrapMode wrapMode;
         public static Texture2D whiteTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-        public Texture2D(int w, int h, TextureFormat format, bool mip) { }
+        public Texture2D(int w, int h, TextureFormat format, bool mip) { width = w; height = h; }
         public void SetPixelData(byte[] pixels, int mip) { if (!readable) throw new Exception("texture is immutable"); uploads++; }
         public void Apply(bool mip, bool immutable) { readable = !immutable; }
         public void SetPixels32(Color32[] pixels) { }
@@ -139,6 +142,7 @@ namespace UnityEngine
     }
     public class Material : Object
     {
+        public Texture mainTexture;
         public Shader shader = new Shader();
         public int renderQueue;
         public Material() { }
