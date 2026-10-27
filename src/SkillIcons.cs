@@ -640,11 +640,11 @@ namespace Ror2Common
                 case "MeleeYoshi2": return X(new MeleeAttack { Buttons = 512, Hold = 30, Ticks = 30, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 9.5f }, Yellow);
                 case "MeleeYoshi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 6, Shot = YoshiShot, FocusShot = true, Half = 11f }, Purple);
                 // Donkey Kong
-                case "MeleeDonkey0": return X(new MeleeAttack { Buttons = 256, Hold = 30, Ticks = 50, Follow = true, Focus = new Vector3(0f, 11f, 8f), Half = 17f }, Brown);
-                case "MeleeDonkeySlap": return X(new MeleeAttack { Buttons = 2048, Hold = 20, Ticks = 21, Follow = true, Focus = new Vector3(0f, 10f, 6f), Half = 17f }, Brown);
+                case "MeleeDonkey0": return X(new MeleeAttack { Buttons = 256, Hold = 30, Ticks = 50, Follow = true, Focus = new Vector3(0f, 11f, 8f), Half = 17f }, Red);
+                case "MeleeDonkeySlap": return X(new MeleeAttack { Buttons = 2048, Hold = 20, Ticks = 24, Follow = true, Focus = new Vector3(0f, 10f, 6f), Half = 17f }, Orange);
                 case "MeleeDonkeyShield": return Shield();
-                case "MeleeDonkey2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 21, Follow = true, Focus = new Vector3(0f, 10f, 8f), Half = 17f }, Brown);
-                case "MeleeDonkey3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 14, Follow = true, Focus = new Vector3(0f, 10f, 0f), Half = 17f }, Brown);
+                case "MeleeDonkey2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 21, Follow = true, Focus = new Vector3(0f, 12f, 10f), Half = 11.5f }, Purple);
+                case "MeleeDonkey3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 42, Follow = true, Focus = new Vector3(0f, 10f, 0f), Half = 16f }, Green);
                 default: return default;
             }
         }
