@@ -564,9 +564,9 @@ namespace Ror2Common
             }
         }
 
-        // Yoshi's thrown egg: speed 4.5, lifted 22 degrees above the aim.
+        // Yoshi's thrown egg: speed 4.5, lifted 22 degrees above the aim, thrown from his raised hand (common part 49).
         static MeleeAttackShot? YoshiShot(MeleeNative.Event e) =>
-            e.move_id == 23 ? new MeleeAttackShot { Article = 0, State = 0, Charge = 4.5f, Aimed = true, Lift = 22f } : (MeleeAttackShot?)null;
+            e.move_id == 23 ? new MeleeAttackShot { Article = 0, State = 0, Charge = 4.5f, Aimed = true, Lift = 22f, Bone = 49 } : (MeleeAttackShot?)null;
 
         // The articles Samus's moves release on their Hit event (Samus/Combat.cs Attack).
         static MeleeAttackShot? SamusShot(MeleeNative.Event e)
@@ -634,11 +634,11 @@ namespace Ror2Common
                 case "MeleeLink2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 26, Shot = LinkShot, Focus = new Vector3(-3f, 10f, 5f), Half = 12f }, Green);
                 case "MeleeLink3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 12, Follow = true, Focus = new Vector3(0f, 9f, 2f), Half = 15f }, Green);
                 // Yoshi
-                case "MeleeYoshi0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Focus = new Vector3(0f, 7f, 10f), Half = 15f }, Green);
-                case "MeleeYoshiBomb": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 34, Follow = true, Focus = new Vector3(0f, 6f, 2f), Half = 14f }, Green);
+                case "MeleeYoshi0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Focus = new Vector3(0f, 8f, 12f), Half = 10f }, Green);
+                case "MeleeYoshiBomb": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 34, Follow = true, Focus = new Vector3(0f, 6f, 2f), Half = 9f }, Orange);
                 case "MeleeYoshiShield": return Shield();
-                case "MeleeYoshi2": return X(new MeleeAttack { Buttons = 512, Hold = 30, Ticks = 30, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 11f }, Green);
-                case "MeleeYoshi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 5, Shot = YoshiShot, Follow = true, Focus = new Vector3(0f, 6f, 5f), Half = 12f }, Green);
+                case "MeleeYoshi2": return X(new MeleeAttack { Buttons = 512, Hold = 30, Ticks = 30, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 9.5f }, Yellow);
+                case "MeleeYoshi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 6, Shot = YoshiShot, FocusShot = true, Half = 11f }, Purple);
                 // Donkey Kong
                 case "MeleeDonkey0": return X(new MeleeAttack { Buttons = 256, Hold = 30, Ticks = 50, Follow = true, Focus = new Vector3(0f, 11f, 8f), Half = 17f }, Brown);
                 case "MeleeDonkeySlap": return X(new MeleeAttack { Buttons = 2048, Hold = 20, Ticks = 21, Follow = true, Focus = new Vector3(0f, 10f, 6f), Half = 17f }, Brown);
