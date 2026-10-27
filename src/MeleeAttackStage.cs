@@ -25,6 +25,8 @@ namespace Ror2Common
         /// Release the article from this common fighter part (a hand) instead of the event's position (Luigi's fireball);
         /// 0: use the event.
         public uint Bone;
+        /// Sim units added to where the article is released (a projectile that leaves the mouth, not the feet).
+        public Vector3 Offset;
         public Color GlowColor;
     }
 
@@ -32,6 +34,17 @@ namespace Ror2Common
     /// and the pose, effects and articles at that instant are drawn. Fighter-independent; a fighter
     /// supplies only its button, the shot a Hit event releases, and where to point the camera.
     /// Everything in sim units, with the fighter's feet at the origin and facing +Z.
+    /// An article drawn where the move never spawns it from a sim event (the thunder bolt's stacked segments): a
+    /// fixed place and animation frame, in sim units from where the fighter started.
+    public struct MeleeAttackProp
+    {
+        public uint Article, State;
+        public Vector3 Position;
+        public float Frame;
+        public Color Tint, GlowColor;
+        public bool Glow;
+    }
+
     public sealed class MeleeAttack
     {
         /// Sim pad button bits that start the move (NEUTRAL_B 256, SIDE_B 512, UP_B 1024, DOWN_B 2048).
@@ -62,6 +75,15 @@ namespace Ror2Common
         /// `Focus` is measured from where the fighter ends up rather than where it started, so a move that
         /// dashes or rises stays centred on the fighter.
         public bool Follow;
+        /// `Focus` is measured from the first article the move released instead (the framing follows a projectile).
+        public bool FocusShot;
+        /// Articles drawn at fixed places beside the sim (see MeleeAttackProp).
+        public MeleeAttackProp[] Props;
+        /// A tapered tongue from fighter bone `TongueBone` out along +Z for `TongueLength` sim units (Egg Lay's lash,
+        /// which the game draws as a ribbon too); 0: none.
+        public float TongueLength;
+        public uint TongueBone;
+        public Color TongueColor = new Color(0.92f, 0.27f, 0.36f);
         public float Half = 8f;
         public float Yaw = 0.5f, Pitch = 0.12f;
     }
@@ -94,6 +116,9 @@ namespace Ror2Common
         readonly MeleeNative.Host host;
         readonly MeleeFighterView fighter;
         readonly List<IMeleeObjectView> tracked = new List<IMeleeObjectView>();
+        readonly List<MeleeFighterView> propViews = new List<MeleeFighterView>();
+        GameObject tongue;
+        Material tongueMaterial;
         readonly List<MeleeNative.Event> queued = new List<MeleeNative.Event>();
         readonly List<Shot> shots = new List<Shot>();
         readonly uint[] cues = new uint[32];
@@ -118,6 +143,14 @@ namespace Ror2Common
                 Func<IMeleeObjectView> charge = attack.ChargeArticle < 0 ? (Func<IMeleeObjectView>)null
                     : () => Track(new MeleeFighterView(assetsDir, kind, (uint)attack.ChargeArticle, 0));
                 effects = new MeleeEffects(Particles, 1f, model => Track(MeleeFighterView.EffectAny(assetsDir, kind, model)), charge, false);
+                if (attack.Props != null)
+                    foreach (var prop in attack.Props)
+                    {
+                        var view = new MeleeFighterView(assetsDir, kind, prop.Article, prop.State);
+                        view.Tint = prop.Tint.a > 0f ? prop.Tint : Color.white;
+                        if (prop.Glow) { view.ForceAdditive = true; view.BlackToGlow = prop.GlowColor; }
+                        propViews.Add(view);
+                    }
             }
             catch { Dispose(); throw; }
             host = new MeleeNative.Host { user = GCHandle.ToIntPtr(self), collide = Marshal.GetFunctionPointerForDelegate(collide), evt = Marshal.GetFunctionPointerForDelegate(eventFn) };
@@ -195,6 +228,7 @@ namespace Ror2Common
             var from = new Vector3(e.position.x, e.position.y, e.position.z);
             var part = new float[16];
             if (s.Bone != 0 && MeleeNative.ssbm_sim_common_bone(sim, s.Bone, part) == 1) from = new Vector3(part[12], part[13], part[14]);
+            from += s.Offset;
             var shot = new Shot { handle = handle, view = view, spec = s, key = nextKey++, frame = 0, origin = from };
             Read(shot);
             shots.Add(shot);
@@ -261,6 +295,8 @@ namespace Ror2Common
             if (fighter?.Models != null && fighter.Models.Root) yield return fighter.Models.Root;
             foreach (var shot in shots) if (shot.view?.Models != null && shot.view.Models.Root) yield return shot.view.Models.Root;
             foreach (var view in tracked) if (view?.Models != null && view.Models.Root) yield return view.Models.Root;
+            foreach (var view in propViews) if (view?.Models != null && view.Models.Root) yield return view.Models.Root;
+            if (tongue) yield return tongue.transform;
         }
 
         /// Places the fighter, its effect models and the articles with the sim origin at `origin`.
@@ -271,6 +307,17 @@ namespace Ror2Common
             var at = origin + new Vector3(state.position.x, state.position.y, state.position.z);
             fighter.Models.Update(1f, d => (at, Quaternion.identity));
             effects.Draw(Placement(origin));
+            if (attack.Props != null)
+                for (int i = 0; i < propViews.Count && i < attack.Props.Length; i++)
+                {
+                    var prop = attack.Props[i];
+                    var view = propViews[i];
+                    var position = origin + prop.Position;
+                    view.ObjectPose(prop.Frame);
+                    view.FaceCamera(position, Quaternion.identity, 1f);
+                    view.Models.Update(1f, d => (position, Quaternion.identity));
+                }
+            DrawTongue(origin);
             foreach (var shot in shots)
             {
                 if (shot.view == null) continue;
@@ -286,6 +333,43 @@ namespace Ror2Common
         public static Matrix4x4 Placement(Vector3 origin) => Matrix4x4.Translate(origin);
 
         /// Where the fighter stands at the still, in sim units from where it started.
+        /// The first released article's place at the still (sim units from where the fighter started); zero with none.
+        public Vector3 ShotPosition
+        {
+            get
+            {
+                if (shots.Count == 0) return Vector3.zero;
+                var shot = shots[0];
+                return shot.origin + new Vector3(shot.state.position.x, shot.state.position.y, shot.state.position.z);
+            }
+        }
+
+        void DrawTongue(Vector3 origin)
+        {
+            if (attack.TongueLength <= 0f || tongue) return;
+            var matrix = new float[16];
+            if (MeleeNative.ssbm_sim_bone(sim, attack.TongueBone, matrix) != 1) return;
+            var start = origin + new Vector3(matrix[12], matrix[13], matrix[14]);
+            tongue = new GameObject("attack still tongue");
+            var line = tongue.AddComponent<LineRenderer>();
+            tongueMaterial = new Material(Shaders.HgStandard()) { name = "attack still tongue" };
+            tongueMaterial.SetColor("_Color", attack.TongueColor);
+            line.material = tongueMaterial;
+            line.startColor = attack.TongueColor; line.endColor = attack.TongueColor;
+            line.useWorldSpace = true;
+            line.positionCount = 16;
+            line.startWidth = 1.5f; line.endWidth = 0.6f;
+            line.numCapVertices = 6; line.numCornerVertices = 2;
+            line.alignment = LineAlignment.View;
+            line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            line.receiveShadows = false;
+            for (int i = 0; i < 16; i++)
+            {
+                float t = i / 15f;
+                line.SetPosition(i, start + new Vector3(0f, -0.8f * Mathf.Sin(t * Mathf.PI) + 0.4f * t, t * attack.TongueLength));
+            }
+        }
+
         public Vector3 FighterPosition
         {
             get
@@ -303,6 +387,10 @@ namespace Ror2Common
                 if (shots[i].handle != IntPtr.Zero) MeleeNative.ssbm_projectile_free(shots[i].handle);
             }
             shots.Clear();
+            foreach (var view in propViews) view?.Dispose();
+            propViews.Clear();
+            if (tongue) UnityEngine.Object.Destroy(tongue);
+            if (tongueMaterial) UnityEngine.Object.Destroy(tongueMaterial);
             effects?.Dispose();
             Particles?.Dispose();
             fighter?.Dispose();

@@ -308,7 +308,8 @@ namespace Ror2Common
                 {
                     // Framing is part of the attack's description: look at its focus from its yaw/pitch.
                     var spec = icon.attack;
-                    center = stage.position + spec.Focus + (spec.Follow ? attack.FighterPosition : Vector3.zero);
+                    center = stage.position + spec.Focus + (spec.Follow ? attack.FighterPosition : Vector3.zero)
+                        + (spec.FocusShot ? attack.ShotPosition : Vector3.zero);
                     distance = Mathf.Max(1f, spec.Half) / tanHalfFov;
                     float pitch = Mathf.Clamp(spec.Pitch, -1.2f, 1.2f);
                     cameraAt = center + new Vector3(Mathf.Sin(spec.Yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(spec.Yaw) * Mathf.Cos(pitch)) * distance;
@@ -539,7 +540,17 @@ namespace Ror2Common
 
         // Pikachu's Thunder Jolt is article 1 (the ground jolt), a particle with no model of its own.
         static MeleeAttackShot? PikachuShot(MeleeNative.Event e) =>
-            e.move_id == 20 ? new MeleeAttackShot { Article = 1, State = 0, Aimed = true, Trail = 7000 } : (MeleeAttackShot?)null;
+            e.move_id == 20 ? new MeleeAttackShot { Article = 1, State = 0, Aimed = true, Trail = 7000, Offset = new Vector3(0f, 5f, 3f) } : (MeleeAttackShot?)null;
+
+        // Thunder's bolt is four stacked article-0 quads of 40 units above Pikachu (Pikachu/PikachuCombat.cs ThunderBolt),
+        // each a segment-delay (8 frames) behind the one above; `frame` is how far the top one has played.
+        static MeleeAttackProp[] ThunderColumn(float frame)
+        {
+            var column = new MeleeAttackProp[4];
+            for (int i = 0; i < 4; i++)
+                column[i] = new MeleeAttackProp { Article = 0, State = 0, Position = new Vector3(0f, 20f + 40f * (3 - i), 0f), Frame = frame + 8f * i, Tint = new Color(1f, 0.92f, 0.3f, 1f), Glow = true, GlowColor = new Color(1f, 0.78f, 0.12f, 1f) };
+            return column;
+        }
 
         // Link's articles by host kind: Arrow 0, Boomerang 1, Bomb 2 (the carried bomb has no projectile).
         static MeleeAttackShot? LinkShot(MeleeNative.Event e)
@@ -604,12 +615,12 @@ namespace Ror2Common
                 case "MeleeLuigi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 10, Follow = true, Focus = new Vector3(0f, 8f, 0f), Half = 8f }, Red);
                 case "MeleeLuigiScopeSpecial": return I(0x15, 0, Green, 1.1f);
                 // Pikachu
-                case "MeleePikachu0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Shot = PikachuShot, Focus = new Vector3(1f, 6f, 6f), Half = 10f }, Yellow);
-                case "MeleePikachuEggLay": return C("SpecialLwStart", 15, Green, 1.7f, true);
-                case "MeleePikachu2": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 39, Follow = true, Focus = new Vector3(0f, 10f, 0f), Half = 16f }, Yellow);
+                case "MeleePikachu0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 25, Shot = PikachuShot, FocusShot = true, Half = 8f }, Yellow);
+                case "MeleePikachuEggLay": return X(new MeleeAttack { Buttons = 256, Hold = 1, HostFlags = 1, Ticks = 20, TongueBone = 16, TongueLength = 20f, Focus = new Vector3(-1f, 5f, 8f), Half = 13f }, Green);
+                case "MeleePikachu2": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 45, Follow = true, Focus = new Vector3(0f, 22f, 0f), Half = 22f, Props = ThunderColumn(7f) }, Yellow);
                 case "MeleePikachuShield": return Shield();
-                case "MeleePikachuSkullBash": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 49, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 13f }, Yellow);
-                case "MeleePikachu3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 16, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 14f }, Yellow);
+                case "MeleePikachuSkullBash": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 56, Follow = true, Focus = new Vector3(0f, 6f, -9f), Half = 14f, Yaw = 1.3f }, Yellow);
+                case "MeleePikachu3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 19, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 14f }, Yellow);
                 // Captain Falcon
                 case "MeleeCaptain0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 50, Follow = true, Focus = new Vector3(0f, 9f, 6f), Half = 14f }, Red);
                 case "MeleeCaptainKick": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 35, Follow = true, Focus = new Vector3(0f, 8f, 4f), Half = 14f }, Orange);
