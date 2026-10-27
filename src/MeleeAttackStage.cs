@@ -14,6 +14,15 @@ namespace Ror2Common
         public uint Article, State;
         public float Charge;
         public bool Aimed, Cues;
+        /// A carried article (Link's bomb): drawn at the event's position, with no projectile behind it.
+        public bool Held;
+        /// Degrees the launch is lifted above the aim's pitch, as the thrown egg's is (Yoshi's 22).
+        public float Lift;
+        /// A particle effect that follows the article (an article with no model, like Pikachu's jolt); 0: none.
+        public uint Trail;
+        /// Draw the article additively in this colour where its texture is black (the thunder bolt's border).
+        public bool Glow;
+        public Color GlowColor;
     }
 
     /// One attack still: the real fighter sim is driven into a move, run `Ticks` fixed steps,
@@ -47,6 +56,9 @@ namespace Ror2Common
         /// fighter that faces +Z from `Yaw` radians off +Z (positive, as played: the
         /// attack points toward the camera and to the right of the icon)
         public Vector3 Focus;
+        /// `Focus` is measured from where the fighter ends up rather than where it started, so a move that
+        /// dashes or rises stays centred on the fighter.
+        public bool Follow;
         public float Half = 8f;
         public float Yaw = 0.5f, Pitch = 0.12f;
     }
@@ -151,15 +163,40 @@ namespace Ror2Common
             var s = spec.Value;
             var aim = new Vector3(e.direction.x, e.direction.y, e.direction.z);
             aim = s.Aimed && aim.sqrMagnitude > 0.0001f ? aim.normalized : Vector3.zero;
-            var handle = MeleeNative.ssbm_projectile_new(NativeLib.CString(assetsDir), kind, s.Article, s.State, s.Charge, V(aim));
-            if (handle == IntPtr.Zero) { CommonLog.Warn("Melee attack still shot: " + MeleeNative.Error); return; }
-            if (s.Aimed) MeleeNative.ssbm_projectile_lifetime(handle, 0f);
-            MeleeFighterView view;
-            try { view = new MeleeFighterView(assetsDir, kind, s.Article, s.State); }
-            catch (Exception error) { CommonLog.Warn("Melee attack still shot view: " + error.Message); MeleeNative.ssbm_projectile_free(handle); return; }
+            if (s.Lift != 0f && aim.sqrMagnitude > 0f)
+            {
+                float pitch = Mathf.Asin(Mathf.Clamp(aim.y, -1f, 1f)) * Mathf.Rad2Deg;
+                float angle = Mathf.Clamp(pitch + s.Lift, 5f, 70f) * Mathf.Deg2Rad;
+                var flat = new Vector3(aim.x, 0f, aim.z);
+                flat = flat.sqrMagnitude > 0.0001f ? flat.normalized : Vector3.forward;
+                aim = flat * Mathf.Cos(angle) + Vector3.up * Mathf.Sin(angle);
+            }
+            var handle = IntPtr.Zero;
+            if (!s.Held)
+            {
+                handle = MeleeNative.ssbm_projectile_new(NativeLib.CString(assetsDir), kind, s.Article, s.State, s.Charge, V(aim));
+                if (handle == IntPtr.Zero) { CommonLog.Warn("Melee attack still shot: " + MeleeNative.Error); return; }
+                if (s.Aimed) MeleeNative.ssbm_projectile_lifetime(handle, 0f);
+            }
+            MeleeFighterView view = null;
+            try
+            {
+                view = new MeleeFighterView(assetsDir, kind, s.Article, s.State);
+                if (s.Glow) { view.BlackToGlow = s.GlowColor; view.ForceAdditive = true; }
+            }
+            catch (Exception error)
+            {
+                CommonLog.Warn("Melee attack still shot view: " + error.Message);
+                if (s.Trail == 0) { if (handle != IntPtr.Zero) MeleeNative.ssbm_projectile_free(handle); return; }
+            }
             var shot = new Shot { handle = handle, view = view, spec = s, key = nextKey++, frame = 0, origin = new Vector3(e.position.x, e.position.y, e.position.z) };
             Read(shot);
             shots.Add(shot);
+            if (s.Trail != 0)
+            {
+                var heading = aim.sqrMagnitude > 0f ? Quaternion.LookRotation(aim) : Quaternion.identity;
+                Particles.Spawn(s.Trail, MeleeParticles.At(shot.origin, heading, 1f), shot.key);
+            }
             if (s.Cues)
             {
                 var rotation = aim.sqrMagnitude > 0f ? Quaternion.LookRotation(aim) : Quaternion.identity;
@@ -169,6 +206,7 @@ namespace Ror2Common
 
         void Read(Shot shot)
         {
+            if (shot.handle == IntPtr.Zero) return;
             if (MeleeNative.ssbm_projectile_state(shot.handle, out shot.state) != 1) throw new InvalidOperationException(MeleeNative.Error);
         }
 
@@ -179,6 +217,7 @@ namespace Ror2Common
             for (int i = 0; i < shots.Count; i++)
             {
                 var shot = shots[i];
+                if (shot.handle == IntPtr.Zero) continue;
                 MeleeNative.ssbm_projectile_step(shot.handle, Dt, default, 0);
                 Read(shot);
                 if (!shot.spec.Aimed && shot.origin.y + shot.state.position.y < 0f)
@@ -189,6 +228,7 @@ namespace Ror2Common
                 var velocity = new Vector3(shot.state.velocity.x, shot.state.velocity.y, shot.state.velocity.z);
                 var rotation = velocity.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(velocity) : Quaternion.identity;
                 var at = MeleeParticles.At(shot.origin + new Vector3(shot.state.position.x, shot.state.position.y, shot.state.position.z), rotation, 1f);
+                if (shot.spec.Trail != 0) Particles.Attach(shot.key, at);
                 if (shot.spec.Cues)
                 {
                     Particles.Attach(shot.key, at);
@@ -227,6 +267,7 @@ namespace Ror2Common
             effects.Draw(Placement(origin));
             foreach (var shot in shots)
             {
+                if (shot.view == null) continue;
                 shot.view.ObjectPose(shot.state.animation_frame);
                 var position = origin + shot.origin + new Vector3(shot.state.position.x, shot.state.position.y, shot.state.position.z);
                 var velocity = new Vector3(shot.state.velocity.x, shot.state.velocity.y, shot.state.velocity.z);
@@ -237,6 +278,16 @@ namespace Ror2Common
         }
 
         public static Matrix4x4 Placement(Vector3 origin) => Matrix4x4.Translate(origin);
+
+        /// Where the fighter stands at the still, in sim units from where it started.
+        public Vector3 FighterPosition
+        {
+            get
+            {
+                if (MeleeNative.ssbm_sim_state(sim, out var state) != 1) return Vector3.zero;
+                return new Vector3(state.position.x, state.position.y, state.position.z);
+            }
+        }
 
         public void Dispose()
         {

@@ -308,7 +308,7 @@ namespace Ror2Common
                 {
                     // Framing is part of the attack's description: look at its focus from its yaw/pitch.
                     var spec = icon.attack;
-                    center = stage.position + spec.Focus;
+                    center = stage.position + spec.Focus + (spec.Follow ? attack.FighterPosition : Vector3.zero);
                     distance = Mathf.Max(1f, spec.Half) / tanHalfFov;
                     float pitch = Mathf.Clamp(spec.Pitch, -1.2f, 1.2f);
                     cameraAt = center + new Vector3(Mathf.Sin(spec.Yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(spec.Yaw) * Mathf.Cos(pitch)) * distance;
@@ -532,6 +532,30 @@ namespace Ror2Common
         static MeleeAttackShot? FoxShot(MeleeNative.Event e) =>
             e.move_id == 20 ? new MeleeAttackShot { Article = 0, State = 0, Aimed = true } : (MeleeAttackShot?)null;
 
+        // The other fighters' Hit-event articles (each fighter's Combat.cs). Luigi's fireball is article 0.
+        static MeleeAttackShot? LuigiShot(MeleeNative.Event e) =>
+            e.move_id == 20 ? new MeleeAttackShot { Article = 0, State = 0, Aimed = true } : (MeleeAttackShot?)null;
+
+        // Pikachu's Thunder Jolt is article 1 (the ground jolt), a particle with no model of its own.
+        static MeleeAttackShot? PikachuShot(MeleeNative.Event e) =>
+            e.move_id == 20 ? new MeleeAttackShot { Article = 1, State = 0, Aimed = true, Trail = 7000 } : (MeleeAttackShot?)null;
+
+        // Link's articles by host kind: Arrow 0, Boomerang 1, Bomb 2 (the carried bomb has no projectile).
+        static MeleeAttackShot? LinkShot(MeleeNative.Event e)
+        {
+            switch (e.move_id)
+            {
+                case 20: return new MeleeAttackShot { Article = 0, State = 0, Charge = e.strength, Aimed = true };
+                case 21: return new MeleeAttackShot { Article = 1, State = 0, Aimed = true };
+                case 24: return new MeleeAttackShot { Article = 2, State = 0, Held = true };
+                default: return null;
+            }
+        }
+
+        // Yoshi's thrown egg: speed 4.5, lifted 22 degrees above the aim.
+        static MeleeAttackShot? YoshiShot(MeleeNative.Event e) =>
+            e.move_id == 23 ? new MeleeAttackShot { Article = 0, State = 0, Charge = 4.5f, Aimed = true, Lift = 22f } : (MeleeAttackShot?)null;
+
         // The articles Samus's moves release on their Hit event (Samus/Combat.cs Attack).
         static MeleeAttackShot? SamusShot(MeleeNative.Event e)
         {
@@ -571,44 +595,44 @@ namespace Ror2Common
                 // Fire Fox: launched, in the flame.
                 case "MeleeFox3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 47, Aim = new Vector3(0f, 0.5f, 1f), Focus = new Vector3(0f, 19f, 27.2f), Half = 12f }, Orange);
                 // Luigi
-                case "MeleeLuigi0": return AC(0, 0, "SpecialN", 4, Green, 1.4f, 4, new Vector3(0f, 6f, 4f));
+                case "MeleeLuigi0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Shot = LuigiShot, Focus = new Vector3(1.5f, 8f, 5f), Half = 10f }, Green);
                 case "MeleeLuigiScope": return I(0x15, 0, Green, 1.1f);
-                case "MeleeLuigiCyclone": return EC(1289, "SpecialLw", 6, Green, 1f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeLuigiCyclone": return X(new MeleeAttack { Buttons = 2048, Ticks = 12, Focus = new Vector3(0f, 8f, 0f), Half = 12f }, Green);
                 case "MeleeLuigiShield": return Shield();
-                case "MeleeLuigi2": return C("SpecialS", 8, Green, 0.9f, false, 66, 3, new Vector3(0f, 0f, 1f));
-                case "MeleeLuigi3": return C("SpecialHi", 6, Red);
+                case "MeleeLuigi2": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 47, Follow = true, Focus = new Vector3(0f, 7f, 0f), Half = 14f }, Green);
+                case "MeleeLuigi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 10, Follow = true, Focus = new Vector3(0f, 8f, 0f), Half = 15f }, Red);
                 case "MeleeLuigiScopeSpecial": return I(0x15, 0, Green, 1.1f);
                 // Pikachu
-                case "MeleePikachu0": return AC(1, 0, "SpecialN", 4, Yellow, 1f, 4, new Vector3(0f, 6f, 6f), default, 7000, 10);
+                case "MeleePikachu0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Shot = PikachuShot, Focus = new Vector3(1f, 6f, 6f), Half = 10f }, Yellow);
                 case "MeleePikachuEggLay": return C("SpecialLwStart", 15, Green, 1.7f, true);
-                case "MeleePikachu2": return AC(0, 0, "SpecialLwStart", 4, Yellow, 0.8f, 4, new Vector3(0f, 10f, 0f), default, 0, 20, default, default, true);
+                case "MeleePikachu2": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 39, Follow = true, Focus = new Vector3(0f, 10f, 0f), Half = 16f }, Yellow);
                 case "MeleePikachuShield": return Shield();
-                case "MeleePikachuSkullBash": return C("SpecialS", 8, Yellow, 0.9f, false, 66, 3, new Vector3(0f, 0f, 1f));
-                case "MeleePikachu3": return C("SpecialHiStart", 2, Yellow, 1f);
+                case "MeleePikachuSkullBash": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 49, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 13f }, Yellow);
+                case "MeleePikachu3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 16, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 14f }, Yellow);
                 // Captain Falcon
-                case "MeleeCaptain0": return EC(1167, "SpecialN", 20, Red, 1f, 6, new Vector3(0f, 7f, 6f));
-                case "MeleeCaptainKick": return EC(1168, "SpecialLw", 10, Orange, 1f, 6, new Vector3(0f, 5f, 6f));
+                case "MeleeCaptain0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 56, Follow = true, Focus = new Vector3(0f, 9f, 6f), Half = 14f }, Red);
+                case "MeleeCaptainKick": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 18, Follow = true, Focus = new Vector3(0f, 8f, 4f), Half = 14f }, Orange);
                 case "MeleeCaptainShield": return Shield();
-                case "MeleeCaptain2": return EC(1170, "SpecialS", 8, Blue, 1f, 6, new Vector3(0f, 6f, 4f));
-                case "MeleeCaptain3": return C("SpecialHi", 10, Blue, 1f);
+                case "MeleeCaptain2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 22, Follow = true, Focus = new Vector3(0f, 8f, 4f), Half = 14f }, Blue);
+                case "MeleeCaptain3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 19, Follow = true, Focus = new Vector3(0f, 9f, 2f), Half = 15f }, Blue);
                 // Link
-                case "MeleeLink0": return AC(0, 0, "SpecialN", 8, Green, 0.9f, 4, new Vector3(0f, 8f, 8f));
-                case "MeleeLinkBomb": return AC(2, 0, "SpecialLw", 6, Green, 1f, 4, new Vector3(0f, 6f, 4f));
+                case "MeleeLink0": return X(new MeleeAttack { Buttons = 256, Hold = 50, Ticks = 52, Shot = LinkShot, Focus = new Vector3(-1f, 10f, 2f), Half = 11f }, Green);
+                case "MeleeLinkBomb": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 18, Shot = LinkShot, Focus = new Vector3(-1f, 9f, 0f), Half = 11f }, Green);
                 case "MeleeLinkShield": return Shield();
-                case "MeleeLink2": return AC(1, 0, "SpecialS", 4, Green, 0.9f, 4, new Vector3(0f, 8f, 7f));
-                case "MeleeLink3": return EC(1211, "SpecialHi", 8, Green, 1.2f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeLink2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 26, Shot = LinkShot, Focus = new Vector3(-3f, 10f, 5f), Half = 12f }, Green);
+                case "MeleeLink3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 12, Follow = true, Focus = new Vector3(0f, 9f, 2f), Half = 15f }, Green);
                 // Yoshi
-                case "MeleeYoshi0": return C("SpecialN", 14, Green, 1.7f, true);
-                case "MeleeYoshiBomb": return AC(1, 0, "SpecialLw", 8, Green, 1f, 4, new Vector3(0f, 4f, 4f));
+                case "MeleeYoshi0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Focus = new Vector3(0f, 7f, 10f), Half = 15f }, Green);
+                case "MeleeYoshiBomb": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 34, Follow = true, Focus = new Vector3(0f, 6f, 2f), Half = 14f }, Green);
                 case "MeleeYoshiShield": return Shield();
-                case "MeleeYoshi2": return M(2000, Green, 1.1f, 4);
-                case "MeleeYoshi3": return AC(0, 0, "SpecialHi", 6, Green, 0.9f, 4, new Vector3(0f, 8f, 6f));
+                case "MeleeYoshi2": return X(new MeleeAttack { Buttons = 512, Hold = 30, Ticks = 30, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 11f }, Green);
+                case "MeleeYoshi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 5, Shot = YoshiShot, Follow = true, Focus = new Vector3(0f, 6f, 5f), Half = 12f }, Green);
                 // Donkey Kong
-                case "MeleeDonkey0": return EC(1224, "SpecialN", 12, Brown, 1f, 4, new Vector3(0f, 7f, 6f));
-                case "MeleeDonkeySlap": return EC(1222, "SpecialLw", 6, Brown, 1f, 4, new Vector3(0f, 3f, 5f));
+                case "MeleeDonkey0": return X(new MeleeAttack { Buttons = 256, Hold = 30, Ticks = 50, Follow = true, Focus = new Vector3(0f, 11f, 8f), Half = 17f }, Brown);
+                case "MeleeDonkeySlap": return X(new MeleeAttack { Buttons = 2048, Hold = 20, Ticks = 21, Follow = true, Focus = new Vector3(0f, 10f, 6f), Half = 17f }, Brown);
                 case "MeleeDonkeyShield": return Shield();
-                case "MeleeDonkey2": return C("SpecialS", 6, Brown);
-                case "MeleeDonkey3": return EC(1226, "SpecialHi", 8, Brown, 1f, 4, new Vector3(0f, 6f, 0f));
+                case "MeleeDonkey2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 21, Follow = true, Focus = new Vector3(0f, 10f, 8f), Half = 17f }, Brown);
+                case "MeleeDonkey3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 14, Follow = true, Focus = new Vector3(0f, 10f, 0f), Half = 17f }, Brown);
                 default: return default;
             }
         }
