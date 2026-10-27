@@ -115,6 +115,7 @@ namespace Ror2Common
         readonly IntPtr sim;
         readonly MeleeNative.Host host;
         readonly MeleeFighterView fighter;
+        readonly MeleeHeldArticle heldArticle;
         readonly List<IMeleeObjectView> tracked = new List<IMeleeObjectView>();
         readonly List<MeleeFighterView> propViews = new List<MeleeFighterView>();
         GameObject tongue;
@@ -139,6 +140,7 @@ namespace Ror2Common
             try
             {
                 fighter = new MeleeFighterView(assetsDir, kind, 0);
+                heldArticle = MeleeHeldArticle.ForFighter(assetsDir, kind);
                 Particles = new MeleeParticles(assetsDir, 1f);
                 Func<IMeleeObjectView> charge = attack.ChargeArticle < 0 ? (Func<IMeleeObjectView>)null
                     : () => Track(new MeleeFighterView(assetsDir, kind, (uint)attack.ChargeArticle, 0));
@@ -188,6 +190,7 @@ namespace Ror2Common
             for (int i = 0; i < attack.ShotAdvance; i++) { StepShots(); Particles.Step(Dt); }
             if (attack.Flash) fighter.Pose(sim, Dt);
             else if (MeleeNative.ssbm_view_update(fighter.Handle, sim, Dt) != 1) throw new InvalidOperationException(MeleeNative.Error);
+            heldArticle?.Pose(sim);
         }
 
         static MeleeNative.Vec3 V(Vector3 v) => new MeleeNative.Vec3(v.x, v.y, v.z);
@@ -293,6 +296,8 @@ namespace Ror2Common
         public IEnumerable<Transform> Roots()
         {
             if (fighter?.Models != null && fighter.Models.Root) yield return fighter.Models.Root;
+            if (heldArticle != null)
+                foreach (var view in heldArticle.Views) if (view.Models != null && view.Models.Root) yield return view.Models.Root;
             foreach (var shot in shots) if (shot.view?.Models != null && shot.view.Models.Root) yield return shot.view.Models.Root;
             foreach (var view in tracked) if (view?.Models != null && view.Models.Root) yield return view.Models.Root;
             foreach (var view in propViews) if (view?.Models != null && view.Models.Root) yield return view.Models.Root;
@@ -306,6 +311,7 @@ namespace Ror2Common
             if (MeleeNative.ssbm_sim_state(sim, out var state) != 1) throw new InvalidOperationException(MeleeNative.Error);
             var at = origin + new Vector3(state.position.x, state.position.y, state.position.z);
             fighter.Models.Update(1f, d => (at, Quaternion.identity));
+            heldArticle?.Draw(sim, 1f, at, Quaternion.identity);
             effects.Draw(Placement(origin));
             if (attack.Props != null)
                 for (int i = 0; i < propViews.Count && i < attack.Props.Length; i++)
@@ -392,6 +398,7 @@ namespace Ror2Common
             if (tongue) UnityEngine.Object.Destroy(tongue);
             if (tongueMaterial) UnityEngine.Object.Destroy(tongueMaterial);
             effects?.Dispose();
+            heldArticle?.Dispose();
             Particles?.Dispose();
             fighter?.Dispose();
             if (sim != IntPtr.Zero) MeleeNative.ssbm_sim_free(sim);

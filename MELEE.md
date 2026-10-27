@@ -1,5 +1,14 @@
 # Melee host integration
 
+`MeleeHeldArticle.ForFighter` supplies the native held bow for Link. It lazily
+caches the six article-state views, uses `ssbm_sim_link_bow_state` and
+`ssbm_link_bow_update` to select/pose one, and draws it with the fighter's exact
+host transform. Rust already applies the source hand attachment and model scale.
+`LinkDriver` and `MeleeAttackStage` share this path; the portrait stage includes
+held-item roots in its isolation/layer list and disposes them with its other views.
+Negative states, interruptions and release completion hide cached renderers.
+`HasLinkBow` keeps older ABI-5 libraries usable without the new presentation exports.
+
 `MeleeSelectDisplay` plays the fighter's up-B animation, effects and sound once
 per selection. It continues stepping the native idle after completion; a new
 selection creates a new actor. UI time drives the preview.

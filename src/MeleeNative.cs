@@ -32,6 +32,8 @@ namespace Ror2Common
         public static bool HasMoves {get;private set;}
         /// The Super Scope (Luigi's alternate neutral special): ssbm_sim_scope and the beam exports. Optional.
         public static bool HasScope {get;private set;}
+        /// Link's animated held bow. Optional for older ABI-5 native libraries.
+        public static bool HasLinkBow {get;private set;}
         /// A host terrain correction that moves a live fighter without resetting its action.
         public static bool HasNudge {get;private set;}
         /// Scales a jump's horizontal speed (Wax Quail). Optional.
@@ -107,6 +109,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasMoves=false;}
             try {ssbm_sim_scope(IntPtr.Zero,0,0f);HasScope=true;}
             catch(EntryPointNotFoundException){HasScope=false;}
+            try {ssbm_sim_link_bow_state(IntPtr.Zero);ssbm_link_bow_update(IntPtr.Zero,IntPtr.Zero);HasLinkBow=true;}
+            catch(EntryPointNotFoundException){HasLinkBow=false;}
             try {ssbm_sim_nudge(IntPtr.Zero,default,0);HasNudge=true;}
             catch(EntryPointNotFoundException){HasNudge=false;}
             try {ssbm_sim_boost_jump(IntPtr.Zero,0f);HasBoostJump=true;}
@@ -228,6 +232,10 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new(byte[] dir,uint kind,uint costume);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_view_new_choice(byte[] dir,uint kind,uint costume,uint choice);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_article_new(byte[] dir,uint fighterKind,uint articleKind,uint state);
+        /// -1 absent, 0..2 ground draw/hold/release, 3..5 airborne.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern int ssbm_sim_link_bow_state(IntPtr sim);
+        /// Updates the selected bow view in fighter-local coordinates, including its authored hand attachment.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_link_bow_update(IntPtr view,IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_scope(IntPtr sim,uint on,float refillPerSecond);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_scope_state(IntPtr sim,out ScopeInfo info);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_scope_beams(byte[] dir,float[] rows);
