@@ -62,7 +62,8 @@ namespace Ror2Common
         {
             uint prim=Pack(sprite.r,sprite.g,sprite.b,sprite.a);
             uint env=(sprite.flags&128)!=0?Pack(sprite.er,sprite.eg,sprite.eb,sprite.ea):0;
-            uint flags=sprite.flags&((3u<<22)|(1u<<9)|(1u<<28));
+            // Bits 5/6 are the source's MirrorS/MirrorT (psstructs.h): the stored texture is half or a quarter of the sprite.
+            uint flags=sprite.flags&((3u<<22)|(1u<<9)|(1u<<28)|(3u<<5));
             bool glow=sprite.glow!=0;
             var key=(sprite.texture,prim,env,flags,glow);
             if(variants.TryGetValue(key,out var existing)){variants[key]=(existing.Item1,existing.Item2,Time.unscaledTime);return existing.Item2;}
@@ -81,12 +82,31 @@ namespace Ror2Common
                 int ch=i&3,t=sourcePixels[i],p=(int)(prim>>(ch*8))&255,e=(int)(env>>(ch*8))&255;
                 pixels[i]=(byte)((e*(255-t)+p*t+127)/255);
             }
-            var tex=new Texture2D((int)original.Item1.width,(int)original.Item1.height,TextureFormat.RGBA32,false,true) {name="Melee particle "+sprite.texture,wrapMode=TextureWrapMode.Clamp,filterMode=(flags&(1<<9))!=0?FilterMode.Point:FilterMode.Bilinear};
+            int texWidth=(int)original.Item1.width,texHeight=(int)original.Item1.height;
+            // psdisp.c draws a MirrorS/MirrorT sprite with GX_MIRROR and doubled coordinates, so the whole sprite is the stored
+            // image and its reflection. A clamped quad would show only the stored part. (The glow mask is already symmetric.)
+            if(!glow&&(flags&(3u<<5))!=0)pixels=MirrorBake(pixels,texWidth,texHeight,(flags&(1u<<5))!=0,(flags&(1u<<6))!=0,out texWidth,out texHeight);
+            var tex=new Texture2D(texWidth,texHeight,TextureFormat.RGBA32,false,true) {name="Melee particle "+sprite.texture,wrapMode=TextureWrapMode.Clamp,filterMode=(flags&(1<<9))!=0?FilterMode.Point:FilterMode.Bilinear};
             tex.LoadRawTextureData(pixels);tex.Apply(false,true);
             var material=Shaders.SeeThrough(tex.name,tex,(flags&(3<<22))==(1<<22),false);
             if(!material){UnityEngine.Object.Destroy(tex);throw new InvalidOperationException("RoR2 particle shader unavailable");}
             if((flags&(1<<28))!=0)material.SetFloat("_ZTest",(float)CompareFunction.Always);
             variants.Add(key,(tex,material,Time.unscaledTime));return material;
+        }
+        /// Lays out a mirrored sprite as psdisp.c draws it: the stored image then its reflection across S, and the reflection
+        /// then the stored image down T (the stored image's top row on the sprite's centre line). Rows are top first.
+        static byte[] MirrorBake(byte[] source,int width,int height,bool mirrorS,bool mirrorT,out int outWidth,out int outHeight)
+        {
+            outWidth=mirrorS?width*2:width;outHeight=mirrorT?height*2:height;
+            var result=new byte[outWidth*outHeight*4];
+            for(int y=0;y<outHeight;y++) {
+                int sy=!mirrorT?y:(y<height?height-1-y:y-height);
+                for(int x=0;x<outWidth;x++) {
+                    int sx=!mirrorS||x<width?x:2*width-1-x;
+                    Buffer.BlockCopy(source,(sy*width+sx)*4,result,(y*outWidth+x)*4,4);
+                }
+            }
+            return result;
         }
         public void Draw(Matrix4x4? placement=null)
         {
