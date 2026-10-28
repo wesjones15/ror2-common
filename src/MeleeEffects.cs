@@ -130,10 +130,24 @@ namespace Ror2Common
                 var cue = cues[i];
                 var facing = new Vector3(cue.direction.x, 0, cue.direction.z);
                 var rotation = facing.sqrMagnitude > 0 ? Quaternion.LookRotation(facing) : Quaternion.identity;
-                var transform = Matrix4x4.TRS(new Vector3(cue.position.x, cue.position.y, cue.position.z), rotation, new Vector3(-1, 1, 1));
+                var position = new Vector3(cue.position.x, cue.position.y, cue.position.z);
+                if ((cue.move_id & (1 << 18)) != 0 && FloorRolled(cue.kind)) rotation = FloorTilt(position) * rotation;
+                var transform = Matrix4x4.TRS(position, rotation, new Vector3(-1, 1, 1));
                 if (cue.kind == 0x42b) transform *= Matrix4x4.Scale(Vector3.one * cue.strength);
                 Spawn(cue.kind, transform, serial, cue.move_id & 65535, (cue.move_id & (1 << 17)) != 0, sim);
             }
+        }
+
+        /// The ground-dust cues whose source rolls them to the floor's slope while the fighter stands on it
+        /// (ftCo_8009F834: atan2(-normal.x, normal.y), else 0 in the air): 0x3F7-0x3F9, 0x3FD, 0x3FF.
+        static bool FloorRolled(uint cue) => cue >= 0x3F7 && cue <= 0x3F9 || cue == 0x3FD || cue == 0x3FF;
+
+        /// Turns an effect's up onto the floor under `at` (sim units), where the floor is within a metre; the
+        /// source rolls in Melee's side-view plane, which on a 3D slope is the same tilt along any heading.
+        Quaternion FloorTilt(Vector3 at)
+        {
+            if (!WorldProbe.Ground(at * scale + Vector3.up * 0.5f, 1.5f, out var hit) || hit.normal.y < 0.2f) return Quaternion.identity;
+            return Quaternion.FromToRotation(Vector3.up, hit.normal);
         }
 
         public void Draw(Matrix4x4? placement = null)
