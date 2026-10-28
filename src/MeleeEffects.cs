@@ -14,7 +14,7 @@ namespace Ror2Common
         {
             public ulong key, serial;
             public uint bone;
-            public bool attached, stop, chargeAttachment;
+            public bool attached, stop, chargeAttachment, positionOnly;
             public Matrix4x4 transform;
             public IMeleeObjectView view;
             public float frame, duration;
@@ -52,6 +52,18 @@ namespace Ror2Common
             this.logEffects = logEffects;
         }
 
+        // Where an attached effect sits. Falcon's Kick flame (efalt.c 0x490, efLib_Create_Attach) follows the foot joint's position only;
+        // its orientation is set from the fighter's facing (efLib_Cb_SetRotYZ_FromParamZ_FighterDir), so it keeps its spawn rotation.
+        Matrix4x4 Attached(Effect effect, IntPtr sim)
+        {
+            if (effect.chargeAttachment && charge != null) return charge.transform;
+            var bone = Bone(sim, effect.bone);
+            if (!effect.positionOnly) return bone;
+            var kept = effect.transform;
+            kept.SetColumn(3, bone.GetColumn(3));
+            return kept;
+        }
+
         Matrix4x4 Bone(IntPtr sim, uint bone)
         {
             if (MeleeNative.ssbm_sim_bone(sim, bone, boneMatrix) != 1) throw new InvalidOperationException("Effect attachment: " + MeleeNative.Error);
@@ -79,8 +91,8 @@ namespace Ror2Common
                 ShakeEmitter.CreateSimpleShakeEmitter(new Vector3(point.x, point.y, point.z) * scale, new Wave { amplitude = 0.15f, frequency = 12f, cycleOffset = 0 }, 0.15f, 20f, true);
                 return;
             }
-            var effect = new Effect { key = nextKey++, serial = serial, bone = bone, stop = stop, transform = transform, attached = (MeleeNative.ssbm_effect_flags(id) & 1) != 0 && sim != IntPtr.Zero, chargeAttachment = id == 1151 };
-            if (effect.attached) effect.transform = effect.chargeAttachment && charge != null ? charge.transform : Bone(sim, bone);
+            var effect = new Effect { key = nextKey++, serial = serial, bone = bone, stop = stop, transform = transform, attached = (MeleeNative.ssbm_effect_flags(id) & 1) != 0 && sim != IntPtr.Zero, positionOnly = id == 1168, chargeAttachment = id == 1151 };
+            if (effect.attached) effect.transform = Attached(effect, sim);
             if (target >= 0) particles.Spawn((uint)target, effect.transform, effect.key);
             else if (effectView != null)
             {
@@ -118,7 +130,7 @@ namespace Ror2Common
                     active.RemoveAt(i);
                     continue;
                 }
-                if (effect.attached) { effect.transform = effect.chargeAttachment && charge != null ? charge.transform : Bone(sim, effect.bone); particles.Attach(effect.key, effect.transform); }
+                if (effect.attached) { effect.transform = Attached(effect, sim); particles.Attach(effect.key, effect.transform); }
             }
             if (!readCues) return;
             uint count = MeleeNative.ssbm_sim_gfx(sim, null, 0);
