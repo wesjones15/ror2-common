@@ -78,6 +78,8 @@ namespace Ror2Common
         /// Centre the camera on the drawn fighter and effect models together (their actual bounds) instead of on `Focus`;
         /// `Half` is still the least the frame shows, and grows when the models need more.
         public bool AutoCenter;
+        /// With `AutoCenter`, frame only the held item (Link's bow) rather than everything drawn.
+        public bool CenterOnHeld;
         /// `Focus` is measured from the first article the move released instead (the framing follows a projectile).
         public bool FocusShot;
         /// Articles drawn at fixed places beside the sim (see MeleeAttackProp).
@@ -296,6 +298,25 @@ namespace Ror2Common
         }
 
         /// Every live model root this still owns, for layering and framing.
+        /// Where an article is at the still (sim units from where the fighter started). A held article (Link's bomb)
+        /// stays in the hand part it is carried by; any other is where its event released it plus its flight.
+        Vector3 ShotWorld(Shot shot)
+        {
+            if (shot.spec.Held && shot.spec.Bone != 0)
+            {
+                var part = new float[16];
+                if (MeleeNative.ssbm_sim_common_bone(sim, shot.spec.Bone, part) == 1) return new Vector3(part[12], part[13], part[14]) + shot.spec.Offset;
+            }
+            return shot.origin + new Vector3(shot.state.position.x, shot.state.position.y, shot.state.position.z);
+        }
+
+        /// The held item's model roots alone (Link's bow).
+        public IEnumerable<Transform> HeldRoots()
+        {
+            if (heldArticle != null)
+                foreach (var view in heldArticle.Views) if (view.Models != null && view.Models.Root) yield return view.Models.Root;
+        }
+
         public IEnumerable<Transform> Roots()
         {
             if (fighter?.Models != null && fighter.Models.Root) yield return fighter.Models.Root;
@@ -331,7 +352,7 @@ namespace Ror2Common
             {
                 if (shot.view == null) continue;
                 shot.view.ObjectPose(shot.state.animation_frame);
-                var position = origin + shot.origin + new Vector3(shot.state.position.x, shot.state.position.y, shot.state.position.z);
+                var position = origin + ShotWorld(shot);
                 var velocity = new Vector3(shot.state.velocity.x, shot.state.velocity.y, shot.state.velocity.z);
                 var rotation = velocity.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(velocity) : Quaternion.identity;
                 shot.view.FaceCamera(position, rotation, 1f);
@@ -349,7 +370,7 @@ namespace Ror2Common
             {
                 if (shots.Count == 0) return Vector3.zero;
                 var shot = shots[0];
-                return shot.origin + new Vector3(shot.state.position.x, shot.state.position.y, shot.state.position.z);
+                return ShotWorld(shot);
             }
         }
 
