@@ -642,7 +642,7 @@ namespace Ror2Common
                 case "MeleeFoxReflector": return X(new MeleeAttack { Buttons = 2048, Ticks = 8, Focus = new Vector3(0f, 7f, 0f), Half = 13f, Yaw = 0.42f, Pitch = 0.2f }, Blue);
                 case "MeleeFoxShield": return Shield();
                 // Illusion: the blue copies at the launch, coming at the camera, angled 45 degrees toward the right of the icon.
-                case "MeleeFox2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 21, Follow = true, Focus = new Vector3(0f, 6f, -4f), Half = 14f, Yaw = 0.785f, Pitch = 0.1f, Props = IllusionCopies() }, Purple);
+                case "MeleeFox2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 21, Follow = true, Focus = new Vector3(0f, 6f, -6f), Half = 9f, Yaw = 0.785f, Pitch = 0.1f, Props = IllusionCopies() }, Purple);
                 // Fire Fox: launched, in the flame.
                 case "MeleeFox3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 47, Aim = new Vector3(0f, 0.5f, 1f), Focus = new Vector3(0f, 19f, 27.2f), Half = 12f }, Orange);
                 // Luigi
