@@ -389,7 +389,7 @@ namespace Ror2Common
                         {
                             var span = hi.Value - lo.Value;
                             center = (lo.Value + hi.Value) * 0.5f;
-                            distance = Mathf.Max(Mathf.Max(1f, icon.attack.Half), Mathf.Max(span.x, span.y) * 0.55f) / tanHalfFov;
+                            distance = Mathf.Max(Mathf.Max(1f, icon.attack.Half), Mathf.Max(span.x, span.y) * icon.attack.FitScale) / tanHalfFov;
                             float pitch = Mathf.Clamp(icon.attack.Pitch, -1.2f, 1.2f);
                             cameraAt = center + new Vector3(Mathf.Sin(icon.attack.Yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(icon.attack.Yaw) * Mathf.Cos(pitch)) * distance;
                             cam.farClipPlane = distance * 4f;
@@ -634,7 +634,7 @@ namespace Ror2Common
                 case "MeleeSamus2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 24, ShotAdvance = 2, Shot = SamusShot, Focus = new Vector3(0.5f, 14f, 11f), Half = 7f }, Red);
                 case "MeleeShield": return Shield();
                 // Screw Attack: rising mid-spin, the spin effect around her.
-                case "MeleeSamus3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 30, AutoCenter = true, Half = 12f, HideModels = new uint[] { 3 } }, Green);
+                case "MeleeSamus3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 30, AutoCenter = true, FitScale = 0.3f, Half = 6f, HideModels = new uint[] { 3 } }, Green);
                 // Fox
                 // Blaster: the gun out, the muzzle flash and the red laser leaving its tip.
                 case "MeleeFox0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 13, ShotAdvance = 1, Shot = FoxShot, Focus = new Vector3(1.5f, 9f, 5f), Half = 8f, Yaw = 1f }, Red);
@@ -647,12 +647,12 @@ namespace Ror2Common
                 case "MeleeFox3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 47, Aim = new Vector3(0f, 0.5f, 1f), Focus = new Vector3(0f, 19f, 27.2f), Half = 12f }, Orange);
                 // Luigi
                 case "MeleeLuigi0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Shot = LuigiShot, Follow = true, Focus = new Vector3(0f, 8f, 5f), Half = 9.5f }, Green);
-                case "MeleeLuigiScope": return X(new MeleeAttack { Buttons = 256, Ticks = 56, Scope = true, DustEffect = 0x3FF, Focus = new Vector3(0f, 8f, 5f), Half = 7f }, Green);
-                case "MeleeLuigiCyclone": return X(new MeleeAttack { Buttons = 2048, Ticks = 24, Focus = new Vector3(0f, 8f, 0f), Half = 9f }, Green);
+                case "MeleeLuigiScope": return X(new MeleeAttack { Buttons = 256, Ticks = 56, Scope = true, DustEffect = 0x3FF, Focus = new Vector3(0f, 8f, 5f), Half = 7f }, Yellow);
+                case "MeleeLuigiCyclone": return X(new MeleeAttack { Buttons = 2048, Ticks = 24, Focus = new Vector3(0f, 8f, 0f), Half = 9f }, Purple);
                 case "MeleeLuigiShield": return Shield();
-                case "MeleeLuigi2": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 47, Follow = true, Focus = new Vector3(0f, 7f, 0f), Half = 10f }, Green);
+                case "MeleeLuigi2": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 47, Follow = true, Focus = new Vector3(0f, 7f, 0f), Half = 10f }, Orange);
                 case "MeleeLuigi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 10, Follow = true, Focus = new Vector3(0f, 8f, 0f), Half = 8f }, Red);
-                case "MeleeLuigiScopeSpecial": return X(new MeleeAttack { Buttons = 256, Ticks = 56, Scope = true, DustEffect = 0x3FF, Focus = new Vector3(0f, 8f, 5f), Half = 7f }, Green);
+                case "MeleeLuigiScopeSpecial": return X(new MeleeAttack { Buttons = 256, Ticks = 56, Scope = true, DustEffect = 0x3FF, Focus = new Vector3(0f, 8f, 5f), Half = 7f }, Yellow);
                 // Pikachu
                 case "MeleePikachu0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 25, Shot = PikachuShot, FocusShot = true, Half = 5.5f }, Yellow);
                 case "MeleePikachuEggLay": return X(new MeleeAttack { Buttons = 256, Hold = 1, HostFlags = 1, Ticks = 20, TongueBone = 16, TongueLength = 20f, Focus = new Vector3(-1f, 5f, 8f), Half = 13f }, Green);
@@ -661,8 +661,8 @@ namespace Ror2Common
                 case "MeleePikachuSkullBash": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 49, Follow = true, Focus = new Vector3(0f, 6f, 2f), Half = 14f }, Orange);
                 case "MeleePikachu3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 19, Follow = true, Focus = new Vector3(0f, 6f, 0f), Half = 10f }, Red);
                 // Captain Falcon
-                case "MeleeCaptain0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 22, Follow = true, Focus = new Vector3(0f, 10f, 2f), Half = 11f }, Red);
-                case "MeleeCaptainKick": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 24, Follow = true, Focus = new Vector3(0f, 9f, 3f), Half = 11f }, Orange);
+                case "MeleeCaptain0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 36, Follow = true, Focus = new Vector3(0f, 10f, 2f), Half = 11f }, Red);
+                case "MeleeCaptainKick": return X(new MeleeAttack { Buttons = 2048, Hold = 1, Ticks = 24, Follow = true, Focus = new Vector3(0f, 9f, 3f), Half = 8f }, Orange);
                 case "MeleeCaptainShield": return Shield();
                 case "MeleeCaptain2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 22, Follow = true, Focus = new Vector3(0f, 9f, 0f), Half = 13f }, Blue);
                 case "MeleeCaptain3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 19, Follow = true, Focus = new Vector3(0f, 9f, 2f), Half = 15f }, Blue);

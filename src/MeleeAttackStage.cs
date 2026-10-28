@@ -83,6 +83,8 @@ namespace Ror2Common
         /// Centre the camera on the drawn fighter and effect models together (their actual bounds) instead of on `Focus`;
         /// `Half` is still the least the frame shows, and grows when the models need more.
         public bool AutoCenter;
+        /// With `AutoCenter`, the fraction of the drawn models' span that is shown as half the icon height (a smaller value crops tighter).
+        public float FitScale = 0.55f;
         /// With `AutoCenter`, frame only the held item (Link's bow) rather than everything drawn.
         public bool CenterOnHeld;
         /// Effect model ids (as MeleeEffects resolves them) to leave out of the picture: a floor effect that is not part of the
