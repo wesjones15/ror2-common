@@ -20,6 +20,9 @@ namespace Ror2Common
             public float frame, duration;
             public uint cue, model, version;
             public int versions;
+            /// The particle generators this model's animation starts, and how many have fired.
+            public MeleeNative.ObjectParticle[] particles;
+            public int fired;
         }
 
         readonly MeleeParticles particles;
@@ -39,6 +42,8 @@ namespace Ror2Common
         /// must still not sit in the world for ever.
         const float MaxEffectFrames = 360f;
         readonly float[] boneMatrix = new float[16];
+        readonly float[] jointMatrix = new float[16];
+        static bool particlesMissing;
         MeleeNative.Event[] cues = new MeleeNative.Event[32];
         ulong nextKey = 1;
 
@@ -102,8 +107,42 @@ namespace Ror2Common
                 effect.model = (uint)(-target - 1);
                 if (logEffects) CommonLog.Info("Melee effect " + id + " -> model " + effect.model + ", duration " + effect.duration + " frames");
             }
+            if (effect.view != null && effect.model < 1000) { effect.particles = ReadParticles(effect.view.Handle); Fire(effect); }
             if (effect.view != null || effect.attached || effect.stop) active.Add(effect);
             if (active.Count > 128) { var old = active[0]; old.view?.Dispose(); particles.Stop(old.key); active.RemoveAt(0); }
+        }
+
+        /// The common generators a common effect model's own animation starts (the dust cloud inside the ground-dust model,
+        /// say): the mesh alone is only part of the effect. Fighter banks number their generators separately, so they are left.
+        static MeleeNative.ObjectParticle[] ReadParticles(IntPtr view)
+        {
+            if (particlesMissing) return null;
+            try
+            {
+                uint n = MeleeNative.ssbm_object_particles(view, null, 0);
+                if (n == 0 || n > 64) return null;
+                var all = new MeleeNative.ObjectParticle[n];
+                if (MeleeNative.ssbm_object_particles(view, all, n) != n) return null;
+                var common = new List<MeleeNative.ObjectParticle>();
+                foreach (var p in all) if (p.bank == 0 && p.generator < 592) common.Add(p);
+                return common.Count > 0 ? common.ToArray() : null;
+            }
+            catch (EntryPointNotFoundException) { particlesMissing = true; return null; }
+        }
+
+        /// Starts each of the model's generators whose frame has come, at its joint as the animation poses it there.
+        void Fire(Effect effect)
+        {
+            while (effect.fired < effect.particles.Length && effect.particles[effect.fired].frame <= effect.frame)
+            {
+                var p = effect.particles[effect.fired++];
+                MeleeNative.ssbm_object_update(effect.view.Handle, p.frame);
+                if (MeleeNative.ssbm_object_joint(effect.view.Handle, p.joint, jointMatrix) != 1) continue;
+                var joint = new Matrix4x4();
+                for (int i = 0; i < 16; i++) joint[i] = jointMatrix[i];
+                var mirror = Matrix4x4.Scale(new Vector3(-1, 1, 1));
+                particles.Spawn(p.generator, effect.transform * mirror * joint * mirror, nextKey++);
+            }
         }
 
         public void Step(IntPtr sim, float dt, bool readCues = true)
@@ -122,6 +161,7 @@ namespace Ror2Common
             {
                 var effect = active[i];
                 effect.frame += dt * 60;
+                if (effect.particles != null) Fire(effect);
                 if (effect.stop && effect.serial != serial || effect.view != null && effect.duration > 0 && effect.frame >= effect.duration || effect.frame >= MaxEffectFrames)
                 {
                     LogEnd(effect);

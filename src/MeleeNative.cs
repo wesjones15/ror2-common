@@ -255,6 +255,13 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_entry(IntPtr sim,byte[] dir);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_arrival(IntPtr sim,byte[] dir);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern float ssbm_object_duration(IntPtr view);
+        /// A particle generator an effect model's animation starts (jobj.c track 0x28): at `frame`, on `joint`.
+        [StructLayout(LayoutKind.Sequential)] public struct ObjectParticle { public float frame; public uint joint, bank, generator; }
+        /// The view's animation-started particle generators in time order; null `output` returns the count. Added after the
+        /// first ABI-5 libraries: a missing export reads as none.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_particles(IntPtr view,[Out]ObjectParticle[] output,uint max);
+        /// The view's posed joint matrix at its current frame (16 floats, column-major, unmirrored model axes).
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_joint(IntPtr view,uint joint,[Out]float[] matrix);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_gfx(IntPtr sim,[Out]Event[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_bone(IntPtr sim,uint bone,[Out]float[] matrix);
         /// Like ssbm_sim_bone, but `part` is a common FtPart index (HipN 4, RThumbNb 49...).
