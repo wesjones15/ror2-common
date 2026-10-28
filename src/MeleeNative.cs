@@ -44,6 +44,8 @@ namespace Ror2Common
         public static bool HasAttackSpeed {get;private set;}
         /// Restoring a fighter's jumps without landing (Link's hookshot). Optional.
         public static bool HasJumpReset {get;private set;}
+        /// Link's source chain-link and hook-head parts. Optional.
+        public static bool HasHookshotParts {get;private set;}
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_begin_rebirth(IntPtr sim,byte[] dir,Vec3 destination);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_rebirth_flags(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_object_camera(IntPtr view,Vec3 camera);
@@ -123,6 +125,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasAttackSpeed=false;}
             try {ssbm_sim_reset_jumps(IntPtr.Zero);HasJumpReset=true;}
             catch(EntryPointNotFoundException){HasJumpReset=false;}
+            try {ssbm_hookshot_new(null,0);HasHookshotParts=true;}
+            catch(EntryPointNotFoundException){HasHookshotParts=false;}
             var sizes = new uint[14]; uint count=ssbm_struct_sizes(sizes,(uint)sizes.Length);
             error=NativeLib.CompareSizes(sizes,count,new[] {
                 ("Vec3",NativeLib.Size<Vec3>()),("Pad",NativeLib.Size<Pad>()),("State",NativeLib.Size<State>()),
@@ -158,6 +162,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern float ssbm_sim_motion_frame(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_grapple_points(IntPtr sim,[Out]Vec3[] points,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_grapple_new(byte[] dir,uint part);
+        /// Link's hookshot chain part: 0/1 alternate links, 2 the hook head.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_hookshot_new(byte[] dir,uint part);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_hit_feedback(IntPtr audio,uint element,uint kind,uint severity);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_projectile_new(byte[] dir,uint fighterKind,uint kind,uint state,float charge,Vec3 direction);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_projectile_step(IntPtr projectile,double dt,Vec3 target,uint hasTarget);

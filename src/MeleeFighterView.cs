@@ -89,6 +89,9 @@ namespace Ror2Common
             => new MeleeFighterView(MeleeNative.ssbm_entry_platform_new(NativeLib.CString(assetsDir)));
         public static MeleeFighterView Grapple(string assetsDir, uint part)
             => new MeleeFighterView(MeleeNative.ssbm_grapple_new(NativeLib.CString(assetsDir), part));
+        /// Link's source hookshot chain: 0/1 alternate links, 2 the hook head.
+        public static MeleeFighterView Hookshot(string assetsDir, uint part)
+            => new MeleeFighterView(MeleeNative.ssbm_hookshot_new(NativeLib.CString(assetsDir), part));
 
         MeleeFighterView(IntPtr handle, bool rim = false, Material skin = null, bool fighter = false)
         {
