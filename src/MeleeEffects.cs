@@ -30,11 +30,6 @@ namespace Ror2Common
         readonly Func<uint, IMeleeObjectView> effectView;
         readonly Func<IMeleeObjectView> chargeView;
         readonly bool logEffects;
-        /// Map-falloff presentation: while set, effects are drawn in front of the camera instead of at
-        /// their world position. The blast-zone lines are authored for Melee's fixed camera; from an
-        /// overhead camera sitting close over the fighter they fill the screen, which reads as broken.
-        /// Set only while a fall recovery runs, so the ordinary death presentation is untouched.
-        public bool AffixToCamera;
         readonly List<Effect> active = new List<Effect>();
         Effect charge;
         /// Defensive ceiling on any one effect's life. A source effect whose model reports no
@@ -205,7 +200,6 @@ namespace Ror2Common
 
         public void Draw(Matrix4x4? placement = null)
         {
-            var camera = AffixToCamera ? GameSettings.PlayerCamera() : null;
             foreach (var effect in Drawing())
             {
                 if (effect.view == null) continue;
@@ -217,8 +211,7 @@ namespace Ror2Common
                 var u = transform.GetColumn(1);
                 var position = new Vector3(p.x, p.y, p.z) * scale;
                 var rotation = Quaternion.LookRotation(new Vector3(f.x, f.y, f.z), new Vector3(u.x, u.y, u.z));
-                if (camera) { position = camera.position + camera.forward * 3f; rotation = camera.rotation; }
-                else if (placement.HasValue) { position = placement.Value.MultiplyPoint3x4(position); rotation = placement.Value.rotation * rotation; }
+                if (placement.HasValue) { position = placement.Value.MultiplyPoint3x4(position); rotation = placement.Value.rotation * rotation; }
                 float size = transform.GetColumn(0).magnitude * scale;
                 effect.view.FaceCamera(position, rotation, size);
                 effect.view.Models.Update(size, d => (position, rotation));
