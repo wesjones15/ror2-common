@@ -133,6 +133,7 @@ namespace Ror2Common
         /// Starts each of the model's generators whose frame has come, at its joint as the animation poses it there.
         void Fire(Effect effect)
         {
+            if (effect.particles == null) return;
             while (effect.fired < effect.particles.Length && effect.particles[effect.fired].frame <= effect.frame)
             {
                 var p = effect.particles[effect.fired++];
