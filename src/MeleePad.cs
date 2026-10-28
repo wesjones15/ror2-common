@@ -19,6 +19,8 @@ namespace Ror2Common
         readonly InteractGuard interactGuard=new InteractGuard();InteractionDriver interaction;bool suppressed,interactionEnabled;
         public bool GrabHeld=>(held&MeleeControls.Grab)!=0;
         public bool JumpHeld=>(held&MeleeControls.Jump)!=0;
+        /// Raw stick Y while a grab is held (captured throws, Link's hookshot climb).
+        public float GrabAxisY=>move.y;
         public bool Held(uint bits)=>(held&bits)!=0;
         /// Queue one real press (release tick, then press tick) after a move ends. Used by
         /// Pikachu's Quick Attack so holding LB spends the next stored charge.

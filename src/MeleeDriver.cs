@@ -102,6 +102,25 @@ namespace Ror2Common
         protected virtual bool GenericGrab => true;
         protected virtual bool GrabAttached => false;
         protected virtual bool GrabHolding => GenericGrab && capture != null && capture.Target;
+        /// The captured enemy, for a fighter whose own tether drives its position (Link's hookshot).
+        protected EnemyCapture Capture => capture;
+        /// Whether a target may enter the generic capture. Link refuses bosses and big enemies here:
+        /// his hookshot anchors him to them instead of pulling them in.
+        protected virtual bool CanCapture(HealthComponent target) => true;
+        /// One tick of a captured enemy's hold. The default puts it in front of the fighter; Link
+        /// overrides this while the hookshot is reeling the enemy in.
+        protected virtual bool StepCapture(Vector3 forward, float dt) => capture.Step(forward, dt);
+        /// Capture a target the host found itself (Link's hookshot reaches past the disc grab
+        /// boxes). Returns false when the target cannot be captured.
+        protected bool TryGrabTarget(HealthComponent target)
+        {
+            if (!GenericGrab || !CanCapture(target)) return false;
+            if (capture == null) capture = new EnemyCapture(body);
+            if (!capture.TryCapture(target)) return false;
+            MeleeNative.ssbm_sim_set_grabbed(sim, 1);
+            pummeled.Clear();
+            return true;
+        }
         protected abstract bool IsRangedMove(uint moveId);
         protected abstract bool IsChargeMove(uint moveId);
         /// A contextual A attack (B button: Jab..RapidJab, moves 1..16). It faces the stick
@@ -444,12 +463,15 @@ namespace Ror2Common
                 }
             }
             bool catching = state.move_id >= 25 && state.move_id <= 27;
-            if (!capture.Target && catching) ScanGrab();
+            // A fighter already anchored by its own tether (Link's hookshot, Samus's
+            // boss grapple) owns the grab this tick; close grab boxes do not add a
+            // second captured enemy to the same action.
+            if (!capture.Target && catching && !GrabAttached) ScanGrab();
             if (capture.Target)
             {
                 if (MeleeNative.ssbm_sim_grabbed(sim) == 0) { capture.Dispose(); return; }
                 if (state.move_id == 28) Pummel(); else pummeled.Clear();
-                if (!capture.Step(new Vector3(state.facing.x, 0, state.facing.z), dt)) MeleeNative.ssbm_sim_set_grabbed(sim, 0);
+                if (!StepCapture(new Vector3(state.facing.x, 0, state.facing.z), dt)) MeleeNative.ssbm_sim_set_grabbed(sim, 0);
             }
         }
         // The disc's grab hitboxes (0% damage) mark where a grab reaches; the first live
@@ -471,7 +493,7 @@ namespace Ror2Common
                     if (!hurt || !hurt.healthComponent || !hurt.healthComponent.alive) continue;
                     var other = hurt.healthComponent.body;
                     if (!other || !other.teamComponent || other.teamComponent.teamIndex == body.teamComponent.teamIndex) continue;
-                    if (!capture.TryCapture(hurt.healthComponent)) continue;
+                    if (!CanCapture(hurt.healthComponent) || !capture.TryCapture(hurt.healthComponent)) continue;
                     MeleeNative.ssbm_sim_set_grabbed(sim, 1); pummeled.Clear();
                     return;
                 }
