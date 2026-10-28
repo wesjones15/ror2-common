@@ -75,6 +75,11 @@ namespace Ror2Common
         /// `Focus` is measured from where the fighter ends up rather than where it started, so a move that
         /// dashes or rises stays centred on the fighter.
         public bool Follow;
+        /// Luigi's Super Scope: the sim is given the scope, so the neutral special charges it, and the item is drawn held in
+        /// the right hand (common part 49, as the game draws it).
+        public bool Scope;
+        /// A ground effect repeated at the fighter's feet while the scope charges (the game's smoke, cue 0x3FF); 0: none.
+        public uint DustEffect;
         /// Centre the camera on the drawn fighter and effect models together (their actual bounds) instead of on `Focus`;
         /// `Half` is still the least the frame shows, and grows when the models need more.
         public bool AutoCenter;
@@ -166,6 +171,7 @@ namespace Ror2Common
             host = new MeleeNative.Host { user = GCHandle.ToIntPtr(self), collide = Marshal.GetFunctionPointerForDelegate(collide), evt = Marshal.GetFunctionPointerForDelegate(eventFn) };
             MeleeNative.ssbm_sim_facing(sim, new MeleeNative.Vec3(0f, 0f, 1f));
             MeleeNative.ssbm_sim_tuning(sim, new MeleeNative.Tuning { speed_scale = 1f, jump_scale = 1f, extra_jumps = 0, hold_charge = 0, smash_max_frames = 60 });
+            if (attack.Scope && MeleeNative.HasScope) MeleeNative.ssbm_sim_scope(sim, 1u, 0f);
         }
 
         IMeleeObjectView Track(IMeleeObjectView view) { tracked.Add(view); return view; }
@@ -195,6 +201,13 @@ namespace Ror2Common
                 StepShots();
                 for (int i = 0; i < queued.Count; i++) Spawn(queued[i]);
                 effects.Step(sim, Dt);
+                if (attack.DustEffect != 0 && t >= 12 && (t - 12) % 12 == 0 && MeleeNative.HasScope && MeleeNative.ssbm_sim_scope_state(sim, out var scopeInfo) == 1 && scopeInfo.stage == 1)
+                {
+                    // Each wave is a source model of 20 frames; it grows a little with the charge level.
+                    MeleeNative.ssbm_sim_state(sim, out var standing);
+                    var feet = new Vector3(standing.position.x, standing.position.y + 0.2f, standing.position.z);
+                    effects.Spawn(attack.DustEffect, MeleeParticles.At(feet, Quaternion.identity, 1f) * Matrix4x4.Scale(Vector3.one * (0.65f + 0.025f * Math.Min(scopeInfo.level, 9u))));
+                }
                 Particles.Step(Dt);
             }
             for (int i = 0; i < attack.ShotAdvance; i++) { StepShots(); Particles.Step(Dt); }
@@ -322,11 +335,32 @@ namespace Ror2Common
                 foreach (var view in heldArticle.Views) if (view.Models != null && view.Models.Root) yield return view.Models.Root;
         }
 
+        MeleeFighterView scopeView;
+        readonly float[] scopeMatrix = new float[16];
+
+        // The scope rides the right hand while it is in use (move 17), posed as Luigi's driver draws it.
+        void DrawScope(Vector3 origin)
+        {
+            if (!attack.Scope || !MeleeNative.HasScope) return;
+            MeleeNative.ssbm_sim_state(sim, out var state);
+            if (state.move_id != 17 || MeleeNative.ssbm_sim_common_bone(sim, 49, scopeMatrix) != 1) { scopeView?.Models.HideAll(); return; }
+            if (scopeView == null) scopeView = MeleeFighterView.Item(assetsDir, 0x15, 0);
+            var m = new Matrix4x4();
+            for (int n = 0; n < 16; n++) m[n] = scopeMatrix[n];
+            m *= Matrix4x4.Scale(new Vector3(-1f, 1f, 1f));
+            var forward = m.GetColumn(2); var up = m.GetColumn(1);
+            var rotation = Quaternion.LookRotation(new Vector3(forward.x, forward.y, forward.z), new Vector3(up.x, up.y, up.z));
+            var position = origin + new Vector3(scopeMatrix[12], scopeMatrix[13], scopeMatrix[14]);
+            scopeView.ObjectPose(0f);
+            scopeView.Models.Update(1f, d => (position, rotation));
+        }
+
         public IEnumerable<Transform> Roots()
         {
             if (fighter?.Models != null && fighter.Models.Root) yield return fighter.Models.Root;
             if (heldArticle != null)
                 foreach (var view in heldArticle.Views) if (view.Models != null && view.Models.Root) yield return view.Models.Root;
+            if (scopeView?.Models != null && scopeView.Models.Root) yield return scopeView.Models.Root;
             foreach (var shot in shots) if (shot.view?.Models != null && shot.view.Models.Root) yield return shot.view.Models.Root;
             foreach (var view in tracked) if (view?.Models != null && view.Models.Root) yield return view.Models.Root;
             foreach (var view in propViews) if (view?.Models != null && view.Models.Root) yield return view.Models.Root;
@@ -341,6 +375,7 @@ namespace Ror2Common
             var at = origin + new Vector3(state.position.x, state.position.y, state.position.z);
             fighter.Models.Update(1f, d => (at, Quaternion.identity));
             heldArticle?.Draw(sim, 1f, at, Quaternion.identity);
+            DrawScope(origin);
             effects.Draw(Placement(origin));
             if (attack.HideModels != null)
                 foreach (var entry in modelOf)
@@ -431,6 +466,7 @@ namespace Ror2Common
             if (tongueMaterial) UnityEngine.Object.Destroy(tongueMaterial);
             effects?.Dispose();
             heldArticle?.Dispose();
+            scopeView?.Dispose();
             Particles?.Dispose();
             fighter?.Dispose();
             if (sim != IntPtr.Zero) MeleeNative.ssbm_sim_free(sim);
