@@ -75,6 +75,9 @@ namespace Ror2Common
         /// `Focus` is measured from where the fighter ends up rather than where it started, so a move that
         /// dashes or rises stays centred on the fighter.
         public bool Follow;
+        /// Centre the camera on the drawn fighter and effect models together (their actual bounds) instead of on `Focus`;
+        /// `Half` is still the least the frame shows, and grows when the models need more.
+        public bool AutoCenter;
         /// `Focus` is measured from the first article the move released instead (the framing follows a projectile).
         public bool FocusShot;
         /// Articles drawn at fixed places beside the sim (see MeleeAttackProp).

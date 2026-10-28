@@ -368,6 +368,36 @@ namespace Ror2Common
                             layers.Add((t.gameObject, t.gameObject.layer));
                             t.gameObject.layer = layer;
                         }
+                    if (icon.attack.AutoCenter)
+                    {
+                        // The models are placed now: frame what they really cover.
+                        Vector3? lo = null, hi = null;
+                        foreach (var root in attack.Roots())
+                            foreach (var mf in root.GetComponentsInChildren<MeshFilter>())
+                            {
+                                var r = mf.GetComponent<Renderer>();
+                                if (!mf.sharedMesh || !r || !r.enabled || !mf.gameObject.activeInHierarchy) continue;
+                                var toWorld = mf.transform.localToWorldMatrix;
+                                foreach (var v in mf.sharedMesh.vertices)
+                                {
+                                    var w = toWorld.MultiplyPoint3x4(v);
+                                    lo = lo.HasValue ? Vector3.Min(lo.Value, w) : w;
+                                    hi = hi.HasValue ? Vector3.Max(hi.Value, w) : w;
+                                }
+                            }
+                        if (lo.HasValue)
+                        {
+                            var span = hi.Value - lo.Value;
+                            center = (lo.Value + hi.Value) * 0.5f;
+                            distance = Mathf.Max(Mathf.Max(1f, icon.attack.Half), Mathf.Max(span.x, span.y) * 0.55f) / tanHalfFov;
+                            float pitch = Mathf.Clamp(icon.attack.Pitch, -1.2f, 1.2f);
+                            cameraAt = center + new Vector3(Mathf.Sin(icon.attack.Yaw) * Mathf.Cos(pitch), Mathf.Sin(pitch), Mathf.Cos(icon.attack.Yaw) * Mathf.Cos(pitch)) * distance;
+                            cam.farClipPlane = distance * 4f;
+                            camGo.transform.position = cameraAt;
+                            camGo.transform.rotation = Quaternion.LookRotation(center - cameraAt, Vector3.up);
+                            lightGo.transform.rotation = Quaternion.LookRotation(-(center - cameraAt) + Vector3.down * 0.6f + Vector3.right * 0.4f);
+                        }
+                    }
                     var placement = MeleeAttackStage.Placement(stage.position);
                     px = Grab(cam, rt, AttackBackdrop(icon.color), () => attack.Particles.Draw(cam, layer, placement));
                     for (int y = 0; y < 256; y++)
@@ -595,7 +625,7 @@ namespace Ror2Common
                 case "MeleeSamus2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 24, ShotAdvance = 2, Shot = SamusShot, Focus = new Vector3(0.5f, 14f, 11f), Half = 7f }, Red);
                 case "MeleeShield": return Shield();
                 // Screw Attack: rising mid-spin, the spin effect around her.
-                case "MeleeSamus3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 14, Flash = true, Follow = true, Focus = new Vector3(0f, 5.5f, 0f), Half = 11f }, Green);
+                case "MeleeSamus3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 14, Flash = true, AutoCenter = true, Half = 11f }, Green);
                 // Fox
                 // Blaster: the gun out, the muzzle flash and the red laser leaving its tip.
                 case "MeleeFox0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 13, ShotAdvance = 1, Shot = FoxShot, Focus = new Vector3(1.5f, 9f, 5f), Half = 10f, Yaw = 1f }, Red);
