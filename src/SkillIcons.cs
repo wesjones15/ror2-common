@@ -647,12 +647,12 @@ namespace Ror2Common
                 case "MeleeFox3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 47, Aim = new Vector3(0f, 0.5f, 1f), Focus = new Vector3(0f, 19f, 27.2f), Half = 12f }, Orange);
                 // Luigi
                 case "MeleeLuigi0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 19, Shot = LuigiShot, Follow = true, Focus = new Vector3(0f, 8f, 5f), Half = 9.5f }, Green);
-                case "MeleeLuigiScope": return X(new MeleeAttack { Buttons = 256, Ticks = 56, Scope = true, DustEffect = 0x3FF, Focus = new Vector3(0f, 8f, 3f), Half = 11f }, Green);
+                case "MeleeLuigiScope": return X(new MeleeAttack { Buttons = 256, Ticks = 56, Scope = true, DustEffect = 0x3FF, Focus = new Vector3(0f, 8f, 5f), Half = 7f }, Green);
                 case "MeleeLuigiCyclone": return X(new MeleeAttack { Buttons = 2048, Ticks = 24, Focus = new Vector3(0f, 8f, 0f), Half = 9f }, Green);
                 case "MeleeLuigiShield": return Shield();
                 case "MeleeLuigi2": return X(new MeleeAttack { Buttons = 512, Hold = 40, Ticks = 47, Follow = true, Focus = new Vector3(0f, 7f, 0f), Half = 10f }, Green);
                 case "MeleeLuigi3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 10, Follow = true, Focus = new Vector3(0f, 8f, 0f), Half = 8f }, Red);
-                case "MeleeLuigiScopeSpecial": return X(new MeleeAttack { Buttons = 256, Ticks = 56, Scope = true, DustEffect = 0x3FF, Focus = new Vector3(0f, 8f, 3f), Half = 11f }, Green);
+                case "MeleeLuigiScopeSpecial": return X(new MeleeAttack { Buttons = 256, Ticks = 56, Scope = true, DustEffect = 0x3FF, Focus = new Vector3(0f, 8f, 5f), Half = 7f }, Green);
                 // Pikachu
                 case "MeleePikachu0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 25, Shot = PikachuShot, FocusShot = true, Half = 5.5f }, Yellow);
                 case "MeleePikachuEggLay": return X(new MeleeAttack { Buttons = 256, Hold = 1, HostFlags = 1, Ticks = 20, TongueBone = 16, TongueLength = 20f, Focus = new Vector3(-1f, 5f, 8f), Half = 13f }, Green);
