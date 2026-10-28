@@ -634,7 +634,7 @@ namespace Ror2Common
                 case "MeleeSamus2": return X(new MeleeAttack { Buttons = 512, Hold = 1, Ticks = 24, ShotAdvance = 2, Shot = SamusShot, Focus = new Vector3(0.5f, 14f, 11f), Half = 7f }, Red);
                 case "MeleeShield": return Shield();
                 // Screw Attack: rising mid-spin, the spin effect around her.
-                case "MeleeSamus3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 14, Follow = true, Focus = new Vector3(0f, 6f, 1.5f), Half = 14f, HideModels = new uint[] { 3 } }, Green);
+                case "MeleeSamus3": return X(new MeleeAttack { Buttons = 1024, Hold = 1, Ticks = 30, AutoCenter = true, Half = 12f, HideModels = new uint[] { 3 } }, Green);
                 // Fox
                 // Blaster: the gun out, the muzzle flash and the red laser leaving its tip.
                 case "MeleeFox0": return X(new MeleeAttack { Buttons = 256, Hold = 1, Ticks = 13, ShotAdvance = 1, Shot = FoxShot, Focus = new Vector3(1.5f, 9f, 5f), Half = 8f, Yaw = 1f }, Red);
