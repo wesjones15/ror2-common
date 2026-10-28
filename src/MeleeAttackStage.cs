@@ -80,6 +80,9 @@ namespace Ror2Common
         public bool AutoCenter;
         /// With `AutoCenter`, frame only the held item (Link's bow) rather than everything drawn.
         public bool CenterOnHeld;
+        /// Effect model ids (as MeleeEffects resolves them) to leave out of the picture: a floor effect that is not part of the
+        /// attack itself (Screw Attack's ground dust).
+        public uint[] HideModels;
         /// `Focus` is measured from the first article the move released instead (the framing follows a projectile).
         public bool FocusShot;
         /// Articles drawn at fixed places beside the sim (see MeleeAttackProp).
@@ -149,7 +152,7 @@ namespace Ror2Common
                 Particles = new MeleeParticles(assetsDir, 1f);
                 Func<IMeleeObjectView> charge = attack.ChargeArticle < 0 ? (Func<IMeleeObjectView>)null
                     : () => Track(new MeleeFighterView(assetsDir, kind, (uint)attack.ChargeArticle, 0));
-                effects = new MeleeEffects(Particles, 1f, model => Track(MeleeFighterView.EffectAny(assetsDir, kind, model)), charge, false);
+                effects = new MeleeEffects(Particles, 1f, model => TrackModel(MeleeFighterView.EffectAny(assetsDir, kind, model), model), charge, false);
                 if (attack.Props != null)
                     foreach (var prop in attack.Props)
                     {
@@ -166,6 +169,8 @@ namespace Ror2Common
         }
 
         IMeleeObjectView Track(IMeleeObjectView view) { tracked.Add(view); return view; }
+        readonly Dictionary<IMeleeObjectView, uint> modelOf = new Dictionary<IMeleeObjectView, uint>();
+        IMeleeObjectView TrackModel(IMeleeObjectView view, uint model) { modelOf[view] = model; return Track(view); }
 
         static void Floor(IntPtr user, in MeleeNative.Vec3 from, in MeleeNative.Vec3 to, out MeleeNative.Collision c)
         { c = new MeleeNative.Collision { position = new MeleeNative.Vec3(to.x, Mathf.Max(0f, to.y), to.z), grounded = to.y <= 0f ? 1u : 0u }; }
@@ -337,6 +342,9 @@ namespace Ror2Common
             fighter.Models.Update(1f, d => (at, Quaternion.identity));
             heldArticle?.Draw(sim, 1f, at, Quaternion.identity);
             effects.Draw(Placement(origin));
+            if (attack.HideModels != null)
+                foreach (var entry in modelOf)
+                    if (Array.IndexOf(attack.HideModels, entry.Value) >= 0 && entry.Key?.Models != null) entry.Key.Models.HideAll();
             if (attack.Props != null)
                 for (int i = 0; i < propViews.Count && i < attack.Props.Length; i++)
                 {
