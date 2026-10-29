@@ -180,7 +180,8 @@ namespace Ror2Common
             var materials = new List<Material>();
             MeleeParticles particles = null;
             MeleeAttackStage attack = null;
-            GameObject camGo = null, lightGo = null;
+            GameObject camGo = null;
+            PortraitLight light = null;
             RenderTexture rt = null;
             var layers = new List<(GameObject, int)>();
             try
@@ -340,17 +341,17 @@ namespace Ror2Common
                 cam.farClipPlane = distance * 4f;
                 cam.allowHDR = false;
                 cam.allowMSAA = false;
+                cam.depthTextureMode = DepthTextureMode.Depth;
                 cam.renderingPath = RenderingPath.DeferredShading;
                 camGo.transform.position = cameraAt;
                 camGo.transform.rotation = Quaternion.LookRotation(center - cameraAt, Vector3.up);
 
-                lightGo = new GameObject("skill icon light");
-                var light = lightGo.AddComponent<Light>();
-                light.type = LightType.Directional;
-                light.intensity = 1.15f;
-                light.color = new Color(1f, 0.97f, 0.92f);
-                light.cullingMask = 1 << layer;
-                lightGo.transform.rotation = Quaternion.LookRotation(-(center - cameraAt) + Vector3.down * 0.6f + Vector3.right * 0.4f);
+                // The card's own studio (PortraitLight): key on the camera's side of the fighter, so the
+                // side the player sees is the lit one; the scene's lights and ambient stay out of it.
+                // Fighters are drawn FighterBrightness times brighter than the source's colour, so the
+                // studio comes down by the same factor.
+                light = new PortraitLight(layer, 1f / Mathf.Max(1f, MeleeFighterView.FighterBrightness));
+                light.Aim(center, cameraAt);
 
                 rt = new RenderTexture(256, 256, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
@@ -395,7 +396,7 @@ namespace Ror2Common
                             cam.farClipPlane = distance * 4f;
                             camGo.transform.position = cameraAt;
                             camGo.transform.rotation = Quaternion.LookRotation(center - cameraAt, Vector3.up);
-                            lightGo.transform.rotation = Quaternion.LookRotation(-(center - cameraAt) + Vector3.down * 0.6f + Vector3.right * 0.4f);
+                            light.Aim(center, cameraAt);
                         }
                     }
                     var placement = MeleeAttackStage.Placement(stage.position);
@@ -444,7 +445,7 @@ namespace Ror2Common
                 GameSettings.CameraOverride = null;
                 foreach (var (go, l) in layers) if (go) go.layer = l;
                 if (camGo) UnityEngine.Object.Destroy(camGo);
-                if (lightGo) UnityEngine.Object.Destroy(lightGo);
+                light?.Dispose();
                 if (rt) { rt.Release(); UnityEngine.Object.Destroy(rt); }
                 particles?.Dispose();
                 attack?.Dispose();
