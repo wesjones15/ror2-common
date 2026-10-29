@@ -17,6 +17,8 @@ namespace Ror2Common
         public const uint FighterLink = 5;
         public const uint FighterYoshi = 6;
         public const uint FighterDonkey = 7;
+        /// Mario's contextual-A lab plus the Melee clips ported onto Sunshine's rig.
+        public const uint FighterMario = 8;
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
         public static bool HasLight {get;private set;}
@@ -197,6 +199,10 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_extract(byte[] disc,byte[] dir,uint kind);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_sim_new(byte[] dir,Vec3 position);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_sim_new_fighter(byte[] dir,Vec3 position,uint kind);
+        /// Mario's A clip posed on Sunshine's `ma_mdl1.bmd`: load once, sample per frame.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern IntPtr ssbm_mario_pose_new(byte[] dir,byte[] smsBmd);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_mario_pose_sample(IntPtr pose,byte[] clip,float frame,[Out]float[] matrices,uint max);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_mario_pose_free(IntPtr pose);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_free(IntPtr sim);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_step(IntPtr sim,in Host host,in Pad pad,double dt);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_state(IntPtr sim,out State state);
