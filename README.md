@@ -50,6 +50,7 @@ Set `Ror2Common.CommonLog.Log = Logger;` first thing in the plugin's `Awake`.
 | File | What |
 |------|------|
 | `Mp.cs`, `Fragments.cs`, `ByteIO.cs` | Custom UNet messages without R2API (register a type with server and client handlers, send byte payloads to the server, to everyone or to everyone but one), with fragmentation for payloads over 1100 bytes, and little-endian `ByteWriter` / `ByteReader` with no Unity types. See [MULTIPLAYER.md](MULTIPLAYER.md). |
+| `GameCubeLibrary.cs` | The optional shared folder of disc images and per-mod caches (`assets/Olimar`, `assets/Mario`, `assets/Melee`) all three plugins read, without moving an existing cache. See [GAMECUBE-LIBRARY.md](GAMECUBE-LIBRARY.md). |
 | `NativeLib.cs` | Load a Rust DLL by full path before `[DllImport]`s bind; compare struct sizes with the native side; UTF-8 strings. |
 | `Prefabs.cs` | Clone a prefab under an inactive holder, with its own network asset id (what R2API's `PrefabAPI.InstantiateClone` does). |
 | `ContentProvider.cs` | Register content through RoR2's `collectContentPackProviders` hook. |
