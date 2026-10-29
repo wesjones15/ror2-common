@@ -17,9 +17,11 @@ one folder that holds the user's disc images and their generated caches:
 First match wins:
 
 1. The plugin's own `Paths.Library` config entry.
-2. A `gamecube_library.txt` holding the folder's path, in the plugin's folder or up to three
-   folders above it. One file in `BepInEx/plugins/` serves all three plugins. A relative path is
-   relative to the file.
+2. A `gamecube_library.txt` in the plugin's folder or up to three folders above it. One file in
+   `BepInEx/plugins/` serves all three plugins. Its first line that is neither blank nor starts
+   with `#` is the folder (surrounding quotes dropped; a relative path is relative to the file).
+   A file of `#` notes only is ignored: the release ships it that way
+   (`ror2-characters/templates/gamecube_library.txt`), as instructions the player fills in.
 3. `$GAMECUBE_LIBRARY`.
 
 A library that doesn't exist is logged and ignored.

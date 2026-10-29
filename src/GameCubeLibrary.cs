@@ -53,10 +53,25 @@ namespace Ror2Common
             {
                 string file = Path.Combine(at.FullName, PointerFile);
                 if (!File.Exists(file)) continue;
-                string target = File.ReadAllText(file).Trim();
-                if (string.IsNullOrEmpty(target)) continue;
+                string target = PointerPath(File.ReadAllLines(file));
+                if (target == null) continue;
                 // A relative pointer is relative to the file.
                 return Path.IsPathRooted(target) ? target : Path.Combine(at.FullName, target);
+            }
+            return null;
+        }
+
+        /// The folder a gamecube_library.txt names: its first line that is neither blank nor a
+        /// `#` note, without surrounding quotes. Null when it holds only notes (the release ships
+        /// it that way, so it is ignored until the player writes a path in).
+        public static string PointerPath(IEnumerable<string> lines)
+        {
+            foreach (string raw in lines)
+            {
+                string line = raw.Trim();
+                if (line.Length == 0 || line[0] == '#') continue;
+                line = line.Trim('"', '\'').Trim();
+                if (line.Length > 0) return line;
             }
             return null;
         }
