@@ -22,7 +22,10 @@ First match wins:
    with `#` is the folder (surrounding quotes dropped; a relative path is relative to the file).
    A file of `#` notes only is ignored: the release ships it that way
    (`ror2-characters/templates/gamecube_library.txt`), as instructions the player fills in.
-3. `$GAMECUBE_LIBRARY`.
+3. The folder such a file last named, kept in `BepInEx/config/gamecube_library.path` whenever a
+   plugin reads a filled-in file. No release ships it, so a release unzipped over the install
+   (which puts the notes-only file back) keeps the library. Deleting it stops the library.
+4. `$GAMECUBE_LIBRARY`.
 
 A library that doesn't exist is logged and ignored.
 

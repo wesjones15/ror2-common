@@ -26,13 +26,23 @@ namespace Ror2Common
 
         static readonly string[] DiscExtensions = { ".iso", ".gcm", ".ciso" };
 
+        /// Where the last folder a gamecube_library.txt named is kept. No release ships it, so
+        /// unzipping a release over the install (which replaces the notes-only file) keeps it.
+        public const string RememberedFile = "gamecube_library.path";
+
         /// The library folder, or null when none is set. `configured` is the plugin's
         /// Paths.Library; empty: a gamecube_library.txt in the plugin folder or up to three
-        /// folders above it (the plugins folder, so one file serves all three), then $GAMECUBE_LIBRARY.
+        /// folders above it (the plugins folder, so one file serves all three), then the folder
+        /// such a file last named (BepInEx/config/gamecube_library.path), then $GAMECUBE_LIBRARY.
         public static string Root(string configured, string here)
         {
             string chosen = configured?.Trim();
-            if (string.IsNullOrEmpty(chosen)) chosen = FromPointer(here);
+            if (string.IsNullOrEmpty(chosen))
+            {
+                chosen = FromPointer(here);
+                if (!string.IsNullOrEmpty(chosen)) Remember(chosen);
+                else chosen = Remembered();
+            }
             if (string.IsNullOrEmpty(chosen)) chosen = Environment.GetEnvironmentVariable(EnvVar)?.Trim();
             if (string.IsNullOrEmpty(chosen)) return null;
             try
@@ -59,6 +69,37 @@ namespace Ror2Common
                 return Path.IsPathRooted(target) ? target : Path.Combine(at.FullName, target);
             }
             return null;
+        }
+
+        static string RememberedPath()
+        {
+            try { return Path.Combine(BepInEx.Paths.ConfigPath, RememberedFile); }
+            catch { return null; }
+        }
+
+        static string Remembered()
+        {
+            try
+            {
+                string file = RememberedPath();
+                return file != null && File.Exists(file) ? PointerPath(File.ReadAllLines(file)) : null;
+            }
+            catch { return null; }
+        }
+
+        // Each plugin calls this; only a changed folder is written.
+        static void Remember(string folder)
+        {
+            try
+            {
+                string file = RememberedPath();
+                if (file == null) return;
+                string full = Path.GetFullPath(folder);
+                if (File.Exists(file) && PointerPath(File.ReadAllLines(file)) == full) return;
+                File.WriteAllText(file, "# The GameCube library folder plugins/gamecube_library.txt last named, kept here so an update that\r\n" +
+                                        "# replaces that file keeps it. Delete this file to stop using the library.\r\n" + full + "\r\n");
+            }
+            catch (Exception e) { CommonLog.Log?.LogWarning($"Couldn't remember the GameCube library folder: {e.Message}"); }
         }
 
         /// The folder a gamecube_library.txt names: its first line that is neither blank nor a
