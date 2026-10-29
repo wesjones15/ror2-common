@@ -432,8 +432,12 @@ namespace Ror2Common
                     CommonLog.Info(FighterName + " falloff: common threshold, Melee KO and figurine recovery");
                 } else if (!Recovering && unstuck.Step(feet, fallen || blocked, state.grounded != 0 && supported, control != NativeBody.Hold.None || GrabAttached, Time.fixedDeltaTime, 1.8f, RecoveryGround, out var recovered)) {
                     Recover(recovered); feet = ToWorld(state.position); CommonLog.Info(FighterName + " recovered using common Unstuck");
+                } else if (!Recovering && unstuck.Wedged(feet, 1.8f, 0.3f, control != NativeBody.Hold.None || GrabAttached, Time.fixedDeltaTime, RecoveryGround, out var unwedged)) {
+                    // Grounded and "supported" inside a log or between rocks: Step's stillness clock
+                    // never runs out while the wall guard jostles it, so the wedge has its own.
+                    Recover(unwedged); feet = ToWorld(state.position); CommonLog.Info(FighterName + " was wedged in geometry; out at " + unwedged);
                 } else if (!Recovering && wallGuard.Step(feet, 1.8f, sweepHeights, WallNormalY, control != NativeBody.Hold.None || GrabAttached, false, out var back, out var why)) {
-                    Recover(back); feet = ToWorld(state.position); CommonLog.Info(FighterName + " wall recovery: " + why);
+                    Recover(back, true); feet = ToWorld(state.position); CommonLog.Info(FighterName + " wall recovery: " + why);
                 }
                 smoother.Stepped(feet + feetOffset); native.WroteVelocity(ToWorld(state.velocity) * 60f);
                 motor.Motor.GroundingStatus.IsStableOnGround = state.grounded != 0;
@@ -562,10 +566,13 @@ namespace Ror2Common
             if (MeleeNative.ssbm_sim_begin_rebirth(sim, NativeLib.CString(AssetsDir), ToSim(safeFeet)) != 1) throw new InvalidOperationException(MeleeNative.Error);
             recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim);
         }
-        protected void Recover(Vector3 feet)
+        /// `local`: a wall-guard put-back, a small correction rather than a move somewhere new, so
+        /// the last safe spot and the stuck/wedge clocks stay (as Mario's Resync(true)); wiping
+        /// them on every put-back meant a body jostled by the guard was never freed.
+        protected void Recover(Vector3 feet, bool local = false)
         {
             MeleeNative.ssbm_sim_place(sim, ToSim(feet), 2); MeleeNative.ssbm_sim_state(sim, out state);
-            smoother.Reset(); native.ForgetVelocity(); unstuck.Reset(); wallGuard.Placed(feet);
+            smoother.Reset(); native.ForgetVelocity(); if (!local) unstuck.Reset(); wallGuard.Placed(feet);
         }
         // The owner's calls on its sim, recorded natively, go out three steps at a time (about 20 a second) when
         // other players are in the game; alone they are dropped.

@@ -29,6 +29,13 @@ namespace Ror2Common
         public float SphereRadius = 0.15f;
         /// Steps in a row inside geometry before it is undone (strict: one).
         public int InsideSteps = 3;
+        /// Sweep rays at this height above the feet or more count every face they cross, not only
+        /// walls (WorldProbe.CrossedWall's `surfacesAbove`): a slope or overhang the body was
+        /// thrown or jumped into. Below it, the floor a body walks on is never a crossing.
+        public float SurfacesAbove = 0.5f;
+        /// Feet this far or more under a floor are lifted back onto it. Shallower sinks are the
+        /// sims' own business: Sunshine probes ground from 0.3 m up, Melee lands from 0.35 m up.
+        public float MinSink = 0.3f;
 
         Vector3 safe;
         bool haveSafe;
@@ -84,7 +91,7 @@ namespace Ror2Common
                     swept[heights.Length + 1] = 1.2f;
                     swept[heights.Length + 2] = Mathf.Max(1.8f, bodyHeight);
                 }
-                if (WorldProbe.CrossedWall(safe, feet, swept, wallNormalY, out var hit)
+                if (WorldProbe.CrossedWall(safe, feet, swept, wallNormalY, SurfacesAbove, out var hit)
                     || WorldProbe.SweptIntoWall(safe, feet, swept, SphereRadius, wallNormalY, out hit))
                 {
                     why = $"crossed a wall: {hit.collider.name} " +
@@ -92,6 +99,19 @@ namespace Ror2Common
                     inside = 0;
                     return true;
                 }
+            }
+            // A step that did not rise and ended with the feet under a floor (a landing or a
+            // knock-back into a slope or a log's side): put the body back on that floor now,
+            // before the sim, whose ground ray starts inside the mesh and sees none, lets it fall
+            // in. A rising body (a jump up under a ledge) is left to the sweep.
+            if (feet.y <= safe.y + 0.001f
+                && WorldProbe.SunkFloor(feet, Mathf.Min(0.9f, bodyHeight * 0.5f), MinSink, wallNormalY, out float top))
+            {
+                back = new Vector3(feet.x, top + 0.01f, feet.z);
+                why = $"sank {top - feet.y:F2} m under the floor at {feet}";
+                safe = back;
+                inside = 0;
+                return true;
             }
             bool in3d = WorldProbe.InsideSolid(feet + Vector3.up * (bodyHeight * 0.5f));
             if (in3d)

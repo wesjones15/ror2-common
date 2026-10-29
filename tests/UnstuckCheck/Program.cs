@@ -158,8 +158,68 @@ static class Program
         Check(target.x>11.9f&&target.x<12.1f,"no-footing fall did not pick the nearest spawn point");
         RoR2.SpawnPoint.readOnlyInstancesList=new System.Collections.Generic.List<RoR2.SpawnPoint>();
 
+        Wedges();
+
         Console.WriteLine("PASS: shared Mario 20m clear-void trigger, stage-floor gating, no-footing spawn rescue, lower terrain/zone safeguards and timeout at 30/60/120 Hz, motion, jitter, idle, crowd control, reset, " +
             "nearby escape, fallback revalidation, failed-search retry");
+    }
+
+    const float Radius = 0.5f;
+    static bool Wedge(Unstuck m, Vector3 feet, bool exempt = false, float dt = 1f / 60f) =>
+        m.Wedged(feet, Height, Radius, exempt, dt, Floor, out _);
+
+    // A body grounded inside geometry (sunk into a log) that the guard jostles back and forth.
+    static void Wedges()
+    {
+        probe = Floor;
+        var jitter = new Vector3(0.3f, 0f, 0f);
+        WorldProbe.wedged = true;
+        // The gap: Step's stillness clock restarts on every 0.3 m jostle, so it never fires.
+        var old = new Unstuck();
+        for (int i = 0; i < 600; i++)
+            Check(!old.Step(i % 2 == 0 ? Origin : jitter, true, true, false, 1f / 60f, Height, Floor, out _),
+                "Step unexpectedly caught the jostled wedge");
+        foreach (int hz in new[] { 30, 60, 120 })
+        {
+            var m = new Unstuck();
+            int ticks = (int)Math.Round(Unstuck.WedgeDelay * hz);
+            for (int i = 0; i < ticks - 1; i++)
+                Check(!Wedge(m, i % 2 == 0 ? Origin : jitter, dt: 1f / hz), "Wedge freed before its delay");
+            Check(m.Wedged(jitter, Height, Radius, false, 1f / hz, Floor, out var to), "Jostled wedge never freed at " + hz + " Hz");
+            Check((to - jitter).sqrMagnitude > 0.01f, "Freed into the same spot");
+        }
+        // Blips clear of geometry shorter than half a second keep the clock; a longer one resets it.
+        var w = new Unstuck();
+        for (int i = 0; i < 60; i++) Wedge(w, Origin);
+        WorldProbe.wedged = false;
+        for (int i = 0; i < 20; i++) Check(!Wedge(w, Origin), "Clear body freed");
+        WorldProbe.wedged = true;
+        bool freed = false;
+        for (int i = 0; i < 60 && !freed; i++) freed = Wedge(w, Origin);
+        Check(freed, "A short blip clear restarted the wedge clock");
+        w = new Unstuck();
+        for (int i = 0; i < 60; i++) Wedge(w, Origin);
+        WorldProbe.wedged = false;
+        for (int i = 0; i < 30; i++) Wedge(w, Origin);
+        WorldProbe.wedged = true;
+        for (int i = 0; i < 119; i++) Check(!Wedge(w, Origin), "Half a second clear kept the old wedge time");
+        // Walking through a prop's collider (travel past a body height) is not being wedged.
+        w = new Unstuck();
+        for (int i = 0; i < 600; i++)
+            Check(!Wedge(w, new Vector3(i * 0.02f, 0f, 0f)), "Travel through geometry mistaken for a wedge");
+        // A ledge hang or a hold rightly touches geometry; it never fires and clears the clock.
+        w = new Unstuck();
+        for (int i = 0; i < 600; i++) Check(!Wedge(w, Origin, exempt: true), "Exempt state freed");
+        for (int i = 0; i < 100; i++) Wedge(w, Origin);
+        Check(!Wedge(w, Origin, exempt: true), "Exempt state freed");
+        for (int i = 0; i < 119; i++) Check(!Wedge(w, Origin), "Exempt time carried into the wedge clock");
+        // A Reset (teleport, death) forgets the wedge.
+        w = new Unstuck();
+        for (int i = 0; i < 100; i++) Wedge(w, Origin);
+        w.Reset();
+        for (int i = 0; i < 119; i++) Check(!Wedge(w, Origin), "Reset kept wedge time");
+        WorldProbe.wedged = false;
+        Console.WriteLine("PASS: a jostled wedge (which the stillness clock never catches) is freed after 2 s at 30/60/120 Hz; blips, travel, exempt states and resets handled");
     }
 }
 
@@ -204,7 +264,8 @@ namespace Ror2Common
 {
     static class WorldProbe
     {
-        public static bool groundBelow,inZone,zoneAtSafe;public static float lastReach;
+        public static bool groundBelow,inZone,zoneAtSafe,wedged;public static float lastReach;
+        public static bool Wedged(Vector3 feet, float height, float radius) => wedged;
         static readonly RoR2.MapZone testZone=new RoR2.MapZone();
         public static bool Ground(Vector3 point,float reach,out UnityEngine.RaycastHit hit){hit=default;lastReach=reach;return groundBelow;}
         public static bool InMapZone(Vector3 point, out RoR2.MapZone zone) { zone = testZone; return inZone; }

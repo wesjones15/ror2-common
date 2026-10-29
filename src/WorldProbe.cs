@@ -115,7 +115,15 @@ namespace Ror2Common
         /// fast step, a corner or a thin pole between rays, walks out of the map unchecked. This
         /// sweep runs from where it stood to where it ended up, so it catches the crossing itself.
         public static bool CrossedWall(Vector3 from, Vector3 to, float[] heights, float wallNormalY,
-            out RaycastHit hit)
+            out RaycastHit hit) => CrossedWall(from, to, heights, wallNormalY, float.PositiveInfinity, out hit);
+
+        /// As `CrossedWall`, and at heights of `surfacesAbove` or more any face counts, not only
+        /// walls: a jump or a knock-back that carries the body diagonally into a slope (a log's
+        /// upper side, a boulder) or up into an overhang crosses a face no wall ring sees. Low
+        /// rays keep the wall-only rule, so the floor under a walking body's feet is never a
+        /// crossing.
+        public static bool CrossedWall(Vector3 from, Vector3 to, float[] heights, float wallNormalY,
+            float surfacesAbove, out RaycastHit hit)
         {
             hit = default;
             var move = to - from;
@@ -130,7 +138,7 @@ namespace Ror2Common
                 for (int i = 0; i < n; i++)
                 {
                     var c = crossHits[i];
-                    if (Mathf.Abs(c.normal.y) >= wallNormalY) continue;
+                    if (Mathf.Abs(c.normal.y) >= wallNormalY && h < surfacesAbove) continue;
                     if (!found || c.distance < hit.distance)
                     {
                         hit = c;
@@ -139,6 +147,22 @@ namespace Ror2Common
                 }
             }
             return found;
+        }
+
+        /// Whether feet at `feet` have sunk under a floor (a face with normal.y over `wallNormalY`)
+        /// at most `depth` above them; `top` is that floor's height. A ray from inside a mesh
+        /// misses it, so a body pushed a little way into a slope finds no ground under its feet
+        /// and falls on into the solid; this asks from above, where the face is seen.
+        /// Only a sink of `minSink` or more counts; shallower ones the sims' own ground probes,
+        /// which start that far above the feet, already resolve.
+        public static bool SunkFloor(Vector3 feet, float depth, float minSink, float wallNormalY, out float top)
+        {
+            top = feet.y;
+            if (!Physics.Raycast(feet + Vector3.up * depth, Vector3.down, out var h, depth, Mask,
+                QueryTriggerInteraction.Ignore)) return false;
+            if (h.normal.y <= wallNormalY || h.point.y < feet.y + minSink) return false;
+            top = h.point.y;
+            return true;
         }
 
         /// `CrossedWall` with a sphere of `radius` instead of a ray, so a thin pole or a corner
@@ -199,6 +223,20 @@ namespace Ror2Common
             }
             finally { Physics.queriesHitBackfaces = before; }
             return back >= 2 && front == 0;
+        }
+
+        /// Whether a body standing at `feet` is wedged in geometry: a slim capsule through its
+        /// middle (lifted off the floor it stands on, a little thinner than the body so a wall it
+        /// leans on doesn't count) overlaps the world, or its centre is inside a mesh. A body a
+        /// native sim moves can end up like this (sunk into a log, between rocks) where the sim's
+        /// ray probes can't see out, and neither falls nor walks free.
+        public static bool Wedged(Vector3 feet, float height, float radius)
+        {
+            float r = Mathf.Max(0.05f, radius * 0.6f);
+            var bottom = feet + Vector3.up * (height * 0.25f + r);
+            var top = feet + Vector3.up * Mathf.Max(height * 0.95f - r, height * 0.25f + r);
+            return Physics.CheckCapsule(bottom, top, r, Mask, QueryTriggerInteraction.Ignore)
+                || InsideSolid(feet + Vector3.up * (height * 0.5f));
         }
 
         /// The lowest ceiling at or above `from` within `reach` (`checkRoof`).

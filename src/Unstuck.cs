@@ -24,6 +24,7 @@ namespace Ror2Common
         {
             watching = hasSafeFeet = false;
             elapsed = safeAge = airborne = noSafe = 0f;
+            wedgedFor = clearFor = 0f;
             hasStart = false;
         }
 
@@ -168,7 +169,52 @@ namespace Ror2Common
             // Float accumulation must not delay a 180-step / 60 Hz timeout by a tick.
             if (elapsed + 0.0001f < Delay) return false;
             elapsed = 0f; // Retry at most once every three seconds if no clear floor exists.
+            return Search(feet, height, tolerance, probe, out destination);
+        }
 
+        /// Seconds a body must stay wedged (`WorldProbe.Wedged`) before it is moved out.
+        public const float WedgeDelay = 2f;
+        /// Seconds clear of geometry that end a wedge; shorter blips keep the clock running.
+        const float WedgeClear = 0.5f;
+        float wedgedFor, clearFor;
+        Vector3 wedgeStart;
+
+        /// A body standing or walking inside geometry (sunk into a log, jammed between rocks),
+        /// which `Step` never sees: its sim says it is fine and grounded, and the wall guard
+        /// snapping it back and forth moves it just enough to restart `Step`'s stillness clock
+        /// every time. Here the clock runs on being wedged, not on standing still: jitter and
+        /// short blips out keep it running, real travel (a body's height) or half a second clear
+        /// restarts it. After `WedgeDelay` the same clear-ground search as `Step` puts it out.
+        /// Call every tick after `Step`; `exempt` for states that rightly touch geometry (a
+        /// ledge hang or climb) and while something else holds the body.
+        public bool Wedged(Vector3 feet, float height, float radius, bool exempt, float dt,
+            GroundProbe probe, out Vector3 destination)
+        {
+            destination = default;
+            if (exempt || !WorldProbe.Wedged(feet, height, radius))
+            {
+                clearFor = exempt ? WedgeClear : clearFor + dt;
+                if (clearFor >= WedgeClear) wedgedFor = 0f;
+                return false;
+            }
+            clearFor = 0f;
+            if (wedgedFor <= 0f || (feet - wedgeStart).sqrMagnitude > height * height)
+            {
+                wedgeStart = feet;
+                wedgedFor = 0f;
+            }
+            wedgedFor += dt;
+            if (wedgedFor + 0.0001f < WedgeDelay) return false;
+            wedgedFor = 0f; // Retry every WedgeDelay if nowhere clear is found.
+            float tolerance = Mathf.Max(0.05f, height * 0.08f);
+            if (Search(feet, height, tolerance, probe, out destination)) return true;
+            CommonLog.Info($"Wedged at {feet} with no clear ground near; retrying");
+            return false;
+        }
+
+        bool Search(Vector3 feet, float height, float tolerance, GroundProbe probe, out Vector3 destination)
+        {
+            destination = default;
             // Start above the obstruction, then widen the search around it. The probe checks
             // floor support and standing clearance, including the fallen pod door.
             for (int ring = 0; ring <= 3; ring++)
