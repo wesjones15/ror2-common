@@ -25,7 +25,8 @@ namespace Ror2Common
         protected Vector3 feetOffset, safe; protected StepSmoother smoother; protected CameraPivot cameraPivot;
         protected readonly GroundGate ground = new GroundGate();
         protected readonly Unstuck unstuck = new Unstuck();
-        protected readonly WallGuard wallGuard = new WallGuard();
+        // Collision() lands on floors up to 0.35 m above the feet: the guard leaves lower lips to it.
+        protected readonly WallGuard wallGuard = new WallGuard { StepHeight = 0.35f };
         protected static readonly float[] sweepHeights = { 0.1f, 0.6f, 1.2f, 1.7f };
         /// Slopes flatter than this (surface normal.y above it) count as ground, steeper as a wall.
         /// Mario's host uses 0.2 (Sunshine's value) and Olimar's 0.5; Melee's old 0.6 treated RoR2's
@@ -663,7 +664,20 @@ namespace Ror2Common
             if (delta.sqrMagnitude > 0.000001f && Physics.CapsuleCast(start + Vector3.up * radius, start + Vector3.up * (height - radius), radius, delta.normalized, out var hit, delta.magnitude, WorldProbe.Mask, QueryTriggerInteraction.Ignore)) {
                 end = start + delta.normalized * Mathf.Max(0, hit.distance - 0.01f);
                 if (hit.normal.y > WallNormalY && delta.y <= 0) land = true; if (hit.normal.y < -WallNormalY) roof = true;
-                var remain = Vector3.ProjectOnPlane(delta - (end - start), hit.normal);
+                var left = delta - (end - start);
+                var remain = Vector3.ProjectOnPlane(left, hit.normal);
+                // A walkable slope or bump ahead: the move's horizontal part is laid onto its surface
+                // at full length, as RoR2's own motor reorients velocity onto the ground
+                // (KinematicCharacterMotor), and as Sunshine's walkProcess keeps speed along a slope.
+                // A plain projection kept only cos² of the ground speed and made uphills sticky. The
+                // part going down into the surface (a landing) is dropped, never turned into a slide.
+                // Walls keep the projection, so sliding along one still loses the head-on part.
+                var flat = new Vector3(left.x, 0f, left.z);
+                if (hit.normal.y > WallNormalY && flat.sqrMagnitude > 1e-8f)
+                {
+                    var along = Vector3.ProjectOnPlane(flat, hit.normal);
+                    if (along.sqrMagnitude > 1e-8f) remain = along.normalized * flat.magnitude;
+                }
                 end += remain;
             }
             end = WorldProbe.PushOutOfWalls(end + Vector3.up * 0.6f, radius, WallNormalY, walls, 8) - Vector3.up * 0.6f;

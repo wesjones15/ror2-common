@@ -225,18 +225,32 @@ namespace Ror2Common
             return back >= 2 && front == 0;
         }
 
-        /// Whether a body standing at `feet` is wedged in geometry: a slim capsule through its
-        /// middle (lifted off the floor it stands on, a little thinner than the body so a wall it
-        /// leans on doesn't count) overlaps the world, or its centre is inside a mesh. A body a
-        /// native sim moves can end up like this (sunk into a log, between rocks) where the sim's
-        /// ray probes can't see out, and neither falls nor walks free.
-        public static bool Wedged(Vector3 feet, float height, float radius)
+        /// Whether a body standing at `feet` is wedged in geometry: at least `BodyInside` of it is
+        /// inside solid (`SolidFraction`). A body a native sim moves can end up like this (sunk
+        /// into a log, between rocks) where the sim's ray probes can't see out, and neither falls
+        /// nor walks free.
+        public static bool Wedged(Vector3 feet, float height, float radius) =>
+            SolidFraction(feet, height, radius) >= BodyInside;
+
+        /// How much of a body has to be in terrain before it counts as in it: a foot or a hand
+        /// clipping a prop never does, only a body sunk to the waist or more.
+        public const float BodyInside = 0.5f;
+        const int FractionSamples = 6;
+
+        /// The fraction of a body standing at `feet` that is inside solid geometry: points up its
+        /// middle (`InsideSolid`), evenly from ankle to head. Open air costs one capsule test.
+        public static float SolidFraction(Vector3 feet, float height, float radius)
         {
             float r = Mathf.Max(0.05f, radius * 0.6f);
-            var bottom = feet + Vector3.up * (height * 0.25f + r);
-            var top = feet + Vector3.up * Mathf.Max(height * 0.95f - r, height * 0.25f + r);
-            return Physics.CheckCapsule(bottom, top, r, Mask, QueryTriggerInteraction.Ignore)
-                || InsideSolid(feet + Vector3.up * (height * 0.5f));
+            var bottom = feet + Vector3.up * r;
+            var top = feet + Vector3.up * Mathf.Max(height - r, r);
+            if (!Physics.CheckCapsule(bottom, top, r, Mask, QueryTriggerInteraction.Ignore)
+                && !InsideSolid(feet + Vector3.up * (height * 0.5f)))
+                return 0f;
+            int inside = 0;
+            for (int i = 0; i < FractionSamples; i++)
+                if (InsideSolid(feet + Vector3.up * (height * (i + 0.5f) / FractionSamples))) inside++;
+            return inside / (float)FractionSamples;
         }
 
         /// The lowest ceiling at or above `from` within `reach` (`checkRoof`).

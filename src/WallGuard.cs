@@ -29,13 +29,23 @@ namespace Ror2Common
         public float SphereRadius = 0.15f;
         /// Steps in a row inside geometry before it is undone (strict: one).
         public int InsideSteps = 3;
-        /// Sweep rays at this height above the feet or more count every face they cross, not only
-        /// walls (WorldProbe.CrossedWall's `surfacesAbove`): a slope or overhang the body was
-        /// thrown or jumped into. Below it, the floor a body walks on is never a crossing.
-        public float SurfacesAbove = 0.5f;
-        /// Feet this far or more under a floor are lifted back onto it. Shallower sinks are the
-        /// sims' own business: Sunshine probes ground from 0.3 m up, Melee lands from 0.35 m up.
-        public float MinSink = 0.3f;
+        /// How high a ledge the body's sim steps up on its own (Sunshine finds floors from 0.3 m
+        /// above the feet, Melee lands from 0.35 m). Sweep rays below it, and spheres reaching
+        /// below it, are skipped: a lip or a steep facet of lumpy terrain the sim legitimately
+        /// walked up read as a crossed wall and snapped the body back, which made uphills sticky.
+        public float StepHeight;
+        float[] lastHeights, lastRays, lastSpheres;
+        float lastStep = -1f;
+        // Both checks below act only once at least WorldProbe.BodyInside of the body (half) is in
+        // the terrain, never because a foot clipped a slope or the edge of a prop.
+        //
+        // Sweep rays at that fraction of the body's height or higher count every face they
+        // cross, not only walls (WorldProbe.CrossedWall's `surfacesAbove`): a slope or overhang
+        // the body was thrown or jumped into. Lower rays keep the wall-only rule.
+        //
+        // Feet that far or more under a floor are lifted back onto it. Shallower sinks are the
+        // sims' own business (Sunshine probes ground from 0.3 m up, Melee lands from 0.35 m up),
+        // and a body sunk less than half way is not in the floor yet.
 
         Vector3 safe;
         bool haveSafe;
@@ -50,6 +60,31 @@ namespace Ror2Common
             haveSafe = false;
             armed = false;
             inside = 0;
+        }
+
+        // The sweep heights at or above StepHeight: rays from it, spheres whose bottom clears it.
+        // Cached for the plain (non-strict) heights, which are the same array every step.
+        void Above(float[] heights, out float[] rays, out float[] spheres)
+        {
+            if (ReferenceEquals(heights, lastHeights) && lastStep == StepHeight)
+            {
+                rays = lastRays;
+                spheres = lastSpheres;
+                return;
+            }
+            var r = new System.Collections.Generic.List<float>();
+            var s = new System.Collections.Generic.List<float>();
+            foreach (float h in heights)
+            {
+                if (h >= StepHeight) r.Add(h);
+                if (h - SphereRadius >= StepHeight) s.Add(h);
+            }
+            rays = r.ToArray();
+            spheres = s.ToArray();
+            lastHeights = heights;
+            lastRays = rays;
+            lastSpheres = spheres;
+            lastStep = StepHeight;
         }
 
         /// The body was put at `feet` on purpose: the next step is swept from here. If it is
@@ -91,8 +126,9 @@ namespace Ror2Common
                     swept[heights.Length + 1] = 1.2f;
                     swept[heights.Length + 2] = Mathf.Max(1.8f, bodyHeight);
                 }
-                if (WorldProbe.CrossedWall(safe, feet, swept, wallNormalY, SurfacesAbove, out var hit)
-                    || WorldProbe.SweptIntoWall(safe, feet, swept, SphereRadius, wallNormalY, out hit))
+                Above(swept, out var rays, out var spheres);
+                if (WorldProbe.CrossedWall(safe, feet, rays, wallNormalY, bodyHeight * WorldProbe.BodyInside, out var hit)
+                    || WorldProbe.SweptIntoWall(safe, feet, spheres, SphereRadius, wallNormalY, out hit))
                 {
                     why = $"crossed a wall: {hit.collider.name} " +
                         $"(layer {LayerMask.LayerToName(hit.collider.gameObject.layer)}) at {hit.point}";
@@ -105,7 +141,7 @@ namespace Ror2Common
             // before the sim, whose ground ray starts inside the mesh and sees none, lets it fall
             // in. A rising body (a jump up under a ledge) is left to the sweep.
             if (feet.y <= safe.y + 0.001f
-                && WorldProbe.SunkFloor(feet, Mathf.Min(0.9f, bodyHeight * 0.5f), MinSink, wallNormalY, out float top))
+                && WorldProbe.SunkFloor(feet, bodyHeight * 0.95f, bodyHeight * WorldProbe.BodyInside, wallNormalY, out float top))
             {
                 back = new Vector3(feet.x, top + 0.01f, feet.z);
                 why = $"sank {top - feet.y:F2} m under the floor at {feet}";
