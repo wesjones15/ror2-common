@@ -50,17 +50,33 @@ namespace Ror2Common
         {
             var index = RoR2.BodyCatalog.FindBodyIndex(bodyName);
             if (index == RoR2.BodyIndex.None) return 0;
+            uint skin = 0;
+            string who = "no pad, local player";
             if (Owner)
             {
                 var loadout = new RoR2.Loadout();
                 Owner.networkLoadout.CopyLoadout(loadout);
-                return loadout.bodyLoadoutManager.GetSkinIndex(index);
+                skin = loadout.bodyLoadoutManager.GetSkinIndex(index);
+                who = Owner.userName;
             }
-            foreach (var user in RoR2.LocalUserManager.readOnlyLocalUsersList)
-                if (user.userProfile != null)
-                    return user.userProfile.loadout.bodyLoadoutManager.GetSkinIndex(index);
-            return 0;
+            else
+                foreach (var user in RoR2.LocalUserManager.readOnlyLocalUsersList)
+                    if (user.userProfile != null)
+                    {
+                        skin = user.userProfile.loadout.bodyLoadoutManager.GetSkinIndex(index);
+                        break;
+                    }
+            // One line whenever a pad's skin changes, to tell whose loadout a lobby pad read.
+            var key = bodyName + "|" + who;
+            if (!logged.TryGetValue(key, out var last) || last != skin)
+            {
+                logged[key] = skin;
+                CommonLog.Info($"Lobby pad for {bodyName}: skin {skin} ({who})");
+            }
+            return skin;
         }
+
+        static readonly Dictionary<string, uint> logged = new Dictionary<string, uint>();
 
         /// Puts a DisplayModel on `displayPrefab` that draws what `make` lends out (null: keep the
         /// prefab's model). `id` names the factory; plugins pick their own.
