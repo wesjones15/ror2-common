@@ -38,6 +38,29 @@ namespace Ror2Common
         IDisplayActor actor;
         bool failed;
         float retryAt;
+        RoR2.CharacterSelectSurvivorPreviewDisplayController pad;
+
+        /// The player whose pad is making or stepping a display right now (null: no pad, so the
+        /// local player). A lobby shows every player's pad, each in that player's own skin.
+        public static RoR2.NetworkUser Owner { get; private set; }
+
+        /// The skin `bodyName`'s loadout selected for the pad being drawn, else for the local
+        /// player (0 when none).
+        public static uint SelectedSkin(string bodyName)
+        {
+            var index = RoR2.BodyCatalog.FindBodyIndex(bodyName);
+            if (index == RoR2.BodyIndex.None) return 0;
+            if (Owner)
+            {
+                var loadout = new RoR2.Loadout();
+                Owner.networkLoadout.CopyLoadout(loadout);
+                return loadout.bodyLoadoutManager.GetSkinIndex(index);
+            }
+            foreach (var user in RoR2.LocalUserManager.readOnlyLocalUsersList)
+                if (user.userProfile != null)
+                    return user.userProfile.loadout.bodyLoadoutManager.GetSkinIndex(index);
+            return 0;
+        }
 
         /// Puts a DisplayModel on `displayPrefab` that draws what `make` lends out (null: keep the
         /// prefab's model). `id` names the factory; plugins pick their own.
@@ -50,6 +73,14 @@ namespace Ror2Common
         }
 
         void LateUpdate()
+        {
+            if (!pad) pad = GetComponentInParent<RoR2.CharacterSelectSurvivorPreviewDisplayController>();
+            Owner = pad ? pad.networkUser : null;
+            try { Draw(); }
+            finally { Owner = null; }
+        }
+
+        void Draw()
         {
             if (actor == null && !failed)
             {

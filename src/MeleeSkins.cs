@@ -134,12 +134,8 @@ namespace Ror2Common
 
         public static uint Selected(string bodyName)
         {
-            var index = BodyCatalog.FindBodyIndex(bodyName);
-            if (index == BodyIndex.None) return 0;
-            foreach (var user in LocalUserManager.readOnlyLocalUsersList)
-                if (user.userProfile != null)
-                    return Math.Min(4, user.userProfile.loadout.bodyLoadoutManager.GetSkinIndex(index));
-            return 0;
+            // The pad being drawn's player in a lobby, else the local player.
+            return Math.Min(4, DisplayModel.SelectedSkin(bodyName));
         }
 
         public static void Tokens(Language l, in MeleeSkinLayout layout)
