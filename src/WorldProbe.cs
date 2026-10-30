@@ -44,6 +44,29 @@ namespace Ror2Common
         public static bool Ground(Vector3 from, float reach, out RaycastHit hit) =>
             Physics.Raycast(from + Vector3.up * 0.001f, Vector3.down, out hit, reach, Mask, QueryTriggerInteraction.Ignore);
 
+        /// The slope of the ground round `hit` (a floor `Ground` found), over `radius` each way, as a
+        /// normal: the heights of the floor at four points round it fitted to a plane. RoR2's terrain
+        /// is lumpy (roots, rocks, mud), and a ray onto a tiny steep facet reads a lip a few
+        /// centimetres high as a cliff; a sim that slides off steep floors (Sunshine's `isSlipStart`)
+        /// then slips on every bump. Where the ground round it agrees, a real slope stays steep.
+        /// False (keep the facet's own normal) when a point has no floor near the hit's height.
+        public static bool GroundSlope(RaycastHit hit, float radius, out Vector3 normal)
+        {
+            normal = hit.normal;
+            float rise = radius * 2f;
+            float hx0 = 0f, hx1 = 0f, hz0 = 0f, hz1 = 0f;
+            for (int i = 0; i < 4; i++)
+            {
+                var offset = (i < 2 ? Vector3.right : Vector3.forward) * (i % 2 == 0 ? radius : -radius);
+                if (!Ground(hit.point + offset + Vector3.up * rise, rise * 2f, out var h)) return false;
+                if (i == 0) hx1 = h.point.y; else if (i == 1) hx0 = h.point.y;
+                else if (i == 2) hz1 = h.point.y; else hz0 = h.point.y;
+            }
+            var n = new Vector3(-(hx1 - hx0) / (2f * radius), 1f, -(hz1 - hz0) / (2f * radius)).normalized;
+            normal = n;
+            return true;
+        }
+
         /// Clear standing ground near `sample`, for putting a body back (`Unstuck`'s probe): a floor
         /// at most `rise` above and `drop` below it that is level (normal.y 0.7 or more), with room
         /// for a capsule of `height` and `radius` standing on it, and floor under all four sides of
