@@ -5,6 +5,7 @@ using RoR2;
 using RoR2.ContentManagement;
 using RoR2.Skills;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace Ror2Common
 {
@@ -164,13 +165,25 @@ namespace Ror2Common
             if (slot.skillDef != own && !(slot.skillDef is NativeSkillDef)) return slot.ExecuteIfReady();
             if (Unlimited(body))
             {
-                if (body) body.OnSkillActivated(slot);
+                Activated(body, slot);
                 return true;
             }
             if (slot.stock < 1) return false;
             slot.DeductStock(1);
-            if (body) body.OnSkillActivated(slot);
+            Activated(body, slot);
             return true;
+        }
+
+        /// Tells RoR2 `slot` was used. A client's body sends the server the slot's SkillSlot
+        /// (CharacterBody.OnSkillActivated -> CmdOnSkillActivated), and an extra skill (AddExtra:
+        /// the Melee fighters' A attacks) is in none of the four, so the server looked up slot -1,
+        /// got nothing and threw (a NullReferenceException in the host's log on every A attack). Such
+        /// a skill is told only where the server runs; on a client its damage still counts as combat.
+        static void Activated(CharacterBody body, GenericSkill slot)
+        {
+            if (!body) return;
+            if (!NetworkServer.active && (!body.skillLocator || body.skillLocator.FindSkillSlot(slot) == SkillSlot.None)) return;
+            body.OnSkillActivated(slot);
         }
 
         /// Spend the charge of a move that deferred it from its start to its success

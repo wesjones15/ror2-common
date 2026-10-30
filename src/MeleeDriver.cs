@@ -60,6 +60,12 @@ namespace Ror2Common
         // fighter but makes no attacks, reads no pad and moves no body.
         protected bool puppet;
         MeleeNet.Stream stream; int puppetWait, recordedSteps; bool recording, puppetBroken;
+        // The owner's batches split into single steps (MeleeNative.HasStepSplit), played one per physics step;
+        // where the shadow stood after the last two, drawn between them.
+        readonly Queue<byte[]> puppetSteps = new Queue<byte[]>(); readonly uint[] stepEnds = new uint[16]; bool puppetPlaying;
+        Vector3 puppetPrev, puppetCur;
+        /// Steps held before the shadow plays: a batch's three and one to spare.
+        const int PuppetBuffer = 4;
         readonly byte[] opsBuffer = new byte[1 << 15];
         /// This machine owns the body, so it runs the real sim and makes the fighter's attacks.
         public bool IsOwner => body && body.hasEffectiveAuthority;
@@ -279,7 +285,9 @@ namespace Ror2Common
         /// cannot express can return a MeleeBrain subclass here instead.
         protected virtual MeleeBrain CreateBrain() =>
             new MeleeBrain(IsRangedMove(MeleeMoveset.SpecialN), IsRangedMove(MeleeMoveset.SpecialS) || IsRangedMove(MeleeMoveset.SpecialS2));
-        protected void Awake() { body = GetComponent<CharacterBody>(); motor = GetComponent<CharacterMotor>(); input = GetComponent<InputBankTest>(); native = GetComponent<NativeBody>(); direction = GetComponent<CharacterDirection>(); brain = CreateBrain(); }
+        protected void Awake() { body = GetComponent<CharacterBody>(); motor = GetComponent<CharacterMotor>(); input = GetComponent<InputBankTest>(); native = GetComponent<NativeBody>(); direction = GetComponent<CharacterDirection>(); brain = CreateBrain(); spawn.Remember(transform); }
+        // A client's body starts where the network blend left it, not at its spawn (ClientSpawn).
+        readonly ClientSpawn spawn = new ClientSpawn();
         protected void Update()
         {
             if (failed || !body) return;
@@ -308,6 +316,7 @@ namespace Ror2Common
             if (!active) {
                 if (AssetsBusy) return;
                 if (!AssetsReady) { Fallback("Assets missing. Set the fighter's disc config."); return; }
+                spawn.Settle(body, motor);
                 if (!ground.Ready(body.footPosition, Time.fixedDeltaTime, FighterName)) return;
                 try { StartSim(); } catch (Exception e) { Fallback(e.ToString()); return; }
             }
@@ -541,7 +550,7 @@ namespace Ror2Common
             try {
                 GameSettings.HideRenderers(body.modelLocator.modelTransform, true);
                 var animator = body.modelLocator.modelTransform.GetComponent<Animator>(); if (animator) animator.enabled = false;
-                var at = puppet ? ToWorld(state.position) : transform.position - feetOffset;
+                var at = puppet ? Vector3.Lerp(puppetPrev, puppetCur, StepSmoother.Alpha) : transform.position - feetOffset;
                 var facing = new Vector3(state.facing.x, 0, state.facing.z);
                 var rotation = facing.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(facing) : Quaternion.identity;
                 DrawPresentation(at, rotation);
@@ -606,9 +615,10 @@ namespace Ror2Common
             try
             {
                 if (stream == null) stream = MeleeNet.StreamFor(body.netId.Value);
-                if (stream != null)
+                if (stream != null && MeleeNative.HasStepSplit) PacePuppet();
+                else if (stream != null)
                 {
-                    // Play the owner's calls a few steps behind, catching up when a burst arrives.
+                    // An older native library: whole batches, a few steps behind, catching up when a burst arrives.
                     puppetWait++;
                     while (stream.Batches.Count > 4) Replay(stream.Batches.Dequeue());
                     if (puppetWait >= 3 && stream.Batches.Count > 0) { Replay(stream.Batches.Dequeue()); puppetWait = 0; }
@@ -616,8 +626,46 @@ namespace Ror2Common
                 recoveryFlags = MeleeNative.ssbm_sim_rebirth_flags(sim);
                 StepPresentation(Time.fixedDeltaTime);
                 if (MeleeNative.ssbm_sim_state(sim, out state) != 1) throw new InvalidOperationException(MeleeNative.Error);
+                // Drawn between the last two steps; a jump (a KO return, a teleport) is not blended across.
+                puppetPrev = puppetCur; puppetCur = ToWorld(state.position);
+                if ((puppetCur - puppetPrev).sqrMagnitude > 9f) puppetPrev = puppetCur;
             }
             catch (Exception e) { puppetBroken = true; CommonLog.Error(FighterName + " stopped showing another player's fighter: " + e.Message); Cleanup(); }
+        }
+
+        // The owner sends three steps at a time (FlushOps). Replaying a batch at once moved the shadow three
+        // steps every third physics step: seen from another machine the fighter moved in jerks at 20 Hz.
+        // Each batch is split into its steps and one is played per physics step, as the owner did, a few
+        // behind so a late batch doesn't stall it; a backlog is caught up two at a time, a long one at once.
+        void PacePuppet()
+        {
+            while (stream.Batches.Count > 0) SplitSteps(stream.Batches.Dequeue());
+            int held = puppetSteps.Count;
+            if (!puppetPlaying)
+            {
+                if (held < PuppetBuffer) return;
+                puppetPlaying = true;
+            }
+            if (held == 0) { puppetPlaying = false; return; }
+            int play = held > 30 ? held - PuppetBuffer : held > PuppetBuffer * 2 + 2 ? 2 : 1;
+            for (int i = 0; i < play; i++) Replay(puppetSteps.Dequeue());
+        }
+
+        void SplitSteps(byte[] ops)
+        {
+            uint count = MeleeNative.ssbm_ops_steps(ops, (uint)ops.Length, stepEnds, (uint)stepEnds.Length);
+            if (count == uint.MaxValue)
+                throw new InvalidOperationException("the other player's calls do not replay (different Melee builds?)");
+            if (count <= 1 || count > stepEnds.Length) { puppetSteps.Enqueue(ops); return; }
+            int from = 0;
+            for (int i = 0; i < count; i++)
+            {
+                int end = (int)stepEnds[i];
+                var piece = new byte[end - from];
+                Buffer.BlockCopy(ops, from, piece, 0, piece.Length);
+                puppetSteps.Enqueue(piece);
+                from = end;
+            }
         }
 
         void Replay(byte[] ops)
@@ -636,6 +684,7 @@ namespace Ror2Common
             host = new MeleeNative.Host { user = GCHandle.ToIntPtr(self), collide = Marshal.GetFunctionPointerForDelegate(collideFn), evt = Marshal.GetFunctionPointerForDelegate(eventFn) };
             MeleeNative.ssbm_sim_state(sim, out state);
             puppet = true; active = true; permitDamage = false; puppetWait = 0;
+            puppetSteps.Clear(); puppetPlaying = false; puppetPrev = puppetCur = ToWorld(state.position);
             CommonLog.Info(FighterName + ": showing another player's fighter");
         }
 
@@ -754,7 +803,7 @@ namespace Ror2Common
             DisposePresentation();
             if (body && body.netId.Value != 0 && puppet) MeleeNet.Drop(body.netId.Value);
             if (sim != IntPtr.Zero) MeleeAudio.SetGain(sim, 1f);
-            recording = false; stream = null; puppet = false;
+            recording = false; stream = null; puppet = false; puppetSteps.Clear(); puppetPlaying = false;
             Arriving = false; recoveryFlags = 0; recovery?.Refresh();
             active = false; cameraPivot?.Use(false);
             if (sim != IntPtr.Zero) { MeleeNative.ssbm_sim_free(sim); sim = IntPtr.Zero; } if (self.IsAllocated) self.Free();

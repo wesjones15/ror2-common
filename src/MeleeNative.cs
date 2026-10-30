@@ -26,6 +26,8 @@ namespace Ror2Common
         public static bool HasHurtScaled {get;private set;}
         /// Recording a sim's calls and replaying them on a shadow sim (multiplayer).
         public static bool HasReplay {get;private set;}
+        /// The native library can split a recorded log into its steps (ssbm_ops_steps), so a shadow replays one a frame.
+        public static bool HasStepSplit {get;private set;}
         public static bool HasMaterialAlpha {get;private set;}
         /// Staged-special exports (lock-on steering, hit notification, shot reflection).
         /// Optional: only Pikachu's Quick Attack / Skull Bash / Thunder Shock use them.
@@ -107,6 +109,8 @@ namespace Ror2Common
             catch(EntryPointNotFoundException){HasHurtScaled=false;}
             try {ssbm_sim_record(IntPtr.Zero,0);HasReplay=true;}
             catch(EntryPointNotFoundException){HasReplay=false;}
+            try {ssbm_ops_steps(null,0,null,0);HasStepSplit=true;}
+            catch(EntryPointNotFoundException){HasStepSplit=false;}
             try {ssbm_view_alpha_sources(IntPtr.Zero,out _);HasMaterialAlpha=true;}
             catch(EntryPointNotFoundException){HasMaterialAlpha=false;}
             try {ssbm_sim_lock_target(IntPtr.Zero,default,0);ssbm_sim_connect(IntPtr.Zero);ssbm_projectile_reflect(IntPtr.Zero,default);HasStagedSpecials=true;}
@@ -240,6 +244,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_ops_take(IntPtr sim,[Out]byte[] bytes,uint capacity);
         /// Replays recorded calls on a shadow sim; returns how many ran, or uint.MaxValue when the bytes are not a log.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_replay(IntPtr sim,in Host host,byte[] bytes,uint length);
+        /// Where each step of a recorded log ends (byte offsets, up to `capacity`); returns how many steps, or uint.MaxValue when the bytes are not a log.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_ops_steps(byte[] bytes,uint length,[Out]uint[] ends,uint capacity);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_launch_pad(IntPtr sim,Vec3 velocity,Vec3 gravity);
         /// Scales the horizontal speed of the jump in progress by `factor` (Wax Quail); 1 does nothing.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_boost_jump(IntPtr sim,float factor);

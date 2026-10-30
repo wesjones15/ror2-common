@@ -13,6 +13,18 @@ nothing replicates the sim. So each machine needs the plugin, the assets (its ow
 run), and **the same plugin build**: a mismatched ABI or protocol is refused and logged, and the other
 player's character then looks like Commando.
 
+## A client's body at a stage start (`ror2-common/src/ClientSpawn.cs`)
+
+UNet creates a client's own body at the server's spawn point, and its authority over it arrives in a
+later message. Until then RoR2's `CharacterNetworkTransform` treats it as another player's body and,
+with no snapshot of its own yet, blends it from a zeroed snapshot at the world origin toward the
+server's position; when authority arrives the blend stops part way, on the line from (0, 0, 0) to the
+spawn. A native sim that started there fell under the map at every stage start from stage 2 (stage 1's
+pod moves the body itself); RoR2's out-of-bounds rescue then put the player on the nearest node, which on
+the Moon is far away. Every native driver (Mario, Olimar, each Melee fighter) remembers where its body was
+created (`ClientSpawn.Remember` in Awake) and, on a client, puts it back there before its sim first starts
+(`ClientSpawn.Settle`, logged as `Client spawn: ... put back at its spawn point`).
+
 ## Transport (`ror2-common/src/Mp.cs`)
 
 Plain UNet, no R2API: `NetworkServer.RegisterHandler` / `SendByChannel` through RoR2's public
@@ -56,9 +68,13 @@ The **host's sim is the only real one** (it needs RoR2's enemies and does the da
 second (`Net.SnapshotHz`) libpikmin encodes every entity (captains, Pikmin, pellets, Onions, ships,
 sprouts, nectar), the creatures' positions and the events since the last one (`pik_sim_snapshot`), and
 `PikminWorld` wraps that with which Olimar is which captain, his Onion's state and the arrival's
-progress (`PikminEnvelope`). Every other machine lays it over a **replica sim** (`pik_replica_apply`),
-blends positions between snapshots, and the presentation layer draws and sounds it like the real
-thing. A busy snapshot is about 8 KB for 60 Pikmin; `Debug.LogNet` logs the bandwidth.
+progress (`PikminEnvelope`). Every other machine queues it for a **replica sim** (`pik_replica_apply`)
+and plays the queue back on a steady clock (`pik_replica_update`), a little behind the newest
+snapshot the server is estimated to have sent: the usual gap between snapshots plus a margin for how
+unevenly they arrive (it widens quickly when they bunch up and narrows slowly). Positions blend between
+the two snapshots either side of the clock and each snapshot's events play as it is reached, so the
+swarm moves evenly even when the network delivers snapshots in clumps (blending toward each one as it
+landed made the Pikmin move in steps). The presentation layer draws and sounds it like the real thing. A busy snapshot is about 8 KB for 60 Pikmin; `Debug.LogNet` logs the bandwidth.
 
 A client playing Olimar **moves himself** so he feels no lag: a small local sim with only his captain
 runs on his controls (the same code as the host's), his body follows it, and the camera and HUD work as
@@ -120,7 +136,10 @@ Every Melee fighter works the same way, through the shared `MeleeDriver` and `Me
   the calls it makes on the sim (`ssbm_sim_record`: each step's pad and time, placements, hurts, grabs, tuning, the lock-on
   target and so on, plus where the sim ended up after each step) and sends them three steps at a time (about 20 messages a
   second, reliable) to the server (`MeleeNet.FramesMsg`, `0x4C01`), which relays them to everyone else.
-- **Everyone else runs a shadow sim** (`ssbm_sim_replay`) of that fighter on those calls, a few steps behind, and draws it with
+- **Everyone else runs a shadow sim** (`ssbm_sim_replay`) of that fighter on those calls, a few steps behind: each batch is split
+  into its steps (`ssbm_ops_steps`) and one step is replayed per physics step, as the owner ran them (a backlog is caught up two
+  at a time, a long one at once), and the fighter is drawn between its last two steps. Replaying a whole batch at once moved
+  it three steps every third physics step, which looked like jerky 20 Hz movement. It draws it with
   the same code as the owner's own fighter: model, animation, sounds (fading with distance), effects, KO and recovery.
   The shadow makes no attacks, reads no pad and moves no body; RoR2's own network transform still moves the Commando body,
   which stays hidden under it. It has no enemies of its own, so the recorded position pulls it back when it drifts more than
