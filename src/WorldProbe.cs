@@ -165,6 +165,26 @@ namespace Ror2Common
             return true;
         }
 
+        /// Whether feet that went from `from` to `to` passed down through the top of a floor (a face
+        /// with normal.y over `floorNormalY`), ending below it; `top` is where the step crossed it.
+        /// A landing ends on the floor, not under it, so only a step the body's sim let through
+        /// (its ground ray missed the face) is a crossing. Started just above the old feet, so the
+        /// floor stood on is crossed only if the step goes down through it.
+        public static bool CrossedFloor(Vector3 from, Vector3 to, float floorNormalY, out Vector3 top)
+        {
+            top = default;
+            if (to.y >= from.y) return false;
+            var start = from + Vector3.up * 0.05f;
+            var move = to - start;
+            float distance = move.magnitude;
+            if (distance < 0.001f) return false;
+            if (!Physics.Raycast(start, move / distance, out var h, distance, Mask, QueryTriggerInteraction.Ignore))
+                return false;
+            if (h.normal.y < floorNormalY || h.point.y < to.y + 0.05f) return false;
+            top = h.point;
+            return true;
+        }
+
         /// `CrossedWall` with a sphere of `radius` instead of a ray, so a thin pole or a corner
         /// between the rays' lines is caught too. A sphere that starts touching something finds
         /// nothing there (distance 0), so a body resting against a wall is never "crossing" it.

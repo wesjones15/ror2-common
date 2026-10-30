@@ -220,6 +220,42 @@ static class Program
         for (int i = 0; i < 119; i++) Check(!Wedge(w, Origin), "Reset kept wedge time");
         WorldProbe.wedged = false;
         Console.WriteLine("PASS: a jostled wedge (which the stillness clock never catches) is freed after 2 s at 30/60/120 Hz; blips, travel, exempt states and resets handled");
+
+        // Through the floor into more map under it (Abandoned Aqueduct's sealed room): back to the
+        // last standing spot once the whole body is under the floor, and the room never becomes it.
+        var f = new Unstuck();
+        WorldProbe.groundBelow = true;
+        WorldProbe.floorY = 0f;
+        for (int i = 0; i < 60; i++) Step(f, Origin, fallen: false, grounded: true);
+        Check(f.TryGetSafe(out var standing), "No standing spot on the floor");
+        var feetAt = Origin;
+        bool back = false;
+        Vector3 putAt = default;
+        for (int i = 1; i <= 60 && !back; i++)
+        {
+            var next = new Vector3(0f, -i * 0.1f, 0f);
+            Step(f, next, fallen: false, grounded: i > 30);
+            back = f.ThroughFloor(feetAt, next, Height, probe, out putAt);
+            if (!back) Check(i * 0.1f < Height + 0.05f, $"Still under the floor {i * 0.1f:F1} m down");
+            feetAt = next;
+        }
+        Check(back && Math.Abs(putAt.y - 0.03f) < 0.01f, $"Not put back on the floor it fell through: {putAt.y}");
+        Check(f.TryGetSafe(out var still) && Math.Abs(still.y - standing.y) < 0.01f, "The room under the floor became the standing spot");
+        // A shallow sink lifted back above the floor (WallGuard's job) is not a fall through it.
+        f = new Unstuck();
+        for (int i = 0; i < 60; i++) Step(f, Origin, fallen: false, grounded: true);
+        Check(!f.ThroughFloor(Origin, new Vector3(0f, -0.5f, 0f), Height, probe, out _), "A half-body sink sent back");
+        Check(!f.ThroughFloor(new Vector3(0f, -0.5f, 0f), new Vector3(0f, 0.01f, 0f), Height, probe, out _), "Lifted back onto the floor and sent back");
+        Check(!f.ThroughFloor(new Vector3(0f, -0.5f, 0f), new Vector3(0f, -2f, 0f), Height, probe, out _), "Lifted feet still counted under the floor");
+        // A drop onto lower ground crosses no floor: never sent back.
+        f = new Unstuck();
+        for (int i = 0; i < 60; i++) Step(f, Origin, fallen: false, grounded: true);
+        WorldProbe.floorY = 10f;
+        for (int i = 1; i < 300; i++)
+            Check(!f.ThroughFloor(new Vector3(0f, -(i - 1) * 0.1f, 0f), new Vector3(0f, -i * 0.1f, 0f), Height, probe, out _), "A plain drop sent back");
+        WorldProbe.floorY = float.NaN;
+        WorldProbe.groundBelow = false;
+        Console.WriteLine("PASS: a fall through the floor into map below it goes back to the last standing spot once the body is under it; sinks and plain drops do not");
     }
 }
 
@@ -266,6 +302,13 @@ namespace Ror2Common
     {
         public static bool groundBelow,inZone,zoneAtSafe,wedged;public static float lastReach;
         public static bool Wedged(Vector3 feet, float height, float radius) => wedged;
+        public static float floorY = float.NaN;
+        // A floor at floorY, crossed by a step from on or above it to under it.
+        public static bool CrossedFloor(Vector3 from, Vector3 to, float normalY, out Vector3 top)
+        {
+            top = new Vector3(to.x, floorY, to.z);
+            return to.y < from.y && from.y >= floorY && to.y < floorY - 0.05f;
+        }
         static readonly RoR2.MapZone testZone=new RoR2.MapZone();
         public static bool Ground(Vector3 point,float reach,out UnityEngine.RaycastHit hit){hit=default;lastReach=reach;return groundBelow;}
         public static bool InMapZone(Vector3 point, out RoR2.MapZone zone) { zone = testZone; return inZone; }

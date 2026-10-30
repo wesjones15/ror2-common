@@ -26,6 +26,7 @@ namespace Ror2Common
             elapsed = safeAge = airborne = noSafe = 0f;
             wedgedFor = clearFor = 0f;
             hasStart = false;
+            underFloor = false;
         }
 
         /// The last spot the body stood on safely, if it has one.
@@ -134,6 +135,39 @@ namespace Ror2Common
             return true;
         }
 
+        bool underFloor;
+        Vector3 floorTop;
+
+        /// A body its sim let fall through a floor (a seam its ground ray missed): the step went down
+        /// through the floor's top (`WorldProbe.CrossedFloor`), and once the whole body is under it,
+        /// `destination` is the last standing spot. Nothing else catches this when there is more
+        /// map under the floor (a stage's sealed rooms, the inside of its terrain): `Fell` takes that
+        /// for lower ground, and the body landing in there would make it the new standing spot, so
+        /// none is kept while the body is under a floor it fell through. A body back above that
+        /// floor (`WallGuard` lifts one that sank a little) is fine again. Call every tick after
+        /// `Step` with the feet before and after the sim's step; the caller teleports it and calls
+        /// `Reset`.
+        public bool ThroughFloor(Vector3 from, Vector3 feet, float height, GroundProbe probe, out Vector3 destination)
+        {
+            destination = default;
+            if (WorldProbe.CrossedFloor(from, feet, 0.7f, out var top) && (!underFloor || top.y > floorTop.y))
+            {
+                if (!underFloor) CommonLog.Info($"Fell through the floor at {top}");
+                underFloor = true;
+                floorTop = top;
+            }
+            if (!underFloor) return false;
+            if (feet.y > floorTop.y - 0.05f)
+            {
+                underFloor = false;
+                return false;
+            }
+            if (floorTop.y - feet.y < height || !hasSafeFeet) return false;
+            underFloor = false;
+            destination = probe(safeFeet, height * 0.25f, height * 0.5f, out var clear) ? clear : safeFeet;
+            return true;
+        }
+
         public bool Step(Vector3 feet, bool fallen, bool grounded, bool held, float dt,
             float height, GroundProbe probe, out Vector3 destination)
         {
@@ -143,7 +177,7 @@ namespace Ror2Common
             airborne = grounded ? 0f : airborne + dt;
             if (!hasStart) { startFeet = feet; hasStart = true; }
             if (!hasSafeFeet) noSafe += dt;
-            if (!fallen && grounded && !held && safeAge >= 0.25f)
+            if (!fallen && grounded && !held && !underFloor && safeAge >= 0.25f)
             {
                 safeAge = 0f;
                 if (probe(feet, height * 0.25f, height * 0.5f, out var safe)
