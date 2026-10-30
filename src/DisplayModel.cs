@@ -90,10 +90,45 @@ namespace Ror2Common
 
         void LateUpdate()
         {
-            if (!pad) pad = GetComponentInParent<RoR2.CharacterSelectSurvivorPreviewDisplayController>();
+            if (!pad) pad = FindPad();
             Owner = pad ? pad.networkUser : null;
+            Diagnose();
             try { Draw(); }
             finally { Owner = null; }
+        }
+
+        // The pad controller sits on this display, a child of it, or a neighbour under a nearby ancestor.
+        RoR2.CharacterSelectSurvivorPreviewDisplayController FindPad()
+        {
+            var found = GetComponentInParent<RoR2.CharacterSelectSurvivorPreviewDisplayController>(true);
+            if (!found) found = GetComponentInChildren<RoR2.CharacterSelectSurvivorPreviewDisplayController>(true);
+            var up = transform.parent;
+            for (int i = 0; !found && up && i < 4; i++, up = up.parent)
+                found = up.GetComponentInChildren<RoR2.CharacterSelectSurvivorPreviewDisplayController>(true);
+            return found;
+        }
+
+        float bornAt = -1f;
+        bool diagnosed;
+
+        // Once, a second after the display appears: what the pad lookup found, for tracing a wrong skin.
+        void Diagnose()
+        {
+            if (diagnosed) return;
+            if (bornAt < 0f) bornAt = Time.unscaledTime;
+            if (Time.unscaledTime - bornAt < 1.5f) return;
+            diagnosed = true;
+            var path = new System.Text.StringBuilder();
+            var t = transform;
+            for (int i = 0; t && i < 7; i++, t = t.parent)
+            {
+                path.Append(" < ").Append(t.name).Append('[');
+                foreach (var c in t.GetComponents<Component>())
+                    if (c) path.Append(c.GetType().Name).Append(' ');
+                path.Append(']');
+            }
+            CommonLog.Info($"Lobby display {actorId}: pad {(pad ? "found on " + pad.name : "not found")}, owner "
+                + (pad && pad.networkUser ? pad.networkUser.userName : "none") + ";" + path);
         }
 
         void Draw()
