@@ -86,6 +86,7 @@ namespace Ror2Common
             DisplayModel.Attach(lobby, def.bodyName, def.displayFactory);
             Portrait.RequestTexture(body, def.portraitFactory);
             MeleeSkins.Add(body, pack, def.skins);
+            DisplayModel.BindSkins(lobby, body);
             var survivor = ScriptableObject.CreateInstance<SurvivorDef>();
             survivor.cachedName = def.cachedName;
             survivor.bodyPrefab = body;

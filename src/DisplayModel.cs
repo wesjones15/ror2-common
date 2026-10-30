@@ -40,6 +40,47 @@ namespace Ror2Common
         float retryAt;
         RoR2.CharacterSelectSurvivorPreviewDisplayController pad;
 
+        // The way Enforcer and RoR2's own survivors do it: the display prefab carries a preview controller
+        // whose skinChangeResponses name each of the body's skins. The game runs the response of the skin
+        // each pad's own player picked, on that pad's own display, so no pad owner has to be found.
+        // `bodyPrefab`'s skins must be registered first; response i is skin index i.
+        public static void BindSkins(GameObject displayPrefab, GameObject bodyPrefab)
+        {
+            var model = bodyPrefab ? bodyPrefab.GetComponent<RoR2.ModelLocator>()?.modelTransform : null;
+            var skins = model ? model.GetComponent<RoR2.ModelSkinController>()?.skins : null;
+            if (skins == null || skins.Length == 0 || !displayPrefab) return;
+            var c = displayPrefab.GetComponent<RoR2.CharacterSelectSurvivorPreviewDisplayController>();
+            if (!c) c = displayPrefab.AddComponent<RoR2.CharacterSelectSurvivorPreviewDisplayController>();
+            c.bodyPrefab = bodyPrefab;
+            c.skillChangeResponses = new RoR2.CharacterSelectSurvivorPreviewDisplayController.SkillChangeResponse[0];
+            var responses = new RoR2.CharacterSelectSurvivorPreviewDisplayController.SkinChangeResponse[skins.Length];
+            for (int i = 0; i < skins.Length; i++)
+                responses[i] = new RoR2.CharacterSelectSurvivorPreviewDisplayController.SkinChangeResponse
+                    { triggerSkin = skins[i], response = new UnityEngine.Events.UnityEvent() };
+            c.skinChangeResponses = responses;
+            CommonLog.Info($"Lobby display for {bodyPrefab.name}: {skins.Length} skin responses bound");
+        }
+
+        // The skin index this pad's controller last announced (-1: none yet).
+        int padSkin = -1;
+        bool hooked, refreshed;
+        static DisplayModel active;
+
+        void Awake() => Hook();
+
+        void Hook()
+        {
+            if (hooked) return;
+            var c = GetComponent<RoR2.CharacterSelectSurvivorPreviewDisplayController>();
+            if (!c || c.skinChangeResponses == null) return;
+            hooked = true;
+            for (int i = 0; i < c.skinChangeResponses.Length; i++)
+            {
+                int index = i;
+                c.skinChangeResponses[i].response?.AddListener(() => padSkin = index);
+            }
+        }
+
         /// The player whose pad is making or stepping a display right now (null: no pad, so the
         /// local player). A lobby shows every player's pad, each in that player's own skin.
         public static RoR2.NetworkUser Owner { get; private set; }
@@ -52,7 +93,12 @@ namespace Ror2Common
             if (index == RoR2.BodyIndex.None) return 0;
             uint skin = 0;
             string who = "no pad, local player";
-            if (Owner)
+            if (active != null && active.padSkin >= 0)
+            {
+                skin = (uint)active.padSkin;
+                who = "the pad's own response";
+            }
+            else if (Owner)
             {
                 var loadout = new RoR2.Loadout();
                 Owner.networkLoadout.CopyLoadout(loadout);
@@ -90,11 +136,20 @@ namespace Ror2Common
 
         void LateUpdate()
         {
+            Hook();
+            // The responses may have fired before they were hooked: have the controller announce again, once.
+            if (hooked && !refreshed && padSkin < 0)
+            {
+                refreshed = true;
+                var c = GetComponent<RoR2.CharacterSelectSurvivorPreviewDisplayController>();
+                if (c && c.isActiveAndEnabled) { c.enabled = false; c.enabled = true; }
+            }
             if (!pad) pad = FindPad();
             Owner = pad ? pad.networkUser : null;
+            active = this;
             Diagnose();
             try { Draw(); }
-            finally { Owner = null; }
+            finally { Owner = null; active = null; }
         }
 
         // The pad controller sits on this display, a child of it, or a neighbour under a nearby ancestor.
@@ -127,7 +182,7 @@ namespace Ror2Common
                     if (c) path.Append(c.GetType().Name).Append(' ');
                 path.Append(']');
             }
-            CommonLog.Info($"Lobby display {actorId}: pad {(pad ? "found on " + pad.name : "not found")}, owner "
+            CommonLog.Info($"Lobby display {actorId}: skin response {padSkin}, pad {(pad ? "found on " + pad.name : "not found")}, owner "
                 + (pad && pad.networkUser ? pad.networkUser.userName : "none") + ";" + path);
         }
 
