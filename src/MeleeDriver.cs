@@ -805,7 +805,7 @@ namespace Ror2Common
         {
             capture?.Dispose(); pendingThrow = null;
             pad.ReleaseInteraction();
-            itemDisplays?.Dispose(); itemDisplays = null;
+            itemDisplays?.Dispose(!deathStarted); itemDisplays = null;
             DisposePresentation();
             if (body && body.netId.Value != 0 && puppet) MeleeNet.Drop(body.netId.Value);
             if (sim != IntPtr.Zero) MeleeAudio.SetGain(sim, 1f);

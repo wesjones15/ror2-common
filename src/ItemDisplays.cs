@@ -215,7 +215,12 @@ namespace Ror2Common
                 if (stock[i] && stock[i].forceRenderingOff) stock[i].forceRenderingOff = false;
         }
 
-        public void Dispose()
+        /// <inheritdoc/>
+        public void Dispose() => Dispose(true);
+
+        /// `showStock` is false when the body is dying and the wrapper's own death presentation
+        /// owns the corpse (the Melee fighters' blast-zone KO).
+        public void Dispose(bool showStock)
         {
             if (disposed) return;
             disposed = true;
@@ -236,8 +241,9 @@ namespace Ror2Common
             catch (Exception) { }
             foreach (var go in anchors)
                 if (go) go.SetActive(false);
-            foreach (var r in stock)
-                if (r) r.forceRenderingOff = false;
+            if (showStock)
+                foreach (var r in stock)
+                    if (r) r.forceRenderingOff = false;
         }
 
         /// The stock child name a rule uses to the anchor that should replace it.
