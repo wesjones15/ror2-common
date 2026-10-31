@@ -36,6 +36,15 @@ namespace Ror2Common
             return hasSafeFeet;
         }
 
+        /// Names `feet` as the last safe spot, for a body that was carried somewhere its own standing never
+        /// recorded (Olimar's Onion Ride): recovery after a fall goes there.
+        public void SetSafe(Vector3 feet)
+        {
+            safeFeet = feet;
+            hasSafeFeet = true;
+            safeAge = 0f;
+        }
+
         /// Metres below its last standing spot at which a body is rescued even outside every map
         /// zone (a stage without them; 150 m is past any drop RoR2's stages ask of a player).
         public const float AnyDrop = 150f;
