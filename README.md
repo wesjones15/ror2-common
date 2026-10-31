@@ -2,6 +2,14 @@
 
 # ror2-common
 
+Pickup effects reset their `AsyncSprite` request and callbacks on each pool reuse
+before RoR2 assigns the item's icon. This covers `ItemTakenOrbEffect` and
+`PickupTakenOrbEffect`, using the game's existing sprite/address references and tier
+colour handling. `ItemHooks.Install()` installs this once across all three plugins.
+`dotnet run --project tests/PickupIconCheck -c Release` checks repeated-item reuse,
+late completions and loader ownership. Built against DLC4; in-game confirmation of
+the reported empty tier-coloured pickup frame is pending.
+
 `ModelView` caches unchanged material property blocks and avoids sunlight searches
 for models without native vertex lighting. A rigid `IViewSource` may additionally
 implement `IStaticGeometrySource` to share one mesh per model and upload its geometry

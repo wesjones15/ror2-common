@@ -17,6 +17,7 @@ namespace Ror2Common
 
         static partial void InstallHooks(ref bool installed)
         {
+            installed |= PickupIconHooks.Install();
             installed |= TryHook("HealthComponent.Heal",
                 typeof(HealthComponent).GetMethod(nameof(HealthComponent.Heal),
                     new[] { typeof(float), typeof(ProcChainMask), typeof(bool) }),
