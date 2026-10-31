@@ -53,6 +53,16 @@ namespace Ror2Common
             CommonLog.Info($"Camera handoff: blending {duration:0.00}s after playable draw (ready frame {Time.deltaTime * 1000f:0}ms)");
         }
 
+        /// Hands control to the game's follow camera at this exact shot, without
+        /// a zoom, recenter or blend toward its previous default framing.
+        public bool ContinueFromHere()
+        {
+            if (!rig || !rig.IsOverrideCam(this)) { Finish(); return false; }
+            if (!CameraPerspective.Adopt(rig, body, shot)) return false;
+            Finish();
+            return true;
+        }
+
         void Update()
         {
             if (!rig || !body || rig.target != body.gameObject || !rig.IsOverrideCam(this)

@@ -61,6 +61,20 @@ static class Program
         Check(rig.provider == null, "completed blend must return camera ownership");
 
         rig.provider = pod;
+        rig.sceneCam.transform.position = 123;
+        hold = CameraHandoff.Hold(body, pod);
+        CameraPerspective.result = true;
+        Check(hold.ContinueFromHere() && rig.provider == null && rig.duration == 0,
+            "adopting the intro perspective must release control without a camera blend");
+        Check(CameraPerspective.shot.position == 123 && CameraPerspective.owned,
+            "adoption must receive the held shot before camera ownership is released");
+        CameraPerspective.result = false;
+        rig.provider = pod;
+        hold = CameraHandoff.Hold(body, pod);
+        Check(!hold.ContinueFromHere() && rig.provider == hold, "failed adoption must leave the held shot available for fallback");
+        hold.Release(0);
+
+        rig.provider = pod;
         hold = CameraHandoff.Hold(body, pod);
         rig.provider = other;
         hold.Release();
@@ -73,7 +87,7 @@ static class Program
         for (int i = 0; i < 24; i++) { Time.frameCount++; hold.GetCameraState(rig, ref state); }
         Update(hold);
         Check(rig.provider == null, "failed native startup cannot trap the camera");
-        Console.WriteLine("PASS: seat exit, 600ms loading hitch, bounded multi-frame blend, exact endpoint, ownership and timeout");
+        Console.WriteLine("PASS: exact-shot adoption without blend, seat exit, timed fallback, ownership and timeout");
     }
     sealed class Provider : ICameraStateProvider { }
 }
@@ -92,7 +106,19 @@ namespace UnityEngine
         public static float Clamp01(float v) => Clamp(v, 0, 1);
     }
 }
-namespace Ror2Common { public static class CommonLog { public static void Info(string message) { } } }
+namespace Ror2Common
+{
+    public static class CommonLog { public static void Info(string message) { } }
+    // Perspective adoption has its own geometry/API check. These checks exercise
+    // the existing timed-release fallback in isolation.
+    internal static class CameraPerspective
+    {
+        internal static bool result, owned;
+        internal static CameraState shot;
+        internal static bool Adopt(CameraRigController r, CharacterBody b, CameraState s)
+        { shot = s; owned = r.provider is CameraHandoff; return result; }
+    }
+}
 namespace RoR2
 {
     public interface ICameraStateProvider { }
