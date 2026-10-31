@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using MonoMod.RuntimeDetour;
+using RoR2;
 using RoR2.Orbs;
 
 namespace Ror2Common
@@ -11,7 +12,7 @@ namespace Ror2Common
     internal static class PickupIconHooks
     {
         static readonly List<Hook> hooks = new List<Hook>();
-        const string InstalledKey = "Ror2Common.PickupIconHooks.v1";
+        const string InstalledKey = "Ror2Common.PickupIconHooks.v2";
 
         internal static bool Install()
         {
@@ -27,6 +28,7 @@ namespace Ror2Common
                     BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic),
                     (Func<Func<PickupTakenOrbEffect, IEnumerator>, PickupTakenOrbEffect, IEnumerator>)Pickup));
                 AppDomain.CurrentDomain.SetData(InstalledKey, true);
+                CommonLog.Info("Pickup icon sprite binding installed (v2)");
                 return true;
             }
             catch (Exception e)
@@ -38,17 +40,26 @@ namespace Ror2Common
             }
         }
 
-        static IEnumerator Item(Func<ItemTakenOrbEffect, IEnumerator> orig, ItemTakenOrbEffect self)
-        {
-            PickupIcon.Prepare(self.iconSpriteRenderer);
-            return orig(self);
-        }
+        static IEnumerator Item(Func<ItemTakenOrbEffect, IEnumerator> orig, ItemTakenOrbEffect self) =>
+            PickupIcon.After(orig(self), () => {
+                if (!self || !self.isActiveAndEnabled) return;
+                var effect = self.GetComponent<EffectComponent>();
+                if (!effect || effect.effectData == null) return;
+                var index = (ItemIndex)Util.UintToIntMinusOne(effect.effectData.genericUInt);
+                var pickup = PickupCatalog.GetPickupDef(PickupCatalog.FindPickupIndex(index));
+                // Use the pickup definition, the same provider available to the HUD.
+                AsyncIconProvider provider = pickup ?? (AsyncIconProvider)ItemCatalog.GetItemDef(index);
+                PickupIcon.Bind(self.iconSpriteRenderer, provider, "item " + index);
+            });
 
-        static IEnumerator Pickup(Func<PickupTakenOrbEffect, IEnumerator> orig, PickupTakenOrbEffect self)
-        {
-            PickupIcon.Prepare(self.iconSpriteRenderer);
-            return orig(self);
-        }
+        static IEnumerator Pickup(Func<PickupTakenOrbEffect, IEnumerator> orig, PickupTakenOrbEffect self) =>
+            PickupIcon.After(orig(self), () => {
+                if (!self || !self.isActiveAndEnabled) return;
+                var effect = self.GetComponent<EffectComponent>();
+                if (!effect || effect.effectData == null) return;
+                var index = new PickupIndex(Util.UintToIntMinusOne(effect.effectData.genericUInt));
+                PickupIcon.Bind(self.iconSpriteRenderer, PickupCatalog.GetPickupDef(index), "pickup " + index.value);
+            });
     }
 }
 #endif
