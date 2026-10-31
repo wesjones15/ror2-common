@@ -32,7 +32,33 @@ static class Program
         Update(hold);
         Check(rig.provider == hold, "must wait for the first playable draw");
         hold.Release();
-        Check(rig.provider == null && rig.duration == .35f, "ready view must blend into the player camera");
+        Check(rig.provider == hold && hold.IsUserControlAllowed(rig), "ready view must start blending with player control");
+        Time.deltaTime = .6f; // Native startup stalls longer than the whole requested blend.
+        Time.frameCount++;
+        state = new CameraState { position = 23, rotation = 45, fov = 70 };
+        hold.GetCameraState(rig, ref state);
+        Check(state.position == 123, "loading frame must not consume the blend before a ready frame is shown");
+        Time.frameCount++;
+        state.position = 23;
+        hold.GetCameraState(rig, ref state);
+        Check(state.position > 120 && state.position < 123, "a long next frame must move a small distance, not snap to the endpoint");
+        float first = state.position;
+        state.position = 23;
+        hold.GetCameraState(rig, ref state);
+        Check(state.position == first, "multiple camera samples in one rendered frame cannot advance the blend twice");
+        Time.deltaTime = 1f / 60f;
+        float previous = first;
+        for (int i = 0; i < 24; i++)
+        {
+            Time.frameCount++;
+            state = new CameraState { position = 23, rotation = 45, fov = 70 };
+            hold.GetCameraState(rig, ref state);
+            Check(state.position <= previous && state.position >= 23, "camera must approach the current player view without overshoot");
+            previous = state.position;
+        }
+        Check(state.position == 23 && state.fov == 70, "blend must reach the player view exactly");
+        Update(hold);
+        Check(rig.provider == null, "completed blend must return camera ownership");
 
         rig.provider = pod;
         hold = CameraHandoff.Hold(body, pod);
@@ -43,8 +69,11 @@ static class Program
         hold = CameraHandoff.Hold(body, pod);
         Time.unscaledTime = 2.01f;
         Update(hold);
+        Check(rig.provider == hold, "failed startup must begin fallback blend");
+        for (int i = 0; i < 24; i++) { Time.frameCount++; hold.GetCameraState(rig, ref state); }
+        Update(hold);
         Check(rig.provider == null, "failed native startup cannot trap the camera");
-        Console.WriteLine("PASS: pod exit ordering, exact held shot, ready-view blend, override ownership and timeout");
+        Console.WriteLine("PASS: seat exit, 600ms loading hitch, bounded multi-frame blend, exact endpoint, ownership and timeout");
     }
     sealed class Provider : ICameraStateProvider { }
 }
@@ -56,12 +85,25 @@ namespace UnityEngine
     public class GameObject : Object { public T AddComponent<T>() where T : new() => new T(); }
     public class Transform { public float position, rotation; }
     public class Camera : Object { public Transform transform = new Transform(); public float fieldOfView; }
-    public static class Time { public static float unscaledTime; }
+    public static class Time { public static float unscaledTime, deltaTime; public static int frameCount; }
+    public static class Mathf
+    {
+        public static float Clamp(float v, float min, float max) => Math.Clamp(v, min, max);
+        public static float Clamp01(float v) => Clamp(v, 0, 1);
+    }
 }
+namespace Ror2Common { public static class CommonLog { public static void Info(string message) { } } }
 namespace RoR2
 {
     public interface ICameraStateProvider { }
-    public struct CameraState { public float position, rotation, fov; }
+    public struct CameraState
+    {
+        public float position, rotation, fov;
+        public static CameraState Lerp(ref CameraState a, ref CameraState b, float t) => new CameraState {
+            position = a.position + (b.position - a.position) * t,
+            rotation = a.rotation + (b.rotation - a.rotation) * t,
+            fov = a.fov + (b.fov - a.fov) * t };
+    }
     public class HealthComponent : UnityEngine.Object { public bool alive = true; }
     public class CharacterBody : UnityEngine.Object
     {

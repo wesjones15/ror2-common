@@ -11,6 +11,9 @@ namespace Ror2Common
         CharacterBody body;
         CameraState shot;
         float expires;
+        bool blending, firstSample, completed;
+        float elapsed, duration;
+        int sampledFrame = -1;
 
         public static CameraHandoff Hold(CharacterBody body, ICameraStateProvider previous)
         {
@@ -35,16 +38,34 @@ namespace Ror2Common
 
         public void Release(float seconds = 0.35f)
         {
-            if (rig && rig.IsOverrideCam(this)) rig.SetOverrideCam(null, seconds);
-            rig = null;
-            Destroy(this);
+            if (!rig || !rig.IsOverrideCam(this)) { Finish(); return; }
+            if (blending) return;
+            if (seconds <= 0f) { Finish(); return; }
+            // SetOverrideCam(null) matches the player's orbit to the held rotation.
+            // Retain the override to blend the normal camera state supplied to
+            // GetCameraState. RoR2's own lerp uses the full next frame delta: a
+            // native-view loading hitch can consume its entire duration at once.
+            rig.SetOverrideCam(null, 0f);
+            rig.SetOverrideCam(this, 0f);
+            duration = seconds;
+            elapsed = 0f;
+            blending = firstSample = true;
+            CommonLog.Info($"Camera handoff: blending {duration:0.00}s after playable draw (ready frame {Time.deltaTime * 1000f:0}ms)");
         }
 
         void Update()
         {
             if (!rig || !body || rig.target != body.gameObject || !rig.IsOverrideCam(this)
-                || body.healthComponent && !body.healthComponent.alive || Time.unscaledTime >= expires)
-                Release();
+                || body.healthComponent && !body.healthComponent.alive) Finish();
+            else if (completed) Finish();
+            else if (!blending && Time.unscaledTime >= expires) Release();
+        }
+
+        void Finish()
+        {
+            if (rig && rig.IsOverrideCam(this)) rig.SetOverrideCam(null, 0f);
+            rig = null;
+            Destroy(this);
         }
 
         void OnDestroy()
@@ -53,9 +74,26 @@ namespace Ror2Common
             rig = null;
         }
 
-        public void GetCameraState(CameraRigController rig, ref CameraState state) => state = shot;
-        public bool IsUserLookAllowed(CameraRigController rig) => false;
-        public bool IsUserControlAllowed(CameraRigController rig) => false;
+        public void GetCameraState(CameraRigController rig, ref CameraState state)
+        {
+            if (!blending) { state = shot; return; }
+            if (sampledFrame != Time.frameCount)
+            {
+                sampledFrame = Time.frameCount;
+                // The ready notification can land after a slow load in this frame.
+                // Display one complete ready frame before starting the camera move.
+                if (firstSample) firstSample = false;
+                else elapsed += Mathf.Clamp(Time.deltaTime, 0f, 1f / 30f);
+            }
+            float t = Mathf.Clamp01(elapsed / duration);
+            float ease = t * t * (3f - 2f * t);
+            state = CameraState.Lerp(ref shot, ref state, ease);
+            // Leave the endpoint installed for this camera render. On the next
+            // Update, MatchState can read that endpoint rather than the prior frame.
+            if (t >= 1f) completed = true;
+        }
+        public bool IsUserLookAllowed(CameraRigController rig) => blending;
+        public bool IsUserControlAllowed(CameraRigController rig) => blending;
         public bool IsHudAllowed(CameraRigController rig) => true;
     }
 }
