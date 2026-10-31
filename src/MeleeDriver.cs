@@ -48,6 +48,8 @@ namespace Ror2Common
         readonly HashSet<(ulong, uint)> pummeled = new HashSet<(ulong, uint)>();
         readonly Collider[] grabCandidates = new Collider[32];
         protected float scale, lastHealth;
+        /// RoR2's cosmetic item displays on the fighter, or null when the config is off.
+        ItemDisplayRig itemDisplays;
         protected MeleeNative.HitboxSample[] hitboxes = new MeleeNative.HitboxSample[64];
         protected readonly HashSet<string> presentationErrors = new HashSet<string>();
         protected readonly MeleePad pad = new MeleePad();
@@ -540,6 +542,7 @@ namespace Ror2Common
             WorldProbe.UseBodyCollision(motor, gameObject); motor.Motor.enabled = false;
             smoother = new StepSmoother(transform); cameraPivot = new CameraPivot(body); cameraPivot.Use(true); active = true;
             unstuck.Reset(); unstuck.Step(safe, false, true, false, 0.25f, 1.8f, RecoveryGround, out _); wallGuard.Placed(safe);
+            itemDisplays = ItemDisplayRig.Attach(body, new MeleeItemAnchors(sim));
             CommonLog.Info(FighterName + " sim started with costume " + body.skinIndex);
             if (body.isPlayerControlled && body.hasEffectiveAuthority) MeleeLocal.Set(FighterKind, Run.instance);
             OnSimStarted();
@@ -548,12 +551,14 @@ namespace Ror2Common
         {
             if (!active || failed) return;
             try {
-                GameSettings.HideRenderers(body.modelLocator.modelTransform, true);
+                if (itemDisplays != null) itemDisplays.HideStock();
+                else GameSettings.HideRenderers(body.modelLocator.modelTransform, true);
                 var animator = body.modelLocator.modelTransform.GetComponent<Animator>(); if (animator) animator.enabled = false;
                 var at = puppet ? Vector3.Lerp(puppetPrev, puppetCur, StepSmoother.Alpha) : transform.position - feetOffset;
                 var facing = new Vector3(state.facing.x, 0, state.facing.z);
                 var rotation = facing.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(facing) : Quaternion.identity;
                 DrawPresentation(at, rotation);
+                itemDisplays?.Pose(at, rotation, scale);
             } catch (Exception e) { Fallback(e.ToString()); }
         }
         protected void OnGUI()
@@ -800,6 +805,7 @@ namespace Ror2Common
         {
             capture?.Dispose(); pendingThrow = null;
             pad.ReleaseInteraction();
+            itemDisplays?.Dispose(); itemDisplays = null;
             DisposePresentation();
             if (body && body.netId.Value != 0 && puppet) MeleeNet.Drop(body.netId.Value);
             if (sim != IntPtr.Zero) MeleeAudio.SetGain(sim, 1f);
