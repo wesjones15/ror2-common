@@ -93,6 +93,18 @@ namespace Ror2Common
         /// Native hosts preserve the pad's trajectory using RoR2's gravity for that flight.
         public bool JumpPadLaunch => motor && motor.disableAirControlUntilCollision;
 
+        /// The multiplier the motor actually puts on `Physics.gravity` (its own scale and the
+        /// stat-driven multiplier), for a host replaying the flight in its own sim.
+        public float GravityScale
+        {
+            get
+            {
+                if (!motor) return 1f;
+                float s = motor.gravityScale * motor.gravityMultiplier;
+                return s > 0.01f ? s : 1f;
+            }
+        }
+
         /// The native controller reported ground contact: finish the pad's air-control hold.
         public void Landed()
         {
