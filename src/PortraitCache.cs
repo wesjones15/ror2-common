@@ -9,6 +9,9 @@ namespace Ror2Common
     {
         // Independent of plugin releases. Bump only when these portraits change.
         public const string CharacterRevision = "character-v1";
+        /// Melee's own character portraits: a separate revision so reframing the fighters does not
+        /// invalidate Mario's and Olimar's cached portraits.
+        public const string MeleeCharacterRevision = "melee-character-v1";
         public const string MeleeSkillRevision = "melee-v1";
 
         public static Texture2D GetOrCreate(string path, string name, Func<Texture2D> generate,

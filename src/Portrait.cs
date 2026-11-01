@@ -26,6 +26,11 @@ namespace Ror2Common
         public float Zoom;
         /// Pans the frame up by this fraction of its height (positive moves the view up, the character down).
         public float PanUp;
+        /// Visible height as a fraction of the character's full height (0.55 is a head-and-chest
+        /// portrait). 0 keeps the old framing: half the height or the upper body's width, whichever
+        /// is wider, divided by [`Zoom`]. This keeps a wide idle pose (an arm cannon, spread arms)
+        /// from zooming the whole body out, and lets every fighter get the same composition.
+        public float VisibleHeight;
 
         /// Turned 45 degrees to the left, a little closer, the head kept in frame.
         public static PortraitFraming ThreeQuarter => new PortraitFraming { TurnLeftDegrees = 45f, Zoom = 1.14f, PanUp = 0.02f };
@@ -243,7 +248,9 @@ namespace Ror2Common
                 float turned = turn * Mathf.Deg2Rad;
                 // Seen from an angle the width across the picture is a mix of the two horizontal sizes.
                 float across = Mathf.Max(slice.size.x, slice.size.z, Mathf.Abs(Mathf.Cos(turned)) * slice.size.x + Mathf.Abs(Mathf.Sin(turned)) * slice.size.z);
-                float view = Mathf.Max(h * 0.5f, across) * 1.08f / zoom;
+                float view = framing.VisibleHeight > 0f
+                    ? h * framing.VisibleHeight
+                    : Mathf.Max(h * 0.5f, across) * 1.08f / zoom;
                 var centre = new Vector3(slice.center.x, top + view * 0.04f - view * 0.5f + view * framing.PanUp, slice.center.z);
                 const float fov = 20f;
                 float depth = turn == 0f ? slice.extents.z : Mathf.Max(slice.extents.x, slice.extents.z);

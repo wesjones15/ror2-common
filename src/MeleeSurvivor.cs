@@ -85,14 +85,16 @@ namespace Ror2Common
             // fighter overwrite another's lobby display.
             DisplayModel.Attach(lobby, def.bodyName, def.displayFactory);
             // Same idle-only source and orientation as character select; the common
-            // camera supplies Mario/Olimar's 45-degree left framing.
-            // Viewer proof: examples/character_portrait.rs, Wait 0/15/30.
+            // camera supplies Mario/Olimar's 45-degree left framing. The crop is a fraction
+            // of each fighter's height so a wide idle pose cannot zoom the body out; Pikachu,
+            // Yoshi and DK have larger heads and need a taller crop for the same composition.
+            // Viewer proof: examples/character_portrait.rs, Wait 0.
             var portraitDef = def;
             Portrait.Request(body, () => portraitDef.assetsReady() ?
                 new MeleeSelectDisplay(new MeleeSelectSource(portraitDef.assetsDir(), portraitDef.fighterKind,
                     () => 0, 1f, idleOnly: true), intro: false) : null,
-                framing: PortraitFraming.ThreeQuarter, assetsDir: def.assetsDir,
-                fallback: def.portraitFactory);
+                framing: PortraitFramingFor(def.fighterKind), assetsDir: def.assetsDir,
+                revision: PortraitCache.MeleeCharacterRevision, fallback: def.portraitFactory);
             MeleeSkins.Add(body, pack, def.skins);
             DisplayModel.BindSkins(lobby, body);
             var survivor = ScriptableObject.CreateInstance<SurvivorDef>();
@@ -126,6 +128,20 @@ namespace Ror2Common
             l.SetStringByToken(def.failToken, def.failStr);
             MeleeSkills.Tokens(l, def.skills);
             MeleeSkins.Tokens(l, def.skins);
+        }
+
+        /// Head-and-shoulders portrait framing, shared by every Melee fighter. The crop is a
+        /// fraction of the fighter's own height, not its upper-body width, so Samus's cannon,
+        /// DK's arms and a spread idle pose cannot pull the camera back to a full body. Pikachu,
+        /// Yoshi and DK have proportionally larger heads: a taller crop keeps the same head and
+        /// shoulders in frame instead of only the face. The pan keeps a little headroom.
+        static PortraitFraming PortraitFramingFor(uint kind)
+        {
+            float height = 0.58f, pan = 0.03f;
+            if (kind == MeleeNative.FighterPikachu) { height = 0.75f; pan = 0.05f; }
+            else if (kind == MeleeNative.FighterYoshi) { height = 0.66f; pan = 0.04f; }
+            else if (kind == MeleeNative.FighterDonkey) { height = 0.90f; pan = 0.08f; }
+            return new PortraitFraming { TurnLeftDegrees = 45f, VisibleHeight = height, PanUp = pan };
         }
     }
 }
