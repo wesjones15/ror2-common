@@ -255,7 +255,51 @@ static class Program
             Check(!f.ThroughFloor(new Vector3(0f, -(i - 1) * 0.1f, 0f), new Vector3(0f, -i * 0.1f, 0f), Height, probe, out _), "A plain drop sent back");
         WorldProbe.floorY = float.NaN;
         WorldProbe.groundBelow = false;
+        SlidePastFloor();
         Console.WriteLine("PASS: a fall through the floor into map below it goes back to the last standing spot once the body is under it; sinks and plain drops do not");
+    }
+
+    static void SlidePastFloor()
+    {
+        foreach (int hz in new[] { 30, 60, 120 })
+        {
+            var monitor = new Unstuck(); monitor.SetSafe(Origin);
+            WorldProbe.floorY = 0f; WorldProbe.floorEdge = .2f;
+            var previous = Origin;
+            for (int i = 1; i <= hz; i++)
+            {
+                var next = new Vector3(i * 4f / hz, -i * 3f / hz, 0f);
+                Check(!monitor.ThroughFloor(previous, next, Height, Floor, out _),
+                    "sliding off a prop retained its top and teleported back at " + hz + " Hz");
+                previous = next;
+            }
+            // Remain 10 cm below a slope while descending more than a body height
+            // below the initial crossing: the old height must not be a ceiling.
+            monitor = new Unstuck(); monitor.SetSafe(Origin);
+            WorldProbe.floorEdge = float.PositiveInfinity; WorldProbe.slope = -1f;
+            previous = Origin;
+            for (int i = 1; i <= hz; i++)
+            {
+                float x = i * 4f / hz;
+                var next = new Vector3(x, -x - .1f, 0f);
+                Check(!monitor.ThroughFloor(previous, next, Height, Floor, out _),
+                    "downhill slide was judged against an old floor height at " + hz + " Hz");
+                previous = next;
+            }
+            WorldProbe.slope = 0f;
+        }
+        WorldProbe.floorEdge = float.PositiveInfinity;
+        var actual = new Unstuck(); actual.SetSafe(Origin);
+        var before = Origin; bool recovered = false;
+        for (int i = 1; i <= 40 && !recovered; i++)
+        {
+            var next = new Vector3(i * .02f, -i * .1f, 0f);
+            recovered = actual.ThroughFloor(before, next, Height, Floor, out _);
+            before = next;
+        }
+        Check(recovered, "spatial floor validation disabled genuine through-floor recovery");
+        WorldProbe.floorY = float.NaN;
+        Console.WriteLine("PASS: prop-edge and downhill slides do not teleport at 30/60/120 Hz; genuine floor penetration still recovers");
     }
 }
 
@@ -303,6 +347,13 @@ namespace Ror2Common
         public static bool groundBelow,inZone,zoneAtSafe,wedged;public static float lastReach;
         public static bool Wedged(Vector3 feet, float height, float radius) => wedged;
         public static float floorY = float.NaN;
+        public static float floorEdge = float.PositiveInfinity, slope;
+        public static bool FloorAbove(Vector3 feet, float ceilingY, float normalY, out Vector3 top)
+        {
+            float y = floorY + slope * feet.x;
+            top = new Vector3(feet.x, y, feet.z);
+            return feet.x <= floorEdge && y <= ceilingY && y > feet.y + 0.05f;
+        }
         // A floor at floorY, crossed by a step from on or above it to under it.
         public static bool CrossedFloor(Vector3 from, Vector3 to, float normalY, out Vector3 top)
         {

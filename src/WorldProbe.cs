@@ -208,6 +208,22 @@ namespace Ror2Common
             return true;
         }
 
+        /// A floor still above these feet, sampled at their CURRENT X/Z. The upper
+        /// bound is the previously crossed surface, so unrelated roofs are excluded.
+        /// Sliding down a slope or past a prop edge must not retain its old height.
+        public static bool FloorAbove(Vector3 feet, float ceilingY, float floorNormalY, out Vector3 top)
+        {
+            top = default;
+            float distance = ceilingY - feet.y;
+            if (distance <= 0.05f) return false;
+            var start = new Vector3(feet.x, ceilingY, feet.z);
+            if (!Physics.Raycast(start, Vector3.down, out var hit, distance, Mask, QueryTriggerInteraction.Ignore))
+                return false;
+            if (hit.normal.y < floorNormalY || hit.point.y <= feet.y + 0.05f) return false;
+            top = hit.point;
+            return true;
+        }
+
         /// `CrossedWall` with a sphere of `radius` instead of a ray, so a thin pole or a corner
         /// between the rays' lines is caught too. A sphere that starts touching something finds
         /// nothing there (distance 0), so a body resting against a wall is never "crossing" it.

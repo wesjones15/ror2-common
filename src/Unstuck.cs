@@ -161,11 +161,19 @@ namespace Ror2Common
             destination = default;
             if (WorldProbe.CrossedFloor(from, feet, 0.7f, out var top) && (!underFloor || top.y > floorTop.y))
             {
-                if (!underFloor) CommonLog.Info($"Fell through the floor at {top}");
                 underFloor = true;
                 floorTop = top;
             }
             if (!underFloor) return false;
+            // A feet ray can clip a slope during a legitimate slide, and the body
+            // can move off its edge afterward. The old world-space Y is not proof
+            // he is still under that floor. Follow its current X/Z surface.
+            if (!WorldProbe.FloorAbove(feet, Mathf.Max(from.y, floorTop.y) + 0.05f, 0.7f, out var currentTop))
+            {
+                underFloor = false;
+                return false;
+            }
+            floorTop = currentTop;
             if (feet.y > floorTop.y - 0.05f)
             {
                 underFloor = false;
