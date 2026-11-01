@@ -128,34 +128,13 @@ namespace Ror2Common
                     SkillCardStage stage = null;
                     try
                     {
-                        if (job.ready != null && !job.ready()) continue;
                         string cache = SkillCardCache.FileName(job.assetsDir?.Invoke(), job.revision, job.defName);
-                        Texture2D tex;
-                        bool cached = SkillCardCache.TryRead(cache, out var rgba);
-                        if (cached)
+                        var tex = PortraitCache.GetOrCreate(cache, job.defName, () =>
                         {
-                            tex = new Texture2D(SkillCardCache.Size, SkillCardCache.Size, TextureFormat.RGBA32, false)
-                            { name = job.defName, wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-                            tex.LoadRawTextureData(rgba); tex.Apply(false, false);
-                        }
-                        else
-                        {
+                            if (job.ready != null && !job.ready()) return null;
                             stage = job.build();
-                            if (stage == null) continue;
-                            tex = Render(stage);
-                            if (tex && cache != null)
-                            {
-                                try
-                                {
-                                    var colors = tex.GetPixels32();
-                                    rgba = new byte[colors.Length * 4];
-                                    for (int p = 0; p < colors.Length; p++)
-                                    { rgba[p*4] = colors[p].r; rgba[p*4+1] = colors[p].g; rgba[p*4+2] = colors[p].b; rgba[p*4+3] = colors[p].a; }
-                                    SkillCardCache.Write(cache, rgba);
-                                }
-                                catch (Exception e) { CommonLog.Warn($"skill portrait cache {cache}: {e.Message}"); }
-                            }
-                        }
+                            return stage == null ? null : Render(stage);
+                        }, out bool cached);
                         if (!tex) continue;
                         var sprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
                         job.assign(sprite);

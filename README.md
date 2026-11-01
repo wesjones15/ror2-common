@@ -23,6 +23,35 @@ Transforms, materials, tint, fade, hit flash and freeze sheen still update norma
 Run `dotnet run --project tests/ModelViewCheck -c Release` to check mesh sharing,
 ownership, dynamic fallback and material-state updates with a recording host.
 
+Generated portraits persist between launches, independently of the mod release version.
+Character/skin `Portrait.Request` calls take an `assetsDir` delegate and a stable `cacheKey`
+(required for skins). Results live at `assets/portraits/character-v1/<key>.bmp`.
+Melee `SkillIcons` uses `assets/skill-icons/melee-v1/<skill-name>.bmp`, replacing the old
+write-only review dumps. Each image is generated only when its cache is missing or invalid;
+new characters/skins/skills generate only their own missing entries. A hit never invokes
+the native model/camera factory. Melee character portraits use the same idle-only
+character-select source and the common 45-degree left framing; original CSS photos remain
+fallbacks while generation is pending or fails. The Rust viewer's `character_portrait`
+example compares Samus and DK at Wait frames 0/15/30 before host integration.
+
+Bump `PortraitCache.CharacterRevision` or `MeleeSkillRevision` when those portraits'
+recipes/rendering change; an individual character request can also override its revision.
+Routine gameplay releases keep the cache. These pixels are local user data, never packaged.
+`tests/PortraitCacheCheck` verifies repeated-launch factory bypass, independent new keys,
+revision invalidation, corrupt-cache recovery and retry after unavailable assets.
+Character portraits yield between completed jobs so cache misses don't all render in one frame.
+First-time generation can still hitch; this change does not defer it past the intro.
+
+`SkinPresentation` supplies Mario/Olimar's selected skin name and skill art in character
+select and its loadout panel, plus the same art in each body's HUD cooldown slots.
+Registrations use the offered loadout index, not the native skin ID (an unavailable Louie
+must not shift Pianta onto the wrong pictures). Menu icon substitutions restore the shared
+SkillDefs after the synchronous build, including exceptions; HUDs read their own body's
+skin without replacing the SkillDef or changing stock/recharge behavior. Cached variants
+arriving late refresh menus. Air Pump, Onion Ride and the sprout-only passive keep shared art.
+Only Mario/Olimar register skins; Melee and vanilla survivors keep their own UI behavior.
+Run `tests/SkinPresentationCheck` for independent-skin, fallback and restoration checks.
+
 `SkillCard` renders native skill scenes in Unity after disc extraction completes, one
 portrait per frame. Pass the plugin's assets-directory delegate to `Request` to persist
 the 256x256 result under `assets/skill-icons/approved-v3/<skill-name>.bmp`. Subsequent

@@ -41,6 +41,10 @@ namespace Ror2Common
             public int size;
             public Func<ViewDraw, bool> hide;
             public Func<Texture2D> texture;
+            public Func<string> assetsDir;
+            public string cacheKey, revision;
+            public Func<Texture2D> fallback;
+            public bool fallbackAssigned;
             /// Receives the rendered portrait instead of it being assigned to the body's
             /// `portraitIcon` (a skin's icon, say).
             public Action<Texture2D> onTexture;
@@ -53,18 +57,24 @@ namespace Ror2Common
         /// factory as DisplayModel.Attach), leaving out the draws `hide` picks (company standing
         /// beside the character). Call at content load.
         public static void Request(GameObject bodyPrefab, Func<IDisplayActor> make, Func<ViewDraw, bool> hide = null, int size = 256,
-            PortraitFraming framing = default)
+            PortraitFraming framing = default, Func<string> assetsDir = null, string cacheKey = null,
+            string revision = PortraitCache.CharacterRevision, Func<Texture2D> fallback = null)
         {
-            pending.Add(new Job { body = bodyPrefab, make = make, size = size, hide = hide, framing = framing });
+            pending.Add(new Job { body = bodyPrefab, make = make, size = size, hide = hide, framing = framing,
+                assetsDir = assetsDir, cacheKey = cacheKey ?? bodyPrefab.name, revision = revision, fallback = fallback });
             EnsureRunner();
         }
 
         /// [`Request`] handing the rendered portrait to `onTexture` (a skin's icon) instead of
         /// the body's `portraitIcon`.
         public static void Request(GameObject bodyPrefab, Func<IDisplayActor> make, Action<Texture2D> onTexture,
-            Func<ViewDraw, bool> hide = null, int size = 256, PortraitFraming framing = default)
+            Func<ViewDraw, bool> hide = null, int size = 256, PortraitFraming framing = default,
+            Func<string> assetsDir = null, string cacheKey = null, string revision = PortraitCache.CharacterRevision)
         {
-            pending.Add(new Job { body = bodyPrefab, make = make, onTexture = onTexture, size = size, hide = hide, framing = framing });
+            // Callback portraits need a stable per-skin key, never the shared body name.
+            if (assetsDir != null && cacheKey == null) throw new ArgumentException("Skin portrait cache needs a key");
+            pending.Add(new Job { body = bodyPrefab, make = make, onTexture = onTexture, size = size, hide = hide, framing = framing,
+                assetsDir = assetsDir, cacheKey = cacheKey, revision = revision });
             EnsureRunner();
         }
 
@@ -126,8 +136,23 @@ namespace Ror2Common
                 {
                     var job = pending[i];
                     Texture2D tex = null;
-                    try { tex = job.texture != null ? job.texture() : Render(job); }
+                    bool cached = false;
+                    try
+                    {
+                        if (job.texture != null) tex = job.texture();
+                        else
+                        {
+                            string cache = SkillCardCache.FileName(job.assetsDir?.Invoke(), job.revision, job.cacheKey, "portraits");
+                            tex = PortraitCache.GetOrCreate(cache, job.cacheKey ?? job.body.name, () => Render(job), out cached, job.size);
+                        }
+                    }
                     catch (Exception e) { CommonLog.Error($"portrait for {(job.body ? job.body.name : "?")}: {e}"); }
+                    bool complete = tex;
+                    if (!tex && !job.fallbackAssigned && job.fallback != null)
+                    {
+                        try { tex = job.fallback(); job.fallbackAssigned = tex; }
+                        catch (Exception e) { CommonLog.Warn($"portrait fallback for {job.body.name}: {e.Message}"); }
+                    }
                     if (!tex) continue;
                     if (job.onTexture != null)
                     {
@@ -143,8 +168,10 @@ namespace Ror2Common
                             if (icon.survivorDef && icon.survivorDef.bodyPrefab == job.body && icon.survivorIcon)
                                 icon.survivorIcon.texture = tex;
                     }
-                    pending.RemoveAt(i);
-                    CommonLog.Info($"portrait for {job.body.name} ready");
+                    if (complete) pending.RemoveAt(i);
+                    CommonLog.Info($"portrait for {job.body.name} ({job.cacheKey ?? "source artwork"}) {(cached ? "loaded" : "ready")}");
+                    // Missing portraits must not all render in the same frame.
+                    yield return null;
                 }
                 retryAt = Time.unscaledTime + 2f;
                 rendering = false;
@@ -250,8 +277,12 @@ namespace Ror2Common
 
                 rt = new RenderTexture(job.size, job.size, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
-                var black = Grab(cam, rt, Color.black);
-                var white = Grab(cam, rt, Color.white);
+                Color[] black, white;
+                using (new PortraitIsolation(actor.Models.Root.transform, layer))
+                {
+                    black = Grab(cam, rt, Color.black);
+                    white = Grab(cam, rt, Color.white);
+                }
                 var px = new Color[black.Length];
                 int visible = 0;
                 for (int i = 0; i < px.Length; i++)

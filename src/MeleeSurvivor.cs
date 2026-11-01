@@ -84,7 +84,15 @@ namespace Ror2Common
             // shared DisplayModel factory table, so a shared guid would let one
             // fighter overwrite another's lobby display.
             DisplayModel.Attach(lobby, def.bodyName, def.displayFactory);
-            Portrait.RequestTexture(body, def.portraitFactory);
+            // Same idle-only source and orientation as character select; the common
+            // camera supplies Mario/Olimar's 45-degree left framing.
+            // Viewer proof: examples/character_portrait.rs, Wait 0/15/30.
+            var portraitDef = def;
+            Portrait.Request(body, () => portraitDef.assetsReady() ?
+                new MeleeSelectDisplay(new MeleeSelectSource(portraitDef.assetsDir(), portraitDef.fighterKind,
+                    () => 0, 1f, idleOnly: true), intro: false) : null,
+                framing: PortraitFraming.ThreeQuarter, assetsDir: def.assetsDir,
+                fallback: def.portraitFactory);
             MeleeSkins.Add(body, pack, def.skins);
             DisplayModel.BindSkins(lobby, body);
             var survivor = ScriptableObject.CreateInstance<SurvivorDef>();

@@ -93,7 +93,6 @@ namespace Ror2Common
                     var job = pending[i];
                     try
                     {
-                        if (!job.ready()) continue;
                         var dir = job.assetsDir();
                         if (string.IsNullOrEmpty(dir)) continue;
                         Texture2D tex = null;
@@ -101,12 +100,14 @@ namespace Ror2Common
                         if (share != null && shared.TryGetValue(share, out tex) && !tex) tex = null;
                         if (!tex)
                         {
-                            tex = Render(job, dir);
+                            string cache = SkillCardCache.FileName(dir, PortraitCache.MeleeSkillRevision, job.defName);
+                            tex = PortraitCache.GetOrCreate(cache, job.defName,
+                                () => job.ready() ? Render(job, dir) : null, out bool cached);
+                            if (tex) CommonLog.Info($"Melee skill portrait {job.defName} {(cached ? "loaded" : "generated")}: {cache}");
                             if (tex && share != null) shared[share] = tex;
                         }
                         if (!tex) continue;
                         job.def.icon = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
-                        Dump(tex, job.defName);
                         Refresh(job.def);
                         pending.RemoveAt(i);
                         queued.Remove(job.defName);
@@ -124,38 +125,6 @@ namespace Ror2Common
                 retryAt = Time.unscaledTime + 0.25f;
                 rendering = false;
             }
-        }
-
-        // Local review copy of the actual Unity render; never packaged.
-        // 32-bit BMP so this works without Unity's ImageConversion module.
-        static void Dump(Texture2D tex, string name)
-        {
-            try
-            {
-                var px = tex.GetPixels32();
-                int w = tex.width, h = tex.height;
-                // Keep review BMPs beside the plugin, not in AppData. Fall back
-                // to persistentDataPath only if the assembly path is unavailable.
-                string dir = null;
-                try
-                {
-                    string loc = typeof(SkillIcons).Assembly.Location;
-                    if (!string.IsNullOrEmpty(loc)) dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(loc), "skill-icons");
-                }
-                catch { }
-                if (string.IsNullOrEmpty(dir)) dir = System.IO.Path.Combine(Application.persistentDataPath, "MeleeSkillIcons");
-                System.IO.Directory.CreateDirectory(dir);
-                using (var stream = new System.IO.FileStream(System.IO.Path.Combine(dir, name + ".bmp"), System.IO.FileMode.Create))
-                using (var bw = new System.IO.BinaryWriter(stream))
-                {
-                    bw.Write((byte)'B'); bw.Write((byte)'M');
-                    bw.Write(54 + w * h * 4); bw.Write(0); bw.Write(54);
-                    bw.Write(40); bw.Write(w); bw.Write(h); bw.Write((short)1); bw.Write((short)32);
-                    bw.Write(0); bw.Write(w * h * 4); bw.Write(2835); bw.Write(2835); bw.Write(0); bw.Write(0);
-                    foreach (var c in px) { bw.Write(c.b); bw.Write(c.g); bw.Write(c.r); bw.Write(c.a); }
-                }
-            }
-            catch (Exception e) { CommonLog.Warn($"skill portrait dump {name}: {e.Message}"); }
         }
 
         static void Refresh(SkillDef def)
