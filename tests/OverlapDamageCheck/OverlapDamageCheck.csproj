@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net6.0</TargetFramework><LangVersion>9.0</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/OverlapDamage.cs" Link="OverlapDamage.cs" />
+    <Compile Include="../BlastDamageCheck/HostStubs.cs" Link="BlastHostStubs.cs" />
+  </ItemGroup>
+</Project>

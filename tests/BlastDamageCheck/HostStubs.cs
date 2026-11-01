@@ -2,7 +2,7 @@ namespace UnityEngine.Networking { public static class NetworkServer { public st
 namespace RoR2
 {
     public enum TeamIndex { None, Player, Monster }
-    public enum DamageType { Generic = 0, AOE = 1, DoT = 2 }
+    public enum DamageType { Generic = 0, AOE = 1, DoT = 2, Freeze2s = 4 }
     public struct DamageTypeCombo
     {
         int value;
