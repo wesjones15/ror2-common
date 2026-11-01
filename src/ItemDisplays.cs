@@ -82,6 +82,16 @@ namespace Ror2Common
             this.source = source;
         }
 
+        /// True when this model's item displays are hidden by the plugin config, so RoR2's
+        /// pickup highlight would draw its square around an empty spot. Only native bodies
+        /// (ours) are affected; a vanilla survivor in the same run keeps its highlight.
+        public static bool HighlightSuppressed(CharacterModel model)
+        {
+            if (Enabled || !model) return false;
+            var body = model.GetComponentInParent<CharacterBody>();
+            return body && body.GetComponent<NativeBody>();
+        }
+
         /// Attaches to a body. Null when disabled, or when the body has no stock
         /// model/child locator (then the caller keeps its normal hide path).
         public static ItemDisplayRig Attach(CharacterBody body, IItemAnchorSource source)
