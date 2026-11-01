@@ -169,6 +169,24 @@ static class Program
             Check(!mesh.destroyed, "retiring instances never destroys shared geometry");
         }
         Check(!UnityEngine.Object.doubleDestroyed, "retirement and disposal preserve ownership");
+        using (var source = new Source())
+        using (var view = ModelView.Create(source, "smoothed captain placement"))
+        {
+            // A camera-followed captain has a host pose in metres, independent of the
+            // native view's 30 Hz position. Others keep their native placement and scale.
+            for (int frame = 0; frame < 120; frame++)
+            {
+                var feet = new Vector3(20f + frame * .125f, 2f, -3f);
+                view.Update(.01f, d => d.key == 1
+                    ? (feet, new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w))
+                    : ((Vector3, Quaternion)?)null);
+                var captain = Field<GameObject>(Instance(view, 1), "go").transform.position;
+                var other = Field<GameObject>(Instance(view, 2), "go").transform.position;
+                Check((captain - feet).sqrMagnitude < 1e-10f, "captain follows every display frame in host metres");
+                Check(Math.Abs(other.x - .1f) < .000001f, "other draws keep native scaling");
+                source.flags = 4; // Cached animation geometry must still move every frame.
+            }
+        }
         Console.WriteLine("ModelViewCheck: ok");
     }
 }
