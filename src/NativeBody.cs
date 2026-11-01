@@ -89,9 +89,22 @@ namespace Ror2Common
         /// start, not a throw.
         public void ForgetVelocity() => wrote = false;
 
+        float padSeenAt = -100f;
+
         /// JumpVolume marks its throws by disabling air control until the next collision.
-        /// Native hosts preserve the pad's trajectory using RoR2's gravity for that flight.
-        public bool JumpPadLaunch => motor && motor.disableAirControlUntilCollision;
+        /// CharacterMotor clears that on the next movement hit, which can land before the host
+        /// reads it, so keep the mark for a moment after it is seen. Native hosts preserve the
+        /// pad's trajectory using RoR2's gravity for that flight.
+        public bool JumpPadLaunch =>
+            motor && (motor.disableAirControlUntilCollision || Time.fixedTime - padSeenAt <= 0.2f);
+
+        void Update() => LatchJumpPad();
+        void LateUpdate() => LatchJumpPad();
+
+        void LatchJumpPad()
+        {
+            if (motor && motor.disableAirControlUntilCollision) padSeenAt = Time.fixedTime;
+        }
 
         /// The multiplier the motor actually puts on `Physics.gravity` (its own scale and the
         /// stat-driven multiplier), for a host replaying the flight in its own sim.
