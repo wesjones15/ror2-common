@@ -222,6 +222,29 @@ namespace Ror2Common
             return null;
         }
 
+        /// Olimar's skill bar draws two-button chords (RT + B, RT + LT) inside one icon's
+        /// width. Scale every skill glyph down together so they stop overlapping the next icon.
+        public const float SkillGlyphScale = 0.72f;
+
+        public static void ScaleSkillGlyphs(GameObject body)
+        {
+            if (!body) return;
+            foreach (var hud in HUD.readOnlyInstanceList)
+            {
+                if (!hud || hud.targetBodyObject != body || hud.skillIcons == null) continue;
+                foreach (var icon in hud.skillIcons)
+                {
+                    if (!icon) continue;
+                    foreach (var binding in icon.GetComponentsInChildren<InputBindingDisplayController>(true))
+                    {
+                        if (!binding) continue;
+                        var rect = binding.transform as RectTransform;
+                        if (rect) rect.localScale = new Vector3(SkillGlyphScale, SkillGlyphScale, 1f);
+                    }
+                }
+            }
+        }
+
         // Icons draw their glyph once, then again only when the input source changes, so
         // when the player's body changes they're told to draw it afresh.
         sealed class Refresher : MonoBehaviour
@@ -236,6 +259,7 @@ namespace Ror2Common
                 var user = LocalUserManager.GetFirstLocalUser();
                 var body = user != null ? user.cachedBody : null;
                 var name = body ? BodyCatalog.GetBodyName(body.bodyIndex) : null;
+                if (body && name == "OlimarTestBody") ScaleSkillGlyphs(body.gameObject);
                 if (name == last) return;
                 last = name;
                 foreach (var c in UnityEngine.Object.FindObjectsOfType<InputBindingDisplayController>())
