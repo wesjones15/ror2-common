@@ -10,7 +10,7 @@ namespace RoR2
     }
     public class HitBoxGroup : Object { public HitBox[] hitBoxes; }
     public class HurtBox : Object { }
-    public class CharacterBody : Object { public float critMultiplier = 2f; }
+    public class CharacterBody : Object { public float critMultiplier = 2f; public bool isChampion, isElite; }
     public class DamageInfo { public GameObject attacker, inflictor; public DamageTypeCombo damageType; }
     public class OverlapAttack
     {

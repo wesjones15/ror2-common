@@ -41,6 +41,14 @@ namespace Ror2Common
                 float z = Mathf.Max(0f, Mathf.Abs(local.z) - HalfExtents.z);
                 return x*x + y*y + z*z <= radius*radius;
             }
+
+            /// Squared distance from `point` to this volume's centre (0 when they coincide).
+            /// Ranks native victims inside one swing; `Touches` stays the actual test.
+            public float SquaredDistanceTo(Vector3 point)
+            {
+                if (!Finite(Centre) || !Finite(point)) return float.MaxValue;
+                return (point - Centre).sqrMagnitude;
+            }
             static bool Finite(Vector3 v) => float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
         }
 
@@ -83,6 +91,19 @@ namespace Ror2Common
             {
                 foreach (var volume in Volumes) if (volume.Touches(centre, radius)) return true;
                 return false;
+            }
+
+            /// Squared distance from `point` to the nearest active volume's centre. Ranks
+            /// native victims so the cap takes the Pikmin on the attacker first.
+            public float SquaredDistanceTo(Vector3 point)
+            {
+                float best = float.MaxValue;
+                foreach (var volume in Volumes)
+                {
+                    float d = volume.SquaredDistanceTo(point);
+                    if (d < best) best = d;
+                }
+                return best;
             }
         }
 

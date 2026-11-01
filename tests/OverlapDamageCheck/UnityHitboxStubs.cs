@@ -44,7 +44,17 @@ namespace UnityEngine
     public static class Mathf
     {
         public static float Max(float a, float b) => Math.Max(a,b);
+        public static int Max(int a, int b) => Math.Max(a,b);
+        public static float Min(float a, float b) => Math.Min(a,b);
+        public static int Min(int a, int b) => Math.Min(a,b);
         public static float Abs(float a) => Math.Abs(a);
+        public static int NextPowerOfTwo(int value)
+        {
+            if (value <= 0) return 0;
+            int p = 1;
+            while (p < value) p <<= 1;
+            return p;
+        }
     }
     public static class Time { public static float realtimeSinceStartup; }
     public enum QueryTriggerInteraction { Ignore }
