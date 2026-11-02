@@ -187,6 +187,20 @@ static class Program
                 source.flags = 4; // Cached animation geometry must still move every frame.
             }
         }
+        using (var source = new Source())
+        using (var view = ModelView.Create(source, "host frozen override"))
+        {
+            // RoR2's FrozenState is not a native draw flag: the host asks the shared view to pale
+            // draws it names (a frozen Pikmin still sets flag 2 itself).
+            view.Update(.01f);
+            MeshRenderer.propertyUpdates = 0;
+            view.FrozenFor = _ => true;
+            view.Update(.01f);
+            Check(MeshRenderer.propertyUpdates == 2, "host frozen override resubmits both draws");
+            view.FrozenFor = null;
+            view.Update(.01f);
+            Check(MeshRenderer.propertyUpdates == 4, "clearing the frozen override resubmits both draws");
+        }
         Console.WriteLine("ModelViewCheck: ok");
     }
 }

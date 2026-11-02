@@ -97,6 +97,11 @@ namespace Ror2Common
         /// null for the usual: this material replaces the draw's textures as Create's `skin` does.
         public Func<ViewDraw, Material> SkinFor;
 
+        /// Draws to pale as frozen, in addition to any the source flags itself (a Pikmin caught in
+        /// a Glacial blast sets flag 2). A survivor body's freeze is RoR2's `FrozenState`, which a
+        /// native sim does not put in its own draws: the host asks for this while its body is frozen.
+        public Func<ViewDraw, bool> FrozenFor;
+
         /// RoR2's hit flash colour for draws flagged as flashing.
         public Color FlashColor = new Color(1f, 1f, 1f, 0.5f);
         /// The rim light the source's colour programs set (the additive light of ftmaterial.c):
@@ -109,7 +114,8 @@ namespace Ror2Common
         Texture2D rimRamp;
         Color32[] rimPixels;
         Color rimShown;
-        /// The icy sheen for draws flagged frozen (flag 2: a Pikmin caught in a Glacial blast).
+        /// The icy sheen for draws flagged frozen (flag 2: a Pikmin caught in a Glacial blast, or a
+        /// native survivor body RoR2 put in `FrozenState`; see [`FrozenFor`]).
         /// Only while the game runs slowly (a smoothed frame time over about 28 fps): an instance outside
         /// the camera's view, or far from it, has its animated mesh re-uploaded less often (never when it
         /// is near and on screen, so a machine that keeps up draws exactly as before).
@@ -498,6 +504,7 @@ namespace Ror2Common
             for (int i = 0; i < drawCount; i++)
             {
                 var d = draws[i];
+                if (FrozenFor != null && FrozenFor(d)) d.flags |= 2;
                 if (d.model >= models.Length) continue;
                 if (hide != null && hide(d)) continue;
                 var model = models[d.model];

@@ -210,6 +210,7 @@ namespace Ror2Common
             "EntityStates.StunState", "EntityStates.FrozenState", "EntityStates.ShockState",
             "EntityStates.HurtState",
         };
+        const string FrozenStateName = "EntityStates.FrozenState";
         static readonly string[] rootBuffs = { "Entangle", "Nullified", "LunarSecondaryRoot" };
 
         public Hold Control()
@@ -224,6 +225,17 @@ namespace Ror2Common
             foreach (var b in rootBuffs)
                 if (ByName.Has(body, b)) return Hold.Move;
             return Hold.None;
+        }
+
+        /// Frozen by RoR2 (a Glacial elite's death blast): the native draw is tinted pale ice as a
+        /// frozen Pikmin is, rather than only holding the sim's input.
+        public bool Frozen
+        {
+            get
+            {
+                var state = bodyMachine ? bodyMachine.state : null;
+                return state != null && state.GetType().FullName == FrozenStateName;
+            }
         }
 
         // ---- sprinting -------------------------------------------------------------------
