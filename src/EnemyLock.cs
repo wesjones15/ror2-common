@@ -33,11 +33,26 @@ namespace Ror2Common
         /// first, but finite, so with none on screen the best of the rest is still taken.
         const float OffScreen = 8f;
 
+        /// Pellets, corpses and buds are what the lock takes only when there is no enemy on screen,
+        /// or when the crosshair is directly on one. This is their score penalty otherwise.
+        const float PointBelowEnemy = 1000f;
+        const float CrosshairRadius = .05f;
+
         static bool OnScreen(Camera camera, Vector3 point)
         {
             if (!camera) return true;
             var v = camera.WorldToViewportPoint(point);
             return v.z > 0f && v.x > 0f && v.x < 1f && v.y > 0f && v.y < 1f;
+        }
+
+        /// Whether the screen-centre crosshair is on this point (a little tighter than "on screen").
+        static bool AtCrosshair(Camera camera, Vector3 point)
+        {
+            if (!camera) return false;
+            var v = camera.WorldToViewportPoint(point);
+            if (v.z <= 0f) return false;
+            float dx = (v.x - .5f) * Mathf.Max(1f, camera.aspect), dy = v.y - .5f;
+            return dx * dx + dy * dy <= CrosshairRadius * CrosshairRadius;
         }
 
         float reported;
@@ -132,6 +147,9 @@ namespace Ror2Common
             foreach (var p in points)
                 if (!(hasPoint && p.Id == pointId) && PointValid(owner, p.Position)) candidates.Add(new Candidate { Point = p, Position = p.Position });
             bool have = target || hasPoint;
+            bool enemyOnScreen = false;
+            foreach (var c in candidates)
+                if (c.Body && OnScreen(view, c.Position)) { enemyOnScreen = true; break; }
             var current = target ? target.corePosition : pointPosition;
             int best = -1, wrap = -1;
             float score = float.PositiveInfinity, wrapScore = 0f;
@@ -139,10 +157,11 @@ namespace Ror2Common
             {
                 var at = candidates[i].Position;
                 var delta = at - owner.corePosition;
+                float below = enemyOnScreen && !candidates[i].Body && !AtCrosshair(view, at) ? PointBelowEnemy : 0f;
                 if (!have)
                 {
                     float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * .01f
-                        + (OnScreen(view, at) ? 0f : OffScreen);
+                        + (OnScreen(view, at) ? 0f : OffScreen) + below;
                     if (s < score) { best = i; score = s; }
                     continue;
                 }
@@ -152,7 +171,7 @@ namespace Ror2Common
                 if (along < wrapScore) { wrap = i; wrapScore = along; }
                 float alignment = Vector2.Dot(screen.normalized, direction);
                 if (alignment <= .1f) continue;
-                float rank = screen.magnitude / alignment + (OnScreen(view, at) ? 0f : OffScreen * 1000f);
+                float rank = screen.magnitude / alignment + (OnScreen(view, at) ? 0f : OffScreen * 1000f) + below;
                 if (rank < score) { best = i; score = rank; }
             }
             int pick = best >= 0 ? best : wrap;
