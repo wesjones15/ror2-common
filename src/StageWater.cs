@@ -14,11 +14,23 @@ namespace Ror2Common
         static readonly RaycastHit[] hits = new RaycastHit[16];
         static readonly Collider[] overlaps = new Collider[16];
         static readonly Dictionary<int, bool> cache = new Dictionary<int, bool>();
+        static Stage cachedStage;
+
+        /// Collider instance ids are unique only while their objects live; a new stage can reuse
+        /// one, so throw the cached water answers away when the stage changes.
+        static void KeepStage()
+        {
+            var stage = Stage.instance;
+            if (stage == cachedStage) return;
+            cachedStage = stage;
+            cache.Clear();
+        }
 
         /// Whether a body whose feet are at `feet` and whose height is `height` is standing in
         /// water or on a water surface.
         public static bool Contains(Vector3 feet, float height)
         {
+            KeepStage();
             float best = float.NegativeInfinity;
             int n = Physics.RaycastNonAlloc(feet + Vector3.up * height, Vector3.down, hits,
                 height + 0.05f, ~0, QueryTriggerInteraction.Collide);
