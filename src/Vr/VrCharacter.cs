@@ -44,6 +44,23 @@ namespace Ror2Common
         /// local player now: the character, spectating, or flying a drone.
         public bool WristHud => Settings.WristHud.Value && Vr.HandsReady;
 
+        /// Runs one of the character's OnGUI drawers: with the wrist HUD its Repaint goes onto the wrist panel
+        /// (VrPanel), every other event (a desktop click on one of its buttons) to the screen as ever; without it,
+        /// all to the screen. Several drawers share the panel in a frame.
+        public void OnWrist(Action draw)
+        {
+            bool wrist = WristHud && Event.current != null && Event.current.type == EventType.Repaint;
+            if (wrist && !VrPanel.Begin()) return;
+            try { draw(); }
+            finally { if (wrist) VrPanel.End(); }
+        }
+
+        /// Each LateUpdate a drawer drew this frame: shows the wrist panel (once a frame however many ask).
+        public void ShowWrist()
+        {
+            if (WristHud) VrPanel.Show();
+        }
+
         /// Where the headset faces, flattened: the heading a character's camera-relative stick follows.
         public Vector3 ViewForward(Vector3 fallback) => Vr.HeadFlatForward(fallback);
 
