@@ -159,3 +159,35 @@ SpawnMusic provides local stings from build-generated stereo PCM16 WAVs: spawn.w
 RunAudio resets native presentation and arrival stings at game over (before run destruction), direct quit, shutdown, and new-run startup. A game over lets a death sting finish; leaving the run stops it. Its Ended gate prevents recreation on the results screen. Run the headless event-sequence regression with dotnet run --project tests/RunAudioCheck -c Release. Native device silence still needs an in-game check.
 
 Arrival PCM uses Windows waveOut rather than Unity AudioClip: this RoR2 build rejects AudioClip.SetData. Gain is sampled at arrival; disable, pause, body destruction and run cleanup stop or pause the owned output. The optional --device argument to RunAudioCheck exercises silent buffers on the real output device, including early stop and reopen.
+
+## VR (opt-in)
+
+`src/Vr/` supports Blowntobytes' VR mod (Resurrected_VRMod 2.26.54, plugin id
+`com.DrBibop.VRMod`; Quest 3 is the expected headset). It compiles only into a plugin that
+defines `ROR2COMMON_VR` and references `UnityEngine.XRModule` and `UnityEngine.VRModule`
+(MarioTest does; OlimarTest and Melee don't yet). Nothing links against the VR mod. Its hands
+are read by reflection and its controllers through Unity's XR input, so a plugin loads and plays
+the same without it, and every call is a no-op with no headset.
+
+- `Vr`: whether the mod is installed and active, its motion controls and handedness, whether a
+  body is the local one, the hands by dominance or side, the muzzles, the pointer ray, the head
+  and its flat heading, `PointerTarget` (where a ray lands past the body's own colliders), and
+  `ShowHandModel` (hides the VR mod's stand-in hand where a character draws its own).
+- `VrPad`: both controllers' analog trigger, grip, A/B (X/Y), stick and stick click, with edges.
+  The VR mod only passes buttons to RoR2 as on/off Rewired actions.
+- `VrCrosshair`: a ring at the pointer's world hit, the same size to the eye at any depth,
+  drawn over everything.
+- `VrRig`: `EyeOffset` lifts or lowers the VR mod's "VRCamera" anchor on the body (a
+  character's head dropping in a slide). `RenderTurn` turns the "VR Camera Rig" for one
+  frame's render only (an opt-in flip), and `Turned` turns a hand-space pose with it.
+- `VrPanel`: a character's own IMGUI HUD on a quad over the off-hand's wrist. Draw between
+  `Begin()` and `End()` in OnGUI, call `Show()` each LateUpdate, and use `PointAt(ray)` to get
+  the GUI point the pointer is on.
+- `EnemyLock.Aim`: an aim ray (the pointer) to pick and cycle targets about, in place of the
+  camera's view. The lock holds while the head looks away. Desktop behaviour is unchanged when
+  it's null (`tests/EnemyLockCheck` covers both).
+- `CameraHandoff.Hold()` gives nothing to a local VR body, so cutscene cameras never take the
+  headset.
+
+The VR mod hides the renderers under the body's model, but ModelView draws sit outside it, so
+each character hides its own body for the local player and keeps it for everyone else.
