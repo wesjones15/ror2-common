@@ -47,6 +47,28 @@ static class Program
         Check(aim.Update(owner, true, false, default) == null, "team, life and range filters retained");
         target = Body(0, 15); GameSettings.camera = null;
         Check(aim.Update(owner, true, false, default) == target, "no-camera fallback retains targeting");
-        Console.WriteLine("EnemyLockCheck: world visibility, on-screen priority, off-screen fallback, cycling and filters pass.");
+        // A host's own aim (a VR pointer): the camera looks down +z while the pointer points down +x.
+        owner = Reset(); var ahead = Body(0, 10); var pointed = Body(10, 1);
+        aim = new EnemyLock { Aim = new Ray(new Vector3(0, 0, 0), new Vector3(1, 0, 0)) };
+        Check(aim.Update(owner, true, false, default) == pointed, "aim ray picks the pointed enemy, not the camera's");
+        Check(aim.Update(owner, true, false, default) == pointed, "lock is kept while the head looks elsewhere");
+        aim.Aim = new Ray(new Vector3(0, 0, 0), new Vector3(0, 0, 1));
+        Check(aim.Update(owner, true, false, default) == pointed, "moving the pointer away doesn't drop the lock");
+        Check(aim.Update(owner, false, false, default) == null, "release clears an aimed lock");
+        Check(aim.Update(owner, true, false, default) == ahead, "after release the lock follows the pointer again");
+
+        // Cycling round the pointer: frame kept upright, so "right" of a pointer down +z is +x.
+        owner = Reset(); var middle = Body(0, 10); var left = Body(-2, 10); var right = Body(2, 10);
+        aim = new EnemyLock { Aim = new Ray(new Vector3(0, 0, 0), new Vector3(0, 0, 1)) };
+        Check(aim.Update(owner, true, false, default) == middle, "aimed lock starts at the pointer");
+        Check(aim.Update(owner, true, true, Vector2.right) == right, "aimed cycle right steps to +x");
+        Check(aim.Update(owner, true, true, new Vector2(-1, 0)) == middle, "aimed cycle left steps back");
+        Check(aim.Update(owner, true, true, new Vector2(-1, 0)) == left, "aimed cycle left again reaches -x");
+
+        // Inside the pointer's cone comes before a nearer enemy outside it.
+        owner = Reset(); var near = Body(-4, 2); var inCone = Body(1, 20);
+        aim = new EnemyLock { Aim = new Ray(new Vector3(0, 0, 0), new Vector3(0, 0, 1)) };
+        Check(aim.Update(owner, true, false, default) == inCone, "aimed cone priority over a near enemy outside it");
+        Console.WriteLine("EnemyLockCheck: world visibility, on-screen priority, off-screen fallback, cycling, filters and aim-ray locking pass.");
     }
 }

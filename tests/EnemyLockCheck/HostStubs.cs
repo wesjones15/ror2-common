@@ -13,6 +13,12 @@ namespace UnityEngine
         public static Vector3 up => new Vector3(0,1,0);
         public static Vector3 operator -(Vector3 a, Vector3 b) => new Vector3(a.x-b.x,a.y-b.y,a.z-b.z);
         public static float Dot(Vector3 a, Vector3 b) => a.x*b.x+a.y*b.y+a.z*b.z;
+        public static Vector3 Cross(Vector3 a, Vector3 b) => new Vector3(a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x);
+    }
+    public struct Ray
+    {
+        public Vector3 origin, direction;
+        public Ray(Vector3 origin, Vector3 direction) { this.origin=origin; this.direction=direction.normalized; }
     }
     public struct Vector2
     {
@@ -31,8 +37,10 @@ namespace UnityEngine
         public Camera camera;
         public T GetComponent<T>() where T : class => camera as T;
     }
+    public static class Mathf { public static float Max(float a, float b) => Math.Max(a, b); }
     public class Camera : Object
     {
+        public float aspect = 1f;
         public Vector3 WorldToViewportPoint(Vector3 point) => new Vector3(Math.Abs(point.x)>5 ? 2 : .5f,.5f,point.z);
     }
     public enum QueryTriggerInteraction { Ignore }

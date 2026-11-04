@@ -6,13 +6,23 @@ namespace Ror2Common
     // Locking onto an enemy while a button is held (Pikmin's RT, Mario's LT): the one nearest
     // the camera's heading within `Range` (25 m) with a clear line, kept until released or lost;
     // `cycle` steps to the next in `direction` on screen. Enemies on screen come first, but one
-    // off screen can still be locked (and stepped to) when nothing on screen is in reach.
+    // off screen can still be locked (and stepped to) when nothing on screen is in reach. A host
+    // can aim the lock with a ray of its own (`Aim`: a VR hand's pointer) in place of the camera.
     public sealed class EnemyLock
     {
         CharacterBody target;
 
         /// How far away an enemy can be locked, in metres.
         public float Range = 25f;
+
+        /// An aim of the host's own in place of the camera (a VR hand's pointer, so looking about
+        /// never moves the lock): the lock picks the enemy nearest this ray, "on screen" is within
+        /// `AimConeDegrees` of it, the crosshair is within AimCrosshairDegrees, and a cycle steps
+        /// across a frame kept upright around it (world up, so rolling the wrist never swaps left
+        /// and right). Set before each Update; null (the default) is the camera, as before.
+        public Ray? Aim;
+        public float AimConeDegrees = 30f;
+        const float AimCrosshairDegrees = 4f;
 
         bool Valid(CharacterBody owner, CharacterBody candidate)
         {
@@ -53,6 +63,19 @@ namespace Ror2Common
             if (v.z <= 0f) return false;
             float dx = (v.x - .5f) * Mathf.Max(1f, camera.aspect), dy = v.y - .5f;
             return dx * dx + dy * dy <= CrosshairRadius * CrosshairRadius;
+        }
+
+        // "On screen" and "at the crosshair": the camera's viewport, or a cone round the host's Aim.
+        struct View
+        {
+            public Camera camera;
+            public bool ray;
+            public Vector3 origin, forward;
+            public float cone, centre;
+
+            float Cos(Vector3 point) => Vector3.Dot((point - origin).normalized, forward);
+            public bool Shows(Vector3 point) => ray ? Cos(point) >= cone : OnScreen(camera, point);
+            public bool Centres(Vector3 point) => ray ? Cos(point) >= centre : AtCrosshair(camera, point);
         }
 
         float reported;
@@ -134,11 +157,26 @@ namespace Ror2Common
                 if (!found) hasPoint = false;
             }
             if ((target || hasPoint) && !cycle) { onPoint = hasPoint; pointOut = pointId; return target; }
-            var camera = GameSettings.PlayerCamera();
+            var camera = Aim.HasValue ? null : GameSettings.PlayerCamera();
             var forward = camera ? camera.forward : owner.transform.forward;
             var right = camera ? camera.right : owner.transform.right;
             var up = camera ? camera.up : Vector3.up;
-            var view = camera ? camera.GetComponent<Camera>() : null;
+            var view = new View { camera = camera ? camera.GetComponent<Camera>() : null };
+            var eye = owner.corePosition;
+            if (Aim.HasValue)
+            {
+                var ray = Aim.Value;
+                eye = ray.origin;
+                forward = ray.direction.normalized;
+                var flat = Vector3.Cross(Vector3.up, forward);
+                if (flat.sqrMagnitude > 1e-4f) right = flat.normalized;
+                up = Vector3.Cross(forward, right).normalized;
+                view.ray = true;
+                view.origin = eye;
+                view.forward = forward;
+                view.cone = (float)System.Math.Cos(AimConeDegrees * System.Math.PI / 180.0);
+                view.centre = (float)System.Math.Cos(AimCrosshairDegrees * System.Math.PI / 180.0);
+            }
             if (direction.sqrMagnitude < .2f) direction = Vector2.right;
             direction.Normalize();
             candidates.Clear();
@@ -149,19 +187,19 @@ namespace Ror2Common
             bool have = target || hasPoint;
             bool enemyOnScreen = false;
             foreach (var c in candidates)
-                if (c.Body && OnScreen(view, c.Position)) { enemyOnScreen = true; break; }
+                if (c.Body && view.Shows(c.Position)) { enemyOnScreen = true; break; }
             var current = target ? target.corePosition : pointPosition;
             int best = -1, wrap = -1;
             float score = float.PositiveInfinity, wrapScore = 0f;
             for (int i = 0; i < candidates.Count; i++)
             {
                 var at = candidates[i].Position;
-                var delta = at - owner.corePosition;
-                float below = enemyOnScreen && !candidates[i].Body && !AtCrosshair(view, at) ? PointBelowEnemy : 0f;
+                var delta = at - eye;
+                float below = enemyOnScreen && !candidates[i].Body && !view.Centres(at) ? PointBelowEnemy : 0f;
                 if (!have)
                 {
                     float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * .01f
-                        + (OnScreen(view, at) ? 0f : OffScreen) + below;
+                        + (view.Shows(at) ? 0f : OffScreen) + below;
                     if (s < score) { best = i; score = s; }
                     continue;
                 }
@@ -171,7 +209,7 @@ namespace Ror2Common
                 if (along < wrapScore) { wrap = i; wrapScore = along; }
                 float alignment = Vector2.Dot(screen.normalized, direction);
                 if (alignment <= .1f) continue;
-                float rank = screen.magnitude / alignment + (OnScreen(view, at) ? 0f : OffScreen * 1000f) + below;
+                float rank = screen.magnitude / alignment + (view.Shows(at) ? 0f : OffScreen * 1000f) + below;
                 if (rank < score) { best = i; score = rank; }
             }
             int pick = best >= 0 ? best : wrap;
