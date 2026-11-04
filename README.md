@@ -169,6 +169,13 @@ defines `ROR2COMMON_VR` and references `UnityEngine.XRModule` and `UnityEngine.V
 are read by reflection and its controllers through Unity's XR input, so a plugin loads and plays
 the same without it, and every call is a no-op with no headset.
 
+- `VrCharacter` + `VrSettings`: what every character shares, and what a character mod extends. It
+  covers first person, hiding the body for its own player, the forearm and hand draws on the
+  controllers (`ArmKey` + side, `DrawArms`, `ArmAt`, the VR mod's stand-in hands hidden while they
+  show), the eye following the head's height (`FollowHead` with the character's `Pose`), the opt-in flip
+  view, the crosshair and the wrist HUD. `VrSettings` binds the shared `[VR]` keys (HideBody, Crosshair,
+  HeadFollow, ArmPitch/Roll/Forward, WristHud, FlipCamera) in the plugin's own config. A character
+  keeps only its own parts: its controls, which moves are flips, and its menus (Mario: `MarioVr`).
 - `Vr`: whether the mod is installed and active, its motion controls and handedness, whether a
   body is the local one, the hands by dominance or side, the muzzles, the pointer ray, the head
   and its flat heading, `PointerTarget` (where a ray lands past the body's own colliders), and
