@@ -206,9 +206,11 @@ the same without it, and every call is a no-op with no headset.
 - `VrBank`: a character's VR layout supersedes the VR mod's own buttons. The VR mod maps the
   controllers onto RoR2's actions (A interact, B jump, triggers and grips the skills), which land
   on buttons the layouts use for other moves; `Drive(bank, buttons)` each frame makes RoR2's input
-  bank read the layout's buttons instead (interact, equipment, jump, sprint, ping, the four skills),
-  set after DLC4's `PlayerCharacterMasterController.PollButtonInput` so edges are the layout's. Move
-  and look stay the VR mod's (its turning, the menus). A bank no layout drives for 0.25 s goes back.
+  bank read the layout's buttons instead (interact, equipment, jump, sprint, ping, the four skills).
+  The swap is where DLC4 samples Rewired (`PlayerCharacterMasterController.PollInputToButtonBuffers`,
+  an IL hook on its `Player.GetButton` calls), so RoR2's own handling after that is untouched: its
+  sprint rules (toggle sprint included), buffering, edges and the items that watch them. Move and
+  look stay the VR mod's (its turning, the menus). A bank no layout drives for 0.25 s goes back.
 - `MeleeVr`: VR for every Melee fighter at once, from MeleeDriver, MeleePad and MeleeFighterView:
   first person from the fighter's head (FtPart HeadN), its body hidden with its own forearms and
   hands on the controllers (libssbm's `ssbm_view_set_vr_arms`), the dominant pointer as
