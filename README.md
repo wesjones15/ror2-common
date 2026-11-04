@@ -165,7 +165,7 @@ Arrival PCM uses Windows waveOut rather than Unity AudioClip: this RoR2 build re
 `src/Vr/` supports Blowntobytes' VR mod (Resurrected_VRMod 2.26.54, plugin id
 `com.DrBibop.VRMod`; Quest 3 is the expected headset). It compiles only into a plugin that
 defines `ROR2COMMON_VR` and references `UnityEngine.XRModule` and `UnityEngine.VRModule`
-(MarioTest and OlimarTest do; Melee doesn't yet). Nothing links against the VR mod. Its hands
+(MarioTest, OlimarTest and Melee all do). Nothing links against the VR mod. Its hands
 are read by reflection and its controllers through Unity's XR input, so a plugin loads and plays
 the same without it, and every call is a no-op with no headset.
 
@@ -203,6 +203,19 @@ the same without it, and every call is a no-op with no headset.
   head's sheet in VR, the camera flat), and call `Show()` each LateUpdate; the sheet hangs
   `Distance` in front of the eye, `Fov` tall. Both it and `VrPanel` are a `VrSurface` (internal): a
   screen-sized texture IMGUI draws into, cleared by the frame's first Begin, and a quad showing it.
+- `VrBank`: a character's VR layout supersedes the VR mod's own buttons. The VR mod maps the
+  controllers onto RoR2's actions (A interact, B jump, triggers and grips the skills), which land
+  on buttons the layouts use for other moves; `Drive(bank, buttons)` each frame makes RoR2's input
+  bank read the layout's buttons instead (interact, equipment, jump, sprint, ping, the four skills),
+  set after DLC4's `PlayerCharacterMasterController.PollButtonInput` so edges are the layout's. Move
+  and look stay the VR mod's (its turning, the menus). A bank no layout drives for 0.25 s goes back.
+- `MeleeVr`: VR for every Melee fighter at once, from MeleeDriver, MeleePad and MeleeFighterView:
+  first person from the fighter's head (FtPart HeadN), its body hidden with its own forearms and
+  hands on the controllers (libssbm's `ssbm_view_set_vr_arms`), the dominant pointer as
+  `MeleeAim.CameraRay` (VrCharacter.Aim), the wrist HUD, the crosshair, and one layout: the flat
+  pad's buttons on the controllers (A jump, B the fifth button, right trigger/grip RT/RB, left
+  trigger/grip LT/LB, X grab, Y equipment, left stick move with click sprint, right stick click
+  ping). A fighter draws its body through `MeleeDriver.DrawBody`; MeleeSheet names the VR buttons.
 - `EnemyLock.Aim`: an aim ray (the pointer) to pick and cycle targets about, in place of the
   camera's view. The lock holds while the head looks away. Desktop behaviour is unchanged when
   it's null (`tests/EnemyLockCheck` covers both).

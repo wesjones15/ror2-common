@@ -16,6 +16,10 @@ namespace Ror2Common
         bool grabbing;
         /// A brain presses this fighter's buttons (Press) instead of a player or the AI's input bank.
         public bool Brained;
+#if ROR2COMMON_VR
+        // The motion controllers in the roster's VR layout (MeleeVr).
+        readonly VrPad vr=new VrPad();
+#endif
         readonly InteractGuard interactGuard=new InteractGuard();InteractionDriver interaction;bool suppressed,interactionEnabled;
         public bool GrabHeld=>(held&MeleeControls.Grab)!=0;
         public bool JumpHeld=>(held&MeleeControls.Jump)!=0;
@@ -43,6 +47,19 @@ namespace Ror2Common
             if(shield&&layout.ExtraOnSecondary)effective.Secondary=layout.ExtraAlt;
             var last=user?.inputPlayer?.controllers.GetLastActiveController();
             var pad=last!=null&&last.type==ControllerType.Joystick&&last.ImplementsTemplate<IGamepadTemplate>()?last.GetTemplate<IGamepadTemplate>():null;
+#if ROR2COMMON_VR
+            if(MeleeVr.Controls(body)) {
+                // The same buttons on the controllers (MeleeVr); RoR2 reads the layout, not the
+                // VR mod's own buttons (VrBank).
+                var r=MeleeVr.ReadPad(vr,PauseManager.isPaused);
+                if(r.Jump)buttons|=1;
+                buttons|=MeleeControls.Skills(effective,r.Rt,r.Lt,r.Rb,r.Lb);
+                if(r.Sprint&&!grabbing)buttons|=32;if(r.Grab)buttons|=128;defend=r.Defend;
+                move=MeleeVr.Move(body,r.Stick);
+                if(grabbing)move=new Vector3(r.Stick.x,r.Stick.y,0);
+                VrBank.Drive(input,r.Ror2);
+            } else
+#endif
             if(pad!=null) {
                 if(pad.a.value)buttons|=1;
                 buttons|=MeleeControls.Skills(effective,pad.rightTrigger.value>0.18f,pad.leftTrigger.value>0.18f,pad.rightBumper.value,pad.leftBumper.value);

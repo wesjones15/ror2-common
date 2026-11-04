@@ -559,12 +559,51 @@ namespace Ror2Common
                 var rotation = facing.sqrMagnitude > 0.0001f ? Quaternion.LookRotation(facing) : Quaternion.identity;
                 DrawPresentation(at, rotation);
                 itemDisplays?.Pose(at, rotation, scale);
+#if ROR2COMMON_VR
+                // In VR the player is inside the fighter: what hangs on its body isn't drawn for
+                // them; the HUD is on the wrist and the crosshair at the pointer (MeleeVr).
+                if (MeleeVr.HideBody(body)) itemDisplays?.SetVisible(false);
+                if (!puppet && IsOwner && MeleeVr.InHeadset(body))
+                {
+                    MeleeVr.Character.ShowWrist();
+                    if (MeleeVr.Controls(body)) MeleeVr.Character.Crosshair(body, false);
+                }
+#endif
             } catch (Exception e) { Fallback(e.ToString()); }
         }
         protected void OnGUI()
         {
             if (!active || failed || !body || !body.isPlayerControlled || !body.hasEffectiveAuthority || !body.healthComponent.alive) return;
+#if ROR2COMMON_VR
+            if (MeleeVr.InHeadset(body)) { MeleeVr.Character.OnWrist(DrawHud); return; }
+#endif
             DrawHud();
+        }
+
+#if ROR2COMMON_VR
+        readonly float[] headBone = new float[16];
+#endif
+        /// Draws the fighter's body view standing at `at` (at `drawScale`, the fighter's own scale
+        /// by default), as every fighter's DrawPresentation does. In a headset the view follows the
+        /// fighter's head first, and in first person only its forearms and hands are drawn, on the
+        /// controllers (MeleeVr).
+        protected void DrawBody(MeleeFighterView view, Vector3 at, Quaternion rotation, float drawScale = 0f)
+        {
+            if (drawScale <= 0f) drawScale = scale;
+#if ROR2COMMON_VR
+            if (!puppet && IsOwner && MeleeVr.InHeadset(body))
+            {
+                // FtPart HeadN (34, ft/forward.h) from the feet, in metres.
+                if (MeleeNative.ssbm_sim_common_bone(sim, 34, headBone) == 1)
+                {
+                    var head = new Vector3(headBone[12] - state.position.x, headBone[13] - state.position.y, headBone[14] - state.position.z) * scale;
+                    MeleeVr.FollowHead(body, head, rotation * Vector3.forward, at, Mathf.Max(head.y * 1.1f, 0.3f), state.grounded != 0);
+                }
+                MeleeVr.DrawBody(body, view, drawScale, d => (at, rotation));
+                return;
+            }
+#endif
+            view.Models.Update(drawScale, d => (at, rotation));
         }
         protected MeleeNative.Vec3 ToSim(Vector3 v) => new MeleeNative.Vec3(v.x / scale, v.y / scale, v.z / scale);
         protected Vector3 ToWorld(MeleeNative.Vec3 v) => new Vector3(v.x, v.y, v.z) * scale;

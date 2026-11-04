@@ -51,13 +51,39 @@ namespace Ror2Common
         public ViewDraw[] InstanceDraws;
 
         public MeleeFighterView(string assetsDir, uint kind, uint costume)
-            : this(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)), RimLight, null, true) { }
+            : this(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)), RimLight, null, true)
+            => Body(assetsDir, kind, costume);
         /// A fighter's body view, in RoR2's gummy clone material when no player controls it.
         public static MeleeFighterView ForBody(CharacterBody body, string assetsDir, uint kind, uint costume)
         {
             var skin = GummyClones && body && SurvivorAi.HasAi(body) ? GummyClone.Material() : null;
-            return new MeleeFighterView(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)),
+            var view = new MeleeFighterView(MeleeNative.ssbm_view_new(NativeLib.CString(assetsDir), kind, Math.Min(costume, 4)),
                 RimLight, skin, true);
+            view.Body(assetsDir, kind, costume);
+            return view;
+        }
+
+        // A fighter body's own cut of VR arms (MeleeVr): the cache, kind and costume it came from,
+        // and while on, each arm copy's side in the native view's vertex order.
+        string bodyDir;
+        uint bodyKind, bodyCostume;
+        byte[] armSides = Array.Empty<byte>();
+        bool armsOn, armsTried;
+        void Body(string dir, uint kind, uint costume) { bodyDir = dir; bodyKind = kind; bodyCostume = Math.Min(costume, 4); }
+
+        /// Turns the body's VR arms on or off: while on, the view also draws each forearm and hand
+        /// in its arm space (keyed VrCharacter.ArmKey + side) for the controllers. A body with no
+        /// cut, or a native library without arms, draws none.
+        public void SetVrArms(bool on)
+        {
+            if (on == armsOn || bodyDir == null || !MeleeNative.HasVrArms) return;
+            if (on && armsTried && armSides.Length == 0) return;
+            armsOn = on;
+            armsTried |= on;
+            uint n = MeleeNative.ssbm_view_set_vr_arms(Handle, NativeLib.CString(bodyDir), bodyKind, bodyCostume, on ? 1u : 0u);
+            if (on && n == 0) CommonLog.Log?.LogWarning("VR: no arms for Melee fighter " + bodyKind + " costume " + bodyCostume + ": " + MeleeNative.Error);
+            armSides = new byte[n];
+            if (n > 0) MeleeNative.ssbm_view_vr_arm_sides(Handle, armSides, n);
         }
         public MeleeFighterView(string assetsDir, uint kind, uint article, uint state)
             : this(MeleeNative.ssbm_article_new(NativeLib.CString(assetsDir), kind, article, state)) { }
@@ -136,7 +162,12 @@ namespace Ror2Common
                 return (uint)InstanceDraws.Length;
             }
             if (output != null && max > 0) output[0] = new ViewDraw { key = 1, flags = drawFlags, pos = new ViewVec3(LocalPosition.x, LocalPosition.y, LocalPosition.z), rot_x = LocalRotation.x, rot_y = LocalRotation.y, rot_z = LocalRotation.z, rot_w = LocalRotation.w, alpha = 1 };
-            return 1;
+            if (armSides.Length == 0) return 1;
+            // Each arm copy follows the body's vertices, with the body's batch colours.
+            uint vertices = Model(0, out var info) ? info.vertex_count : 0;
+            for (int i = 0; i < armSides.Length && output != null && i + 1 < max; i++)
+                output[i + 1] = new ViewDraw { key = 0x10UL + armSides[i], flags = drawFlags, first_vertex = vertices * (uint)(i + 1), rot_w = 1, alpha = 1 };
+            return 1 + (uint)armSides.Length;
         }
         public IntPtr Positions(out uint count) => MeleeNative.ssbm_view_positions(Handle, out count);
         public IntPtr Normals(out uint count) => MeleeNative.ssbm_view_normals(Handle, out count);

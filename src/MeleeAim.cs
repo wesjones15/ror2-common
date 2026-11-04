@@ -30,6 +30,10 @@ namespace Ror2Common
 
         public static Ray CameraRay(CharacterBody body,InputBankTest input)
         {
+#if ROR2COMMON_VR
+            // In VR the dominant hand's pointer is the aim (MeleeVr.Aim, VrCharacter's).
+            if(MeleeVr.Aim(body,out var pointer))return pointer;
+#endif
             var ray=input?input.GetAimRay():new Ray(body.transform.position,body.transform.forward);
             return CameraRigController.ModifyAimRayIfApplicable(ray,body.gameObject,out _);
         }

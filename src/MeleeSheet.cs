@@ -39,6 +39,13 @@ namespace Ror2Common
             string a = ControlGlyphs.Pad(player, PadButton.A, "A");
             string click = ControlGlyphs.Pad(player, PadButton.LS, "LS click");
             string stick = ControlGlyphs.Stick(eventSystem, "LS");
+            bool vr = false;
+#if ROR2COMMON_VR
+            // In the VR layout (MeleeVr) the same rows name the controllers' buttons, and they're
+            // the only rows: the window picks pad or keyboard by the last device, so both carry them.
+            vr = MeleeVr.Controls(body);
+            if (vr) { rt = "R trigger"; lt = "L trigger"; rb = "R grip"; lb = "L grip"; b = "B"; x = "X"; a = "A"; click = "click L stick"; stick = "L stick"; }
+#endif
 
             // Keyboard: RoR2's own binds. C is MeleePad's fixed fifth-skill key.
             string primary = ControlGlyphs.Key(eventSystem, "PrimarySkill", "Primary");
@@ -96,15 +103,23 @@ namespace Ror2Common
                     .Add("While held", "C pummel, Move throw");
             }
 
-            sheet.Pad("Moving")
-                .Add(stick, "Walk, run")
+            var moving = sheet.Pad("Moving")
+                .Add(stick, vr ? "Walk, run (head is forward)" : "Walk, run")
                 .Add(a, "Jump; again in the air")
                 .Add(click, "Sprint");
+            if (vr)
+                moving.Add("Point", "Aim (tilts, smashes, shots)")
+                    .Add("Y / click R stick", "Use equipment / Ping");
             sheet.Keys("Moving")
                 .Add("Move", "Walk (Sprint: run)")
                 .Add(jump, "Jump; again in the air");
 
             extras?.Invoke(sheet);
+            if (vr)
+            {
+                sheet.Keyboard.Clear();
+                sheet.Keyboard.AddRange(sheet.Gamepad);
+            }
             // Same breathing room between rows as Olimar's sheet.
             ControlSheetLayout.SpaceRows(sheet);
             return sheet;

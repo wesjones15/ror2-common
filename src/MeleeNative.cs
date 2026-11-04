@@ -21,6 +21,8 @@ namespace Ror2Common
         public const uint FighterMario = 8;
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
+        /// The view can draw a body's VR arms (ssbm_view_set_vr_arms).
+        public static bool HasVrArms {get;private set;}
         public static bool HasLight {get;private set;}
         /// A hurt that carries the hit's size, so a big hit plays the fighter's hurt voice.
         public static bool HasHurtScaled {get;private set;}
@@ -101,6 +103,8 @@ namespace Ror2Common
             if (ssbm_abi_version() != AbiVersion) throw new InvalidOperationException("Melee native ABI mismatch");
             // Added exports preserve ABI-4 layout compatibility. Older matching
             // ABI-4 pairs can omit this presentation-only capability safely.
+            try {ssbm_view_vr_arm_sides(IntPtr.Zero,null,0);HasVrArms=true;}
+            catch(EntryPointNotFoundException){HasVrArms=false;}
             try {ssbm_sim_overlay(IntPtr.Zero,null);HasOverlay=true;}
             catch(EntryPointNotFoundException){HasOverlay=false;}
             try {ssbm_sim_light(IntPtr.Zero,null);HasLight=true;}
@@ -195,6 +199,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_draws(IntPtr handle,[Out]ViewParticle[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_particles_texture(IntPtr handle,uint id,out ViewTexture info,[Out]byte[] rgba,uint len);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_abi_version();
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_view_set_vr_arms(IntPtr view,byte[] dir,uint kind,uint costume,uint on);
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_view_vr_arm_sides(IntPtr view,byte[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_announce_sound(uint kind);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_struct_sizes([Out]uint[] output,uint max);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] static extern IntPtr ssbm_last_error();
