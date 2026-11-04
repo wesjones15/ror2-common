@@ -196,7 +196,13 @@ the same without it, and every call is a no-op with no headset.
   frame's render only (an opt-in flip), and `Turned` turns a hand-space pose with it.
 - `VrPanel`: a character's own IMGUI HUD on a quad over the off-hand's wrist. Draw between
   `Begin()` and `End()` in OnGUI, call `Show()` each LateUpdate, and use `PointAt(ray)` to get
-  the GUI point the pointer is on.
+  the GUI point the pointer is on. `VrCharacter.OnWrist(draw)` wraps a whole OnGUI drawer (to the
+  wrist with `VR.WristHud` in a Repaint, else to the screen) and `ShowWrist()` is its LateUpdate.
+- `VrSheet`: labels drawn over the world (carry counts, part names) for the headset. Run the drawer
+  through `Draw(action)` in OnGUI, project points with `WorldToScreenPoint(camera, world)` (the
+  head's sheet in VR, the camera flat), and call `Show()` each LateUpdate; the sheet hangs
+  `Distance` in front of the eye, `Fov` tall. Both it and `VrPanel` are a `VrSurface` (internal): a
+  screen-sized texture IMGUI draws into, cleared by the frame's first Begin, and a quad showing it.
 - `EnemyLock.Aim`: an aim ray (the pointer) to pick and cycle targets about, in place of the
   camera's view. The lock holds while the head looks away. Desktop behaviour is unchanged when
   it's null (`tests/EnemyLockCheck` covers both).
