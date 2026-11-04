@@ -23,8 +23,16 @@ namespace Ror2Common
 
         public VrCharacter(VrSettings settings) { Settings = settings; }
 
-        /// The local player sees this body from inside, in a headset.
-        public bool FirstPerson(CharacterBody body) => Vr.IsLocal(body);
+        /// The local player plays this body in a headset, from inside or behind it: the view is the
+        /// headset's (cutscene cameras never take it) and the heading is the head's.
+        public bool InHeadset(CharacterBody body) => Vr.IsLocal(body);
+
+        /// ... from inside it (not VR.ThirdPerson).
+        public bool FirstPerson(CharacterBody body) => InHeadset(body) && !Settings.ThirdPerson.Value;
+
+        /// ... from behind and above it (VR.ThirdPerson): the body, effects and the VR mod's hands
+        /// are drawn, and the pointer still aims.
+        public bool ThirdPerson(CharacterBody body) => InHeadset(body) && Settings.ThirdPerson.Value;
 
         /// ... and holds the VR mod's motion controls (the pointer aims).
         public bool Motion(CharacterBody body) => Vr.IsMotionLocal(body);
@@ -49,11 +57,34 @@ namespace Ror2Common
         /// The dominant hand's pointer.
         public bool Pointer(out Ray ray) => Vr.Pointer(true, out ray);
 
+        /// Where the pointer aims this frame: its ray and the point it lands on in the world, in 3D
+        /// (terrain or a hurt box: nothing pins it to the ground).
+        public struct PointerAim
+        {
+            public Ray Ray;
+            /// The first hit past the body's own colliders and PointerMinHit, or `miss` along the ray.
+            public Vector3 Point;
+            /// It hit something (else Point is in the air).
+            public bool Hit;
+        }
+
+        /// The aim every character's pointer weapon shares (Mario's FLUDD, Olimar's cursor, the
+        /// crosshair): the local body played with motion controls, the dominant hand's pointer
+        /// cast up to `range`, resting `miss` along it when it hits nothing. False with no pointer.
+        public bool Aim(CharacterBody body, out PointerAim aim, float range, float miss)
+        {
+            aim = default;
+            if (!Motion(body) || !Pointer(out aim.Ray)) return false;
+            aim.Point = Vr.PointerTarget(aim.Ray, body ? body.transform : null, range, PointerMinHit, out aim.Hit);
+            if (!aim.Hit) aim.Point = aim.Ray.GetPoint(miss);
+            return true;
+        }
+
         /// Draws the pointer's crosshair this frame (VR.Crosshair), `hot` with a lock.
         public void Crosshair(CharacterBody body, bool hot)
         {
-            if (!Settings.Crosshair.Value || PauseManager.isPaused || !Pointer(out var ray)) return;
-            VrCrosshair.Show(Vr.PointerTarget(ray, body ? body.transform : null, CrosshairDistance, PointerMinHit, out _), hot);
+            if (!Settings.Crosshair.Value || PauseManager.isPaused || !Aim(body, out var aim, CrosshairDistance, CrosshairDistance)) return;
+            VrCrosshair.Show(aim.Point, hot);
         }
 
         // ---- the arms ----------------------------------------------------------------------------
@@ -149,6 +180,7 @@ namespace Ror2Common
         /// from the feet in world metres, `facing` the body's forward, `height` its standing height.
         public void FollowHead(CharacterBody body, Vector3 head, Vector3 facing, Vector3 feet, float height, Pose pose)
         {
+            PlaceBehind(body);
             if (!FirstPerson(body)) return;
             float h = head.y;
             if (standing < 0f) standing = h;
@@ -177,13 +209,37 @@ namespace Ror2Common
                 VrRig.RenderTurn(flipTurn, feet + Vector3.up * (height * 0.5f));
             else flipTurn = Quaternion.identity;
         }
+
+        // ---- third person ------------------------------------------------------------------------
+        //
+        // VR.ThirdPerson hangs the view VR.ThirdPersonBack behind and VR.ThirdPersonUp above the
+        // VR mod's eye, behind as the player has turned the rig (never the head, so looking about
+        // doesn't swing it, and never the body's spins). No flips, no head following.
+
+        bool behind;
+
+        /// Each frame in a headset (FollowHead does it; call it directly for a character with no head
+        /// pose): in third person it puts the view behind, and back at the eye when that's turned off.
+        public void PlaceBehind(CharacterBody body)
+        {
+            if (!InHeadset(body)) return;
+            if (!Settings.ThirdPerson.Value)
+            {
+                if (behind) { behind = false; eyeOffset = 0f; VrRig.ViewOffset(body, Vector3.zero); }
+                return;
+            }
+            behind = true;
+            flipTurn = Quaternion.identity;
+            var back = VrRig.FlatForward(body.transform.forward);
+            VrRig.ViewOffset(body, Vector3.up * Settings.ThirdPersonUp.Value - back * Settings.ThirdPersonBack.Value);
+        }
     }
 
     /// The [VR] settings every character shares, bound in its own plugin's config.
     public sealed class VrSettings
     {
-        public readonly ConfigEntry<bool> HideBody, Crosshair, WristHud, FlipCamera;
-        public readonly ConfigEntry<float> HeadFollow, ArmPitch, ArmRoll, ArmForward;
+        public readonly ConfigEntry<bool> HideBody, Crosshair, WristHud, FlipCamera, ThirdPerson;
+        public readonly ConfigEntry<float> HeadFollow, ArmPitch, ArmRoll, ArmForward, ThirdPersonBack, ThirdPersonUp;
 
         /// `who` names the character in the descriptions ("Mario").
         public VrSettings(ConfigFile config, string who)
@@ -212,6 +268,15 @@ namespace Ror2Common
             FlipCamera = config.Bind(S, "FlipCamera", false,
                 $"In VR, the view turns over with {who} through a somersault or flip. Off: the view is only ever " +
                 "turned by you.");
+            ThirdPerson = config.Bind(S, "ThirdPerson", false,
+                $"In VR, see {who} from behind and above instead of from inside (the VR mod's hands, not " +
+                $"{who}'s; the pointer still aims). The view follows where you turn, not {who}'s facing.");
+            ThirdPersonBack = config.Bind(S, "ThirdPersonBack", 3.5f,
+                new ConfigDescription("In VR third person, how far behind the view sits (metres).",
+                    new AcceptableValueRange<float>(0f, 20f)));
+            ThirdPersonUp = config.Bind(S, "ThirdPersonUp", 2f,
+                new ConfigDescription("In VR third person, how far above the eye the view sits (metres).",
+                    new AcceptableValueRange<float>(-1f, 20f)));
         }
     }
 }

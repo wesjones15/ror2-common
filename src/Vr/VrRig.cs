@@ -26,7 +26,11 @@ namespace Ror2Common
 
         /// Moves the VR mod's view anchor on `body` `metres` up (negative: down) from where the VR
         /// mod put it, in world metres. Zero puts it back.
-        public static void EyeOffset(CharacterBody body, float metres)
+        public static void EyeOffset(CharacterBody body, float metres) => ViewOffset(body, Vector3.up * metres);
+
+        /// Moves the VR mod's view anchor on `body` by `offset` (world metres) from where the VR mod
+        /// put it: a third-person view behind and above the body. Zero puts it back.
+        public static void ViewOffset(CharacterBody body, Vector3 offset)
         {
             if (!body || !Vr.IsLocal(body)) return;
             var t = body.transform.Find(AnchorName);
@@ -37,8 +41,19 @@ namespace Ror2Common
                 anchor = t;
                 anchorBase = t.localPosition;
             }
-            float scale = Mathf.Abs(body.transform.lossyScale.y);
-            t.localPosition = anchorBase + Vector3.up * (metres / (scale > 1e-4f ? scale : 1f));
+            var parent = t.parent ? t.parent : body.transform;
+            t.localPosition = anchorBase + parent.InverseTransformVector(offset);
+        }
+
+        /// Where the player has turned the rig (snap or smooth turning), flattened; `fallback`
+        /// with no rig. Not the headset: looking about never swings a view placed from this.
+        public static Vector3 FlatForward(Vector3 fallback)
+        {
+            var r = Rig();
+            if (!r) return fallback;
+            var f = r.forward;
+            f.y = 0f;
+            return f.sqrMagnitude > 1e-6f ? f.normalized : fallback;
         }
 
         static Transform rig;

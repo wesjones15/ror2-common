@@ -165,7 +165,7 @@ Arrival PCM uses Windows waveOut rather than Unity AudioClip: this RoR2 build re
 `src/Vr/` supports Blowntobytes' VR mod (Resurrected_VRMod 2.26.54, plugin id
 `com.DrBibop.VRMod`; Quest 3 is the expected headset). It compiles only into a plugin that
 defines `ROR2COMMON_VR` and references `UnityEngine.XRModule` and `UnityEngine.VRModule`
-(MarioTest does; OlimarTest and Melee don't yet). Nothing links against the VR mod. Its hands
+(MarioTest and OlimarTest do; Melee doesn't yet). Nothing links against the VR mod. Its hands
 are read by reflection and its controllers through Unity's XR input, so a plugin loads and plays
 the same without it, and every call is a no-op with no headset.
 
@@ -173,9 +173,15 @@ the same without it, and every call is a no-op with no headset.
   covers first person, hiding the body for its own player, the forearm and hand draws on the
   controllers (`ArmKey` + side, `DrawArms`, `ArmAt`, the VR mod's stand-in hands hidden while they
   show), the eye following the head's height (`FollowHead` with the character's `Pose`), the opt-in flip
-  view, the crosshair and the wrist HUD. `VrSettings` binds the shared `[VR]` keys (HideBody, Crosshair,
-  HeadFollow, ArmPitch/Roll/Forward, WristHud, FlipCamera) in the plugin's own config. A character
-  keeps only its own parts: its controls, which moves are flips, and its menus (Mario: `MarioVr`).
+  view, the crosshair and the wrist HUD. `Aim` is the pointer aim every character's weapon shares
+  (Mario's FLUDD, Olimar's cursor, the crosshair): the dominant hand's ray and where it lands in 3D,
+  past the body's own colliders. `InHeadset` is the headset in either view; `FirstPerson` and
+  `ThirdPerson` split it. With `VR.ThirdPerson` the view hangs behind and above the body
+  (`PlaceBehind`, from `FollowHead` or called directly; behind as the player turns the rig, never
+  the head), the body and the VR mod's hands are drawn, and the pointer still aims. `VrSettings`
+  binds the shared `[VR]` keys (HideBody, Crosshair, HeadFollow, ArmPitch/Roll/Forward, WristHud,
+  FlipCamera, ThirdPerson/Back/Up) in the plugin's own config. A character keeps only its own parts:
+  its controls, which moves are flips, and its menus (Mario: `MarioVr`, Olimar: `OlimarVr`).
 - `Vr`: whether the mod is installed and active, its motion controls and handedness, whether a
   body is the local one, the hands by dominance or side, the muzzles, the pointer ray, the head
   and its flat heading, `PointerTarget` (where a ray lands past the body's own colliders), and
@@ -185,7 +191,8 @@ the same without it, and every call is a no-op with no headset.
 - `VrCrosshair`: a ring at the pointer's world hit, the same size to the eye at any depth,
   drawn over everything.
 - `VrRig`: `EyeOffset` lifts or lowers the VR mod's "VRCamera" anchor on the body (a
-  character's head dropping in a slide). `RenderTurn` turns the "VR Camera Rig" for one
+  character's head dropping in a slide); `ViewOffset` moves it any way (third person), and
+  `FlatForward` is where the player has turned the rig. `RenderTurn` turns the "VR Camera Rig" for one
   frame's render only (an opt-in flip), and `Turned` turns a hand-space pose with it.
 - `VrPanel`: a character's own IMGUI HUD on a quad over the off-hand's wrist. Draw between
   `Begin()` and `End()` in OnGUI, call `Show()` each LateUpdate, and use `PointAt(ray)` to get
