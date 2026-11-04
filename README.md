@@ -195,6 +195,14 @@ the same without it, and every call is a no-op with no headset.
   it's null (`tests/EnemyLockCheck` covers both).
 - `CameraHandoff.Hold()` gives nothing to a local VR body, so cutscene cameras never take the
   headset.
+- `VrArmsBake.Run(cache, who, tag, bake)` (outside `ROR2COMMON_VR`; every plugin calls it): the
+  first-run flow for the arms. Each core cuts every body and skin it can draw (libcommon's
+  `vr_arms`: forearm and hand by skin weight, posed in its own arm space) into
+  `<cache>/vr_arms/<name>.arms`: `sms_bake_vr_arms` (Mario, Piantissimo, Yoshi, Luigi),
+  `ssbm_bake_vr_arms` (every Melee fighter and costume), `pik_bake_vr_arms` (Olimar, Louie, both
+  Piantas, Captain Pikachu). A stamp beside the cuts holds the plugin's tag (its version and the
+  caches it was given), so the bake runs again only when the tag changes; a view whose cut is
+  missing or stale recuts it when it first draws the arms. Captures: each core's `vr_arms` example.
 
 The VR mod hides the renderers under the body's model, but ModelView draws sit outside it, so
 each character hides its own body for the local player and keeps it for everyone else.
