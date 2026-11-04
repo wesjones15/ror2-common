@@ -59,6 +59,15 @@ namespace Ror2Common
             pending = true;
         }
 
+        /// A pose in the rig's tracked space (on a hand, before the headset), turned with this
+        /// frame's RenderTurn so it's drawn where the hand will be seen: ask after RenderTurn, for
+        /// what's drawn there (a character's own hands, a wrist panel). Unchanged with no turn.
+        public static (Vector3, Quaternion) Turned(Vector3 position, Quaternion rotation)
+        {
+            if (!pending) return (position, rotation);
+            return (pivot + turn * (position - pivot), turn * rotation);
+        }
+
         static Transform Rig()
         {
             if (!rig)

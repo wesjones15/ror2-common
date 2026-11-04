@@ -67,8 +67,10 @@ namespace Ror2Common
             at = hand.position + hand.rotation * Offset;
             var toEye = head.position - at;
             if (toEye.sqrMagnitude < 1e-4f) return;
-            // Faces the eye, upright to the head, so it reads however the wrist is turned.
+            // Faces the eye, upright to the head, so it reads however the wrist is turned; turned
+            // over with the view in a character's flip (VrRig.RenderTurn).
             rotation = Quaternion.LookRotation(-toEye, head.up);
+            (at, rotation) = VrRig.Turned(at, rotation);
             size = new Vector2(Width, Width * texture.height / texture.width);
             Graphics.DrawMesh(quad, Matrix4x4.TRS(at, rotation, new Vector3(size.x, size.y, 1f)), material, 0, null, 0,
                 null, ShadowCastingMode.Off, false);
