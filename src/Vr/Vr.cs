@@ -51,7 +51,7 @@ namespace Ror2Common
         static bool resolved;
         static PropertyInfo handsReady, leftHanded, motionControls;
         static MethodInfo handByDominance;
-        static PropertyInfo handMuzzle;
+        static PropertyInfo handMuzzle, handRenderers;
 
         static void Resolve()
         {
@@ -73,6 +73,7 @@ namespace Ror2Common
                 leftHanded = config?.GetProperty("LeftHanded", any);
                 motionControls = config?.GetProperty("MotionControlsEnabled", any);
                 handMuzzle = hand?.GetProperty("muzzle", any);
+                handRenderers = hand?.GetProperty("rendererInfos", any);
                 if (handsReady == null || handByDominance == null || handMuzzle == null)
                     CommonLog.Log?.LogWarning("VR: this VR mod build has no hands we know how to read; pointing falls back to the camera");
             }
@@ -128,6 +129,25 @@ namespace Ror2Common
             if (!m) { ray = default; return false; }
             ray = new Ray(m.position, m.forward);
             return true;
+        }
+
+        /// The tracked hand on the player's left (or right) controller, whichever is dominant.
+        public static Transform HandBySide(bool left) => Hand(left == LeftHanded);
+
+        /// Shows or hides the VR mod's own hand model on a hand (its stand-in pointer hand, for a
+        /// character drawing hands of its own there); the pointer's ray stays. Ask every frame:
+        /// the VR mod swaps hand models with the body.
+        public static void ShowHandModel(bool dominant, bool visible)
+        {
+            var c = HandComponent(dominant);
+            if (!c || handRenderers == null) return;
+            try
+            {
+                if (!(handRenderers.GetValue(c) is CharacterModel.RendererInfo[] infos)) return;
+                foreach (var info in infos)
+                    if (info.renderer && info.renderer.forceRenderingOff == visible) info.renderer.forceRenderingOff = !visible;
+            }
+            catch { }
         }
 
         static Component HandComponent(bool dominant)
