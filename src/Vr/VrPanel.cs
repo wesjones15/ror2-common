@@ -9,7 +9,9 @@ namespace Ror2Common
     // same drawing (screen coordinates, Screen.width/height as ever) goes into a screen-sized
     // texture instead, and Show puts that texture on a small quad above the wrist, turned to the
     // eye, the way a watch is read. PointAt maps the dominant pointer onto it, so a character's
-    // menu drawn on the HUD can be picked by pointing at it. One panel for the local player.
+    // menu drawn on the HUD can be picked by pointing at it. One panel for the local player, which
+    // several drawers share in a frame (a HUD, then its full-screen effects over it): the first
+    // Begin of a frame clears it, and Show draws it once however often it's called.
     public static class VrPanel
     {
         /// The panel's width in metres (its height follows the screen's shape).
@@ -23,6 +25,7 @@ namespace Ror2Common
         static Material material;
         static Mesh quad;
         static bool tried, drawing, shown;
+        static int clearedFrame = -1, shownFrame = -1;
         static Vector3 at;
         static Quaternion rotation;
         static Vector2 size;
@@ -42,7 +45,11 @@ namespace Ror2Common
             }
             before = RenderTexture.active;
             RenderTexture.active = texture;
-            GL.Clear(false, true, Color.clear);
+            if (clearedFrame != Time.frameCount)
+            {
+                GL.Clear(false, true, Color.clear);
+                clearedFrame = Time.frameCount;
+            }
             drawing = true;
             return true;
         }
@@ -60,6 +67,8 @@ namespace Ror2Common
         /// isn't drawn (and PointAt finds nothing).
         public static void Show()
         {
+            if (shownFrame == Time.frameCount) return;
+            shownFrame = Time.frameCount;
             shown = false;
             var hand = Vr.Hand(false);
             var head = Vr.Head();
