@@ -18,6 +18,10 @@ namespace Ror2Common
         public static CameraHandoff Hold(CharacterBody body, ICameraStateProvider previous)
         {
             if (!body || previous == null) return null;
+#if ROR2COMMON_VR
+            // In a headset the view is the player's own head: no held shot to blend out of.
+            if (Vr.IsLocal(body)) return null;
+#endif
             foreach (var rig in CameraRigController.readOnlyInstancesList)
             {
                 if (!rig || rig.target != body.gameObject || !rig.sceneCam || !rig.IsOverrideCam(previous)) continue;
