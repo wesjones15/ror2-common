@@ -32,17 +32,36 @@ namespace Ror2Common
         /// put it: a third-person view behind and above the body. Zero puts it back.
         public static void ViewOffset(CharacterBody body, Vector3 offset)
         {
-            if (!body || !Vr.IsLocal(body)) return;
-            var t = body.transform.Find(AnchorName);
+            var t = Anchor(body);
             if (!t) return;
+            var parent = t.parent ? t.parent : body.transform;
+            t.localPosition = anchorBase + parent.InverseTransformVector(offset);
+        }
+
+        /// The world height of the VR mod's own eye on `body` (its view anchor before any offset
+        /// here), for a character placing the eye at an absolute height. False with no anchor.
+        public static bool BaseHeight(CharacterBody body, out float y)
+        {
+            y = 0f;
+            var t = Anchor(body);
+            if (!t) return false;
+            var parent = t.parent ? t.parent : body.transform;
+            y = parent.TransformPoint(anchorBase).y;
+            return true;
+        }
+
+        static Transform Anchor(CharacterBody body)
+        {
+            if (!body || !Vr.IsLocal(body)) return null;
+            var t = body.transform.Find(AnchorName);
+            if (!t) return null;
             if (t != anchor)
             {
                 // The VR mod re-anchors (a new capsule, a respawn) by making a new one.
                 anchor = t;
                 anchorBase = t.localPosition;
             }
-            var parent = t.parent ? t.parent : body.transform;
-            t.localPosition = anchorBase + parent.InverseTransformVector(offset);
+            return t;
         }
 
         /// Where the player has turned the rig (snap or smooth turning), flattened; `fallback`

@@ -15,7 +15,8 @@ namespace Ror2Common
         readonly int queue;
         RenderTexture texture, before;
         Material material;
-        Mesh quad;
+        Mesh quad, crop;
+        Rect cropUv;
         bool tried, drawing;
         int clearedFrame = -1;
 
@@ -69,6 +70,26 @@ namespace Ror2Common
         {
             if (!Ready) return;
             Graphics.DrawMesh(quad, matrix, material, 0, null, 0, null, ShadowCastingMode.Off, false);
+        }
+
+        /// Draws only the part `uv` of the texture (0-1, y up) on the quad with `matrix`.
+        internal void Draw(Matrix4x4 matrix, Rect uv)
+        {
+            if (!Ready) return;
+            if (!crop)
+            {
+                crop = new Mesh { name = name + " crop" };
+                crop.vertices = quad.vertices;
+                crop.triangles = quad.triangles;
+                crop.RecalculateBounds();
+                cropUv = default;
+            }
+            if (uv != cropUv)
+            {
+                cropUv = uv;
+                crop.uv = new[] { new Vector2(uv.xMin, uv.yMin), new Vector2(uv.xMax, uv.yMin), new Vector2(uv.xMax, uv.yMax), new Vector2(uv.xMin, uv.yMax) };
+            }
+            Graphics.DrawMesh(crop, matrix, material, 0, null, 0, null, ShadowCastingMode.Off, false);
         }
 
         bool Ensure()

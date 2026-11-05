@@ -115,6 +115,12 @@ namespace Ror2Common
 
         /// The low key bits of a VR arm draw, + side.
         public const ulong ArmKey = 0x10;
+        /// The low key bits of a core's VR body draw: the body without its head and forearms, drawn
+        /// where the body is (libcommon's vr_arms::torso_map), for the torso and legs seen looking down.
+        public const ulong BodyKey = ArmKey + 2;
+
+        /// A core's VR body draw.
+        public static bool IsBody(ViewDraw d) => (d.key & 0x00FF_FFFF_FFFF_FFFFUL) == BodyKey;
 
         /// The side (0 right, 1 left) of a VR arm draw, or -1 for any other.
         public static int ArmSide(ViewDraw d)
@@ -124,24 +130,35 @@ namespace Ror2Common
         }
 
         /// Where a side's arm space goes this frame: on that controller (the character's right arm
-        /// on the right one), turned by VR.ArmPitch / VR.ArmRoll (the left's roll mirrored), moved
-        /// VR.ArmForward along it, and turned with the view through a flip. Null with no hand.
+        /// on the right one), the fingers along its pointer (the VR mod's muzzle: the hand
+        /// transform's own forward is the controller's up, which stood the hands upright with the
+        /// forearms hanging below), turned by VR.ArmPitch / VR.ArmRoll (the left's roll mirrored),
+        /// moved VR.ArmForward along it, and turned with the view through a flip. Null with no hand.
         public (Vector3, Quaternion)? ArmAt(int side)
         {
             if (!Vr.HandsReady) return null;
             bool left = side == 1;
             var hand = Vr.HandBySide(left);
             if (!hand) return null;
+            var muzzle = Vr.Muzzle(left == Vr.LeftHanded);
+            // The fingers along the pointer, the back of the hand toward the controller's top (the
+            // hand transform's forward): palm down with the arm held out.
+            var basis = hand.rotation;
+            if (muzzle && Mathf.Abs(Vector3.Dot(muzzle.forward, hand.forward)) < 0.95f)
+                basis = Quaternion.LookRotation(muzzle.forward, hand.forward);
+            else if (muzzle) basis = muzzle.rotation;
             float roll = Settings.ArmRoll.Value * (left ? -1f : 1f);
-            var rot = hand.rotation * Quaternion.Euler(Settings.ArmPitch.Value, 0f, roll);
+            var rot = basis * Quaternion.Euler(Settings.ArmPitch.Value, 0f, roll);
             var at = hand.position + rot * (Vector3.forward * Settings.ArmForward.Value);
             return VrRig.Turned(at, rot);
         }
 
         /// Updates `models` showing only its VR arm draws, each on its controller (`body` places
-        /// every other draw, posed but hidden, as the view would). The VR mod's stand-in hands show
-        /// only when no arm was drawn (a skin with no cut). How many arms were drawn.
-        public int DrawArms(ModelView models, float scale, Func<ViewDraw, (Vector3, Quaternion)?> body)
+        /// every other draw, posed but hidden, as the view would), and the other draws `shown`
+        /// picks (the VR body, what's on its back) where `body` puts them. The VR mod's stand-in
+        /// hands show only when no arm was drawn (a skin with no cut). How many arms were drawn.
+        public int DrawArms(ModelView models, float scale, Func<ViewDraw, (Vector3, Quaternion)?> body,
+            Func<ViewDraw, bool> shown = null)
         {
             if (models == null) { ArmsDrawn(0); return 0; }
             var placed = new (Vector3, Quaternion)?[2];
@@ -153,7 +170,8 @@ namespace Ror2Common
                 d =>
                 {
                     int s = ArmSide(d);
-                    bool show = s >= 0 && placed[s].HasValue;
+                    if (s < 0) return shown == null || !shown(d);
+                    bool show = placed[s].HasValue;
                     if (show) drawn++;
                     return !show;
                 });
@@ -188,6 +206,13 @@ namespace Ror2Common
             Flip,
         }
 
+        /// The view's eye is at the character's own head (its standing head height above its feet,
+        /// plus EyeAboveHead), not the VR mod's: the VR mod holds it at the body capsule's eye height,
+        /// a human's, far above a small character's.
+        public bool EyeAtHead;
+        /// How far above the head joint the eyes are (world metres).
+        public float EyeAboveHead;
+
         float standing = -1f, eyeOffset;
         Quaternion flipTurn = Quaternion.identity;
         // The offset settles toward the head this quickly (seconds); a cut-short flip turns back.
@@ -205,6 +230,13 @@ namespace Ror2Common
             bool flip = pose == Pose.Flip;
             float target = flip ? 0f : (h - standing) * Mathf.Clamp01(Settings.HeadFollow.Value);
             target = Mathf.Clamp(target, -standing * 0.85f, standing * 0.15f);
+            if (EyeAtHead && VrRig.BaseHeight(body, out float baseY))
+            {
+                // From the VR mod's eye down to the head's: the head's height now (through a flip,
+                // its standing height), the eyes above it, never below the feet.
+                float eye = feet.y + Mathf.Max(standing + target + EyeAboveHead, EyeAboveHead);
+                target = eye - baseY;
+            }
             eyeOffset += (target - eyeOffset) * (1f - Mathf.Exp(-Time.deltaTime / EyeSmoothing));
             VrRig.EyeOffset(body, eyeOffset);
 
@@ -264,7 +296,8 @@ namespace Ror2Common
             const string S = "VR";
             HideBody = config.Bind(S, "HideBody", true,
                 $"In VR, don't draw your own {who} (the effects and sounds stay; other players still see all of " +
-                "them). The forearms and hands are drawn on the controllers.");
+                "them). The forearms and hands are drawn on the controllers; a character that cuts one also " +
+                "keeps its torso and legs (seen looking down) and what it wears or carries on its back.");
             Crosshair = config.Bind(S, "Crosshair", true, "In VR, a ring where the dominant hand's pointer lands.");
             HeadFollow = config.Bind(S, "HeadFollow", 1f,
                 new ConfigDescription($"In VR, how much the view follows {who}'s head down and up (a slide drops it " +
