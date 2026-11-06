@@ -22,11 +22,12 @@ namespace Ror2Common
         static readonly List<Job> pending = new List<Job>();
         static bool hooked;
 
-        /// Gives `def` the icon of RoR2's SkillDef named `vanilla`, turned `quarterTurnsCw`
+        /// Fills an empty `def.icon` with the icon of RoR2's SkillDef named `vanilla`, turned `quarterTurnsCw`
         /// quarter turns clockwise. Call at content load.
         public static void Use(SkillDef def, string vanilla, int quarterTurnsCw = 0)
         {
-            if (def) Request(vanilla, quarterTurnsCw, s => def.icon = s);
+            // Cached skill portraits can arrive before the catalogs finish loading.
+            if (def) Request(vanilla, quarterTurnsCw, s => { if (def && !def.icon) def.icon = s; });
         }
 
         /// The same for `bodyPrefab`'s passive (the loadout's fifth row).
