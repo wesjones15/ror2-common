@@ -597,8 +597,11 @@ namespace Ror2Common
         /// by default), as every fighter's DrawPresentation does. In a headset the view follows the
         /// fighter's head first, and in first person only its forearms and hands are drawn, on the
         /// controllers (MeleeVr).
+        static bool AllFrozen(ViewDraw _) => true;
         protected void DrawBody(MeleeFighterView view, Vector3 at, Quaternion rotation, float drawScale = 0f)
         {
+            // Frozen by RoR2 (a Glacial blast): pale ice, held in the pose the ice caught it in.
+            view.Models.FrozenFor = native != null && native.Frozen ? AllFrozen : null;
             if (drawScale <= 0f) drawScale = scale;
 #if ROR2COMMON_VR
             if (!puppet && IsOwner && MeleeVr.InHeadset(body))

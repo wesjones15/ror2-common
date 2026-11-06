@@ -100,6 +100,8 @@ namespace Ror2Common
         /// Draws to pale as frozen, in addition to any the source flags itself (a Pikmin caught in
         /// a Glacial blast sets flag 2). A survivor body's freeze is RoR2's `FrozenState`, which a
         /// native sim does not put in its own draws: the host asks for this while its body is frozen.
+        /// The same draws also hold their last pose (their mesh isn't re-uploaded) while frozen, so a
+        /// frozen survivor stands in the pose the ice caught it in instead of playing idle.
         public Func<ViewDraw, bool> FrozenFor;
 
         /// RoR2's hit flash colour for draws flagged as flashing.
@@ -508,7 +510,8 @@ namespace Ror2Common
             for (int i = 0; i < drawCount; i++)
             {
                 var d = draws[i];
-                if (FrozenFor != null && FrozenFor(d)) d.flags |= 2;
+                bool frozenPose = FrozenFor != null && FrozenFor(d);
+                if (frozenPose) d.flags |= 2;
                 if (d.model >= models.Length) continue;
                 if (hide != null && hide(d)) continue;
                 var model = models[d.model];
@@ -543,7 +546,8 @@ namespace Ror2Common
                 t.localScale = new Vector3(MirrorX ? -scale : scale, scale, scale);
 
                 int vn = model.vertexCount;
-                bool keepMesh = retainedPose;
+                // Frozen by RoR2: keep the mesh it was last posed in (one that has not been drawn yet gets its first).
+                bool keepMesh = retainedPose || (frozenPose && inst.uploaded);
                 if (!keepMesh && culler && inst.uploaded && !model.sharedGeometry)
                 {
                     var centre = t.position;
