@@ -69,6 +69,16 @@ static class Program
         owner = Reset(); var near = Body(-4, 2); var inCone = Body(1, 20);
         aim = new EnemyLock { Aim = new Ray(new Vector3(0, 0, 0), new Vector3(0, 0, 1)) };
         Check(aim.Update(owner, true, false, default) == inCone, "aimed cone priority over a near enemy outside it");
+        // A long range (Samus's 120 m missile): distance must not outweigh the crosshair. The nearer enemy 11 degrees off the
+        // crosshair loses to the one dead centre 100 m away, but only when the distance weight is small (the default is for 25 m).
+        owner = Reset(); var closeOff = Body(2, 10); var farCentre = Body(0, 100);
+        Check(new EnemyLock { Range = 120f }.Update(owner, true, false, default) == closeOff, "default weighting is unchanged");
+        Check(new EnemyLock { Range = 120f, DistanceWeight = .00002f }.Update(owner, true, false, default) == farCentre, "a long-range lock takes the enemy nearest the crosshair");
+        // Measured from the camera (where the crosshair is), not from the owner: the camera stands 4 m to the side.
+        owner = Reset(); var ownerAhead = Body(0, 100); var cameraAhead = Body(4, 100);
+        GameSettings.camera.position = new Vector3(4, 0, 0);
+        Check(new EnemyLock { Range = 120f, DistanceWeight = .00002f }.Update(owner, true, false, default) == ownerAhead, "from the owner by default");
+        Check(new EnemyLock { Range = 120f, DistanceWeight = .00002f, FromCamera = true }.Update(owner, true, false, default) == cameraAhead, "from the camera when asked");
         Console.WriteLine("EnemyLockCheck: world visibility, on-screen priority, off-screen fallback, cycling, filters and aim-ray locking pass.");
     }
 }

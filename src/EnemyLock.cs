@@ -15,6 +15,16 @@ namespace Ror2Common
         /// How far away an enemy can be locked, in metres.
         public float Range = 25f;
 
+        /// What each metre of distance adds to an enemy's score when picking the first target, against 1 - cos of
+        /// its angle off the crosshair. The default suits the 25 m range (0.25 at the far end); a long range
+        /// (Samus's 120 m missiles) wants it tiny, so the enemy nearest the crosshair wins and distance only
+        /// breaks ties.
+        public float DistanceWeight = .01f;
+
+        /// Measure the first pick's angle from the camera (where the crosshair is) rather than from the owner's
+        /// core. Off by default: Mario's and Olimar's locks are as they were.
+        public bool FromCamera;
+
         /// An aim of the host's own in place of the camera (a VR hand's pointer, so looking about
         /// never moves the lock): the lock picks the enemy nearest this ray, "on screen" is within
         /// `AimConeDegrees` of it, the crosshair is within AimCrosshairDegrees, and a cycle steps
@@ -162,7 +172,7 @@ namespace Ror2Common
             var right = camera ? camera.right : owner.transform.right;
             var up = camera ? camera.up : Vector3.up;
             var view = new View { camera = camera ? camera.GetComponent<Camera>() : null };
-            var eye = owner.corePosition;
+            var eye = FromCamera && camera ? camera.position : owner.corePosition;
             if (Aim.HasValue)
             {
                 var ray = Aim.Value;
@@ -198,7 +208,7 @@ namespace Ror2Common
                 float below = enemyOnScreen && !candidates[i].Body && !view.Centres(at) ? PointBelowEnemy : 0f;
                 if (!have)
                 {
-                    float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * .01f
+                    float s = 1f - Vector3.Dot(delta.normalized, forward) + delta.magnitude * DistanceWeight
                         + (view.Shows(at) ? 0f : OffScreen) + below;
                     if (s < score) { best = i; score = s; }
                     continue;

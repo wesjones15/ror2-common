@@ -33,7 +33,7 @@ namespace UnityEngine
     }
     public class Transform : Object
     {
-        public Vector3 forward=new Vector3(0,0,1), right=new Vector3(1,0,0), up=Vector3.up;
+        public Vector3 forward=new Vector3(0,0,1), right=new Vector3(1,0,0), up=Vector3.up, position;
         public Camera camera;
         public T GetComponent<T>() where T : class => camera as T;
     }
