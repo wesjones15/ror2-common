@@ -163,6 +163,10 @@ namespace Ror2Common
         /// The fighter's moves: `max` entries of 8 words each, the shared move id then 28 bytes of NUL-padded source action name.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_moves(IntPtr sim,[Out]uint[] output,uint max);
         public static string Error => NativeLib.Utf8(ssbm_last_error());
+        /// The oldest panic ssbm.dll caught at its boundary (see NativeLib.DrainPanics).
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_take_panic([Out]byte[] output,uint len);
+        /// Logs what ssbm.dll caught since the last call; once a frame from one place.
+        public static void DrainPanics(Action<string> logError) => NativeLib.DrainPanics("ssbm.dll", ssbm_take_panic, logError);
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_overlay(IntPtr sim,[Out]float[] rgba);
         /// The additive light a colour program has on the fighter: eight floats (rgb, intensity, x and yz degrees, additive flag, spare).
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern uint ssbm_sim_light(IntPtr sim,[Out]float[] values);

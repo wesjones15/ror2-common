@@ -56,5 +56,38 @@ namespace Ror2Common
             Marshal.Copy(p, bytes, 0, n);
             return Encoding.UTF8.GetString(bytes);
         }
+
+        /// A core's `*_take_panic(out, len)`: the oldest panic it caught, 0 when none.
+        public delegate uint TakePanicFn([Out] byte[] output, uint length);
+
+        static readonly byte[] panicText = new byte[2048];
+        static readonly System.Collections.Generic.HashSet<string> panicsUnavailable =
+            new System.Collections.Generic.HashSet<string>();
+
+        /// Logs the panics `library` caught at its C boundary since the last call. Every export
+        /// of the Rust cores catches its own panics (libcommon::ffi) and returns its failed value
+        /// (0, -1, null) instead of crashing the game, so this log is the only sign one happened.
+        /// Call it from one place, once a frame, on the main thread. An older DLL without the
+        /// export is noted once and skipped.
+        public static void DrainPanics(string library, TakePanicFn take, Action<string> logError)
+        {
+            if (panicsUnavailable.Contains(library)) return;
+            try
+            {
+                for (int i = 0; i < 16; i++)
+                {
+                    uint n = take(panicText, (uint)panicText.Length);
+                    if (n == 0) return;
+                    int len = (int)Math.Min(n, (uint)panicText.Length);
+                    logError($"{library} caught a native panic; the call returned its failure value instead: " +
+                        Encoding.UTF8.GetString(panicText, 0, len));
+                }
+            }
+            catch (Exception e) when (e is EntryPointNotFoundException || e is DllNotFoundException)
+            {
+                panicsUnavailable.Add(library);
+                logError($"{library} has no panic report ({e.GetType().Name}); is the DLL older than the plugin?");
+            }
+        }
     }
 }

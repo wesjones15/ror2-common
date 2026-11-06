@@ -309,8 +309,16 @@ namespace Ror2Common
             if (body.healthComponent && !body.healthComponent.alive) { BeginDeath(); return; }
             if (active) { smoother.Smooth(); cameraPivot.Use(true); FaceTarget(); }
         }
+        static int panicsDrainedFrame = -1;
+
         protected void FixedUpdate()
         {
+            // Whichever fighter ticks first this frame reports ssbm.dll's caught panics.
+            if (!failed && Time.frameCount != panicsDrainedFrame)
+            {
+                panicsDrainedFrame = Time.frameCount;
+                MeleeNative.DrainPanics(CommonLog.Error);
+            }
             if (failed || !body || !body.healthComponent || !body.healthComponent.alive) return;
             if (!body.hasEffectiveAuthority) { StepPuppet(); return; }
             if (puppet) EndPuppet();
