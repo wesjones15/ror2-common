@@ -131,6 +131,12 @@ namespace Ror2Common
         public static MeleeSkillSet Build(GameObject body, ContentPack pack, in MeleeSkillLayout layout,
             uint fighterKind, Func<string> assetsDir, Func<bool> assetsReady)
         {
+            void RequestIcon(SkillDef def, in MeleeSkillInfo info)
+            {
+                VanillaIcons.Use(def, info.icon);
+                SkillIcons.Request(def, info.defName, fighterKind, assetsDir, assetsReady, body);
+            }
+
             var set = new MeleeSkillSet(layout.slotForMove ?? ((body, move) => MeleeSkillSet.DefaultSlot(move))) { ExtraName = layout.extraName };
             MeleeSkillInfo[] stock = { layout.primary, layout.secondary, layout.utility, layout.special };
             for (int i = 0; i < 4; i++)
@@ -166,12 +172,11 @@ namespace Ror2Common
                     NativeSkills.SetFamily(slot, body.name + MeleeSkillSet.Slots[i] + "Family", pack, alts.ToArray());
                 }
                 else NativeSkills.SetFamily(body, MeleeSkillSet.Slots[i], def, pack);
-                VanillaIcons.Use(def, info.icon);
-                SkillIcons.Request(def, info.defName, fighterKind, assetsDir, assetsReady);
-                if (i == 0 && set.PrimaryAlt != null) { VanillaIcons.Use(set.PrimaryAlt, layout.primaryAlt.icon); SkillIcons.Request(set.PrimaryAlt, layout.primaryAlt.defName, fighterKind, assetsDir, assetsReady); }
-                if (i == 1 && set.SecondaryAlt != null) { VanillaIcons.Use(set.SecondaryAlt, layout.secondaryAlt.icon); SkillIcons.Request(set.SecondaryAlt, layout.secondaryAlt.defName, fighterKind, assetsDir, assetsReady); }
-                if (i == 1 && set.SecondaryAlt2 != null) { VanillaIcons.Use(set.SecondaryAlt2, layout.secondaryAlt2.icon); SkillIcons.Request(set.SecondaryAlt2, layout.secondaryAlt2.defName, fighterKind, assetsDir, assetsReady); }
-                if (i == 3 && set.SpecialAlt != null) { VanillaIcons.Use(set.SpecialAlt, layout.specialAlt.icon); SkillIcons.Request(set.SpecialAlt, layout.specialAlt.defName, fighterKind, assetsDir, assetsReady); }
+                RequestIcon(def, info);
+                if (i == 0 && set.PrimaryAlt != null) RequestIcon(set.PrimaryAlt, layout.primaryAlt);
+                if (i == 1 && set.SecondaryAlt != null) RequestIcon(set.SecondaryAlt, layout.secondaryAlt);
+                if (i == 1 && set.SecondaryAlt2 != null) RequestIcon(set.SecondaryAlt2, layout.secondaryAlt2);
+                if (i == 3 && set.SpecialAlt != null) RequestIcon(set.SpecialAlt, layout.specialAlt);
             }
             set.Extra = NativeSkills.Make(layout.extra.defName, layout.extra.nameToken, layout.extra.descriptionToken, null,
                 layout.extra.recharge, layout.extra.stock, layout.extra.combat);

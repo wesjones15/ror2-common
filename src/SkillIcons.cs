@@ -45,6 +45,7 @@ namespace Ror2Common
     {
         sealed class Job
         {
+            public GameObject body;
             public SkillDef def;
             public string defName;
             public uint kind;
@@ -57,12 +58,17 @@ namespace Ror2Common
         static readonly HashSet<string> queued = new HashSet<string>();
         static readonly Dictionary<string, Texture2D> shared = new Dictionary<string, Texture2D>();
         static Runner runner;
+        // Generated art belongs to the installed plugin, even when the disc cache is elsewhere.
+        internal static string CacheRoot;
 
-        public static void Request(SkillDef def, string defName, uint kind, Func<string> assetsDir, Func<bool> ready)
+        public static void Request(SkillDef def, string defName, uint kind, Func<string> assetsDir, Func<bool> ready) =>
+            Request(def, defName, kind, assetsDir, ready, null);
+
+        internal static void Request(SkillDef def, string defName, uint kind, Func<string> assetsDir, Func<bool> ready, GameObject body)
         {
             var icon = For(defName);
             if (!def || icon.source == SkillIconSource.None || !queued.Add(defName)) return;
-            pending.Add(new Job { def = def, defName = defName, kind = kind, assetsDir = assetsDir, ready = ready, icon = icon });
+            pending.Add(new Job { body = body, def = def, defName = defName, kind = kind, assetsDir = assetsDir, ready = ready, icon = icon });
             EnsureRunner();
         }
 
@@ -100,7 +106,7 @@ namespace Ror2Common
                         if (share != null && shared.TryGetValue(share, out tex) && !tex) tex = null;
                         if (!tex)
                         {
-                            string cache = SkillCardCache.FileName(dir, PortraitCache.MeleeSkillRevision, job.defName);
+                            string cache = SkillCardCache.FileName(CacheRoot ?? dir, PortraitCache.MeleeSkillRevision, job.defName);
                             tex = PortraitCache.GetOrCreate(cache, job.defName,
                                 () => job.ready() ? Render(job, dir) : null, out bool cached);
                             if (tex) CommonLog.Info($"Melee skill portrait {job.defName} {(cached ? "loaded" : "generated")}: {cache}");
@@ -109,6 +115,7 @@ namespace Ror2Common
                         if (!tex) continue;
                         job.def.icon = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f);
                         Refresh(job.def);
+                        SkinPresentation.RefreshMenus(job.body);
                         pending.RemoveAt(i);
                         queued.Remove(job.defName);
                         done++;

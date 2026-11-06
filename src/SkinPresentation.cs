@@ -47,6 +47,25 @@ namespace Ror2Common
         public static Sprite Icon(GameObject body, uint index, SkillDef skill) => skill && Find(body, index) is Skin skin
             && skin.icons.TryGetValue(skill, out var icon) && icon ? icon : (skill ? skill.icon : null);
 
+        /// Menus copy the icons into ordinary UI images, so refresh the visible body when its art arrives.
+        internal static void RefreshMenus(GameObject body)
+        {
+#if ROR2COMMON_HOOKS
+            if (!body) return;
+            var index = BodyCatalog.FindBodyIndex(body);
+            if (index == BodyIndex.None) return;
+            if (localUser != null && rebuildSelect != null)
+                foreach (var select in UnityEngine.Object.FindObjectsOfType<CharacterSelectController>())
+                {
+                    Selection(select, out var selected, out _);
+                    if (selected == body) rebuildSelect.Invoke(select, new object[] { false });
+                }
+            if (displayData != null && rebuildLoadout != null)
+                foreach (var loadout in UnityEngine.Object.FindObjectsOfType<LoadoutPanelController>())
+                    if (Data(loadout).bodyIndex == index) rebuildLoadout.Invoke(loadout, null);
+#endif
+        }
+
         // Vanilla menu builders copy SkillDef.icon into their own images. Scope the
         // substitution to that synchronous build and restore even if a builder throws.
         public static IDisposable MenuIcons(GameObject body, uint index) => new IconScope(Find(body, index));
