@@ -581,7 +581,9 @@ namespace Ror2Common
         }
         protected void OnGUI()
         {
-            if (!active || failed || !body || !body.isPlayerControlled || !body.hasEffectiveAuthority || !body.healthComponent.alive) return;
+            if (!active || failed || !body || !body.isPlayerControlled || !body.healthComponent.alive) return;
+            // The owner's HUD, or the spectator's of the fighter they are watching.
+            if (!body.hasEffectiveAuthority && !LocalUsers.IsSpectated(body)) return;
 #if ROR2COMMON_VR
             if (MeleeVr.InHeadset(body)) { MeleeVr.Character.OnWrist(DrawHud); return; }
 #endif
