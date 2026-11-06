@@ -157,6 +157,10 @@ namespace Ror2Common
         }
         public ViewDraw DrawAt(int i) => draws[i];
 
+        /// The view-owned texture for a model's first batch, kept current by Update.
+        internal Texture2D FirstBatchTexture(uint model) => model < models.Length && models[model].batches.Length != 0
+            ? TextureFor(models[model].batches[0].texture) : null;
+
         ModelView(IViewSource src, Transform root, string name, Material skin, float translucentOpacity, bool rim)
         {
             this.rim = rim;
