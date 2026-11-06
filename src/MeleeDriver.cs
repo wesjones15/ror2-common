@@ -390,6 +390,9 @@ namespace Ror2Common
                 float speedScale = body.moveSpeed / Mathf.Max(0.1f, body.baseMoveSpeed) * SpeedScale;
                 if (body.isSprinting) speedScale /= Mathf.Max(0.1f, body.sprintingSpeedMultiplier);
                 MeleeNative.ssbm_sim_tuning(sim, new MeleeNative.Tuning { speed_scale = speedScale, jump_scale = JumpScale * NativeBody.JumpScale(body), extra_jumps = extra, hold_charge = HoldCharge ? 1u : 0u, smash_max_frames = 60 });
+                // The stage's gravity (the moon lowers it): the fighter falls by it, and the jump height just below is asked for at it,
+                // so the take-off speed stays RoR2's and the jump floats higher and longer.
+                MeleeNative.ssbm_sim_set_gravity_scale(sim, WorldGravity.Scale);
                 MeleeNative.ssbm_sim_jump_height(sim, MeleeControls.JumpHeight(body.jumpPower, Physics.gravity.y, motor.jumpPowerPenaltyCoefficient) / scale);
                 if (MeleeNative.HasStomp) MeleeNative.ssbm_sim_set_stomp(sim, ByName.Count(body, "FallBoots") > 0 ? 1u : 0u);
                 if (MeleeNative.HasAttackSpeed) {

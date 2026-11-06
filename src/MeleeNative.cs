@@ -6,7 +6,7 @@ namespace Ror2Common
 {
     public static class MeleeNative
     {
-        public const uint AbiVersion = 5;
+        public const uint AbiVersion = 6;
         /// Fighter kinds shared with the native `FighterKind`. A survivor's
         /// driver/view passes its own kind so the shared FFI resolves its assets.
         public const uint FighterSamus = 0;
@@ -260,6 +260,8 @@ namespace Ror2Common
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_launch_pad(IntPtr sim,Vec3 velocity,Vec3 gravity);
         /// Scales the horizontal speed of the jump in progress by `factor` (Wax Quail); 1 does nothing.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_boost_jump(IntPtr sim,float factor);
+        /// The stage's gravity as a multiple of the usual (the moon is low); pair it with the jump height for that gravity.
+        [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_set_gravity_scale(IntPtr sim,float scale);
         /// Enables (1) or disables (0) the H3AD-5T v2 stomp.
         [DllImport(Dll,CallingConvention=CallingConvention.Cdecl)] public static extern void ssbm_sim_set_stomp(IntPtr sim,uint enabled);
         /// Sets RoR2's attack-speed multiplier (1 is the source's rate).
