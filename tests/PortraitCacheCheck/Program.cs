@@ -26,7 +26,7 @@ static class Program
             Check(File.ReadAllBytes(Key("Mario")).SequenceEqual(bytes), "hit rewrote cache");
             PortraitCache.GetOrCreate(Key("Luigi"), "Luigi", Generate, out cached, size);
             Check(!cached && generated == 2, "new skin reused another portrait");
-            PortraitCache.GetOrCreate(Key("Mario", "character-v2"), "Mario", Generate, out cached, size);
+            PortraitCache.GetOrCreate(Key("Mario", PortraitCache.CharacterRevision + "-next"), "Mario", Generate, out cached, size);
             Check(!cached && generated == 3, "revision change failed to regenerate");
             PortraitCache.GetOrCreate(Key("Mario"), "Mario", Generate, out cached, size);
             Check(cached && generated == 3, "new key/revision invalidated an existing image");
