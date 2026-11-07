@@ -21,6 +21,9 @@ try {
     # The native victim cache must be reset on the same boundaries as RoR2's victims.
     foreach ($name in @('Reset', 'ResetIgnoredHealthComponents')) {
         $method = $type.Methods | Where-Object Name -eq $name
+        # Publicized reference assemblies (the RiskOfRain2.GameLibs NuGet package CI builds against) are stripped:
+        # every body is just "ldnull; throw". The signatures above are still checked; the body cannot be.
+        if (@($method.Body.Instructions).Count -le 2) { Write-Warning "Stripped reference assembly: cannot check the $name ignore-list lifecycle."; continue }
         if (-not @($method.Body.Instructions | Where-Object {
             $_.OpCode.Name -eq 'ldfld' -and $_.Operand.Name -eq 'ignoredHealthComponentList'
         }).Count) { throw "Melee ignore-list lifecycle changed: $name" }
