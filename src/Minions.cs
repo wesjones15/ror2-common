@@ -239,6 +239,10 @@ namespace Ror2Common
     {
         public override void HandleMovements() { }
         public override void ProcessJump() { }
+#if PUBLICIZED_GAME_LIBS
+        public override bool CanExecuteSkill(GenericSkill skillSlot) => false;
+#else
         protected override bool CanExecuteSkill(GenericSkill skillSlot) => false;
+#endif
     }
 }

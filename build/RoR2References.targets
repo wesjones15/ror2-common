@@ -2,6 +2,12 @@
   <PropertyGroup>
     <Managed>$(RoR2Dir)/Risk of Rain 2_Data/Managed</Managed>
   </PropertyGroup>
+  <!-- Set PublicizedGameLibs=true (CI does, via the RiskOfRain2.GameLibs NuGet package) when RoR2Dir holds publicized
+       reference assemblies: members that are protected in the game's own RoR2.dll are public there, and C# refuses an
+       override that changes the access modifier. Code guards those few overrides with #if PUBLICIZED_GAME_LIBS. -->
+  <PropertyGroup Condition="'$(PublicizedGameLibs)' == 'true'">
+    <DefineConstants>$(DefineConstants);PUBLICIZED_GAME_LIBS</DefineConstants>
+  </PropertyGroup>
   <Target Name="ValidateRoR2References" BeforeTargets="ResolveAssemblyReferences">
     <Error Condition="'$(RoR2Dir)' == ''" Text="Set RoR2Dir explicitly with -p:RoR2Dir=&lt;reference directory&gt;." />
     <Error Condition="'$(RoR2Dir)' != '' and !Exists('$(Managed)/RoR2.dll')" Text="RoR2Dir is missing Risk of Rain 2_Data/Managed/RoR2.dll." />
