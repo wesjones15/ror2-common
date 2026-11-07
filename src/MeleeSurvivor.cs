@@ -29,6 +29,8 @@ namespace Ror2Common
         public uint fighterKind;
         public Func<string> assetsDir;
         public Func<bool> assetsReady;
+        /// Unfinished: not registered, offered or extracted unless `Experimental.Enabled`. Delete it when done.
+        public bool experimental;
     }
 
     public static class MeleeSurvivor

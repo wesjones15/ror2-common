@@ -58,7 +58,7 @@ namespace Ror2Common
         static readonly HashSet<int> peers = new HashSet<int>();
         static bool serverHasMelee;
         static readonly Dictionary<uint, bool> protectedBodies = new Dictionary<uint, bool>();
-        static bool registered, warned;
+        static bool registered, warned, warnedUnfinished;
 
         public static void Register()
         {
@@ -91,6 +91,8 @@ namespace Ror2Common
         {
             var w = new ByteWriter(8);
             w.U8(Protocol); w.U32(MeleeNative.AbiVersion);
+            // Trailing, so an older build still reads the two fields above: whether unfinished survivors are in.
+            w.Bool(Experimental.Enabled);
             return w.ToArray();
         }
 
@@ -103,7 +105,18 @@ namespace Ror2Common
         static bool Compatible(ByteReader r, string who)
         {
             byte protocol = r.U8(); uint abi = r.U32();
-            if (!r.Failed && protocol == Protocol && abi == MeleeNative.AbiVersion) return true;
+            if (!r.Failed && protocol == Protocol && abi == MeleeNative.AbiVersion)
+            {
+                // Different survivor lists can't play together (RoR2 numbers bodies by its catalog).
+                bool unfinished = r.Bool();
+                if (!r.Failed && unfinished != Experimental.Enabled && !warnedUnfinished)
+                {
+                    warnedUnfinished = true;
+                    CommonLog.Warn($"{who} has ShowUnfinished {(unfinished ? "on" : "off")} and this game has it {(Experimental.Enabled ? "on" : "off")} " +
+                                   $"(BepInEx/config/{Experimental.ConfigFileName}). Everyone needs the same setting, or survivors get mixed up.");
+                }
+                return true;
+            }
             if (!warned)
             {
                 warned = true;
