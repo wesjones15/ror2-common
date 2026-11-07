@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <Managed>$(RoR2Dir)/Risk of Rain 2_Data/Managed</Managed>
+  </PropertyGroup>
+  <Target Name="ValidateRoR2References" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'$(RoR2Dir)' == ''" Text="Set RoR2Dir explicitly with -p:RoR2Dir=&lt;reference directory&gt;." />
+    <Error Condition="'$(RoR2Dir)' != '' and !Exists('$(Managed)/RoR2.dll')" Text="RoR2Dir is missing Risk of Rain 2_Data/Managed/RoR2.dll." />
+    <Error Condition="'$(RoR2Dir)' != '' and !Exists('$(RoR2Dir)/BepInEx/core/BepInEx.dll')" Text="RoR2Dir is missing BepInEx/core/BepInEx.dll." />
+  </Target>
+</Project>

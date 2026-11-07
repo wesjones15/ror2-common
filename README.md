@@ -65,6 +65,8 @@ Keep `ror2-common` beside the character repository. From a plugin project one di
 
 Set `Ror2Common.CommonLog.Log = Logger;` at the start of the plugin's `Awake`. Build through the character's project/build script, which supplies the installed game's Unity and RoR2 references.
 
+Build scripts use [`build/BuildPaths.ps1`](build/BuildPaths.ps1) to require an explicit `-RoR2Dir` reference directory and resolve staging under workspace `target/` independently. Projects import [`build/RoR2References.targets`](build/RoR2References.targets) for the same reference requirement in direct MSBuild invocations. [`tests/BuildPathsCheck.ps1`](tests/BuildPathsCheck.ps1) checks reference selection and staging containment with synthetic files.
+
 IL hooks are opt-in through `ROR2COMMON_HOOKS` and require BepInEx's `Mono.Cecil`, `MonoMod.Utils` and `MonoMod.RuntimeDetour` references. Optional VR sources use `ROR2COMMON_VR` and the relevant Unity XR references. The [Mario project](https://github.com/wesjones15/ror2-mario/blob/modern/1.5.0/MarioTest/MarioTest.csproj) shows a complete consumer setup.
 
 Because these sources are compiled into several plugins, public API changes need coordinated updates to their consumers. Native view layouts must continue to agree with the corresponding Rust C ABI.
