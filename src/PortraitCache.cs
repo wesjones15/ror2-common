@@ -8,7 +8,7 @@ namespace Ror2Common
     public static class PortraitCache
     {
         // Independent of plugin releases. Bump only when these portraits change.
-        public const string CharacterRevision = "character-v1";
+        public const string CharacterRevision = "character-v2";
         /// Melee's own character portraits: a separate revision so reframing the fighters does not
         /// invalidate Mario's and Olimar's cached portraits.
         public const string MeleeCharacterRevision = "melee-character-v1";

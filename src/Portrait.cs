@@ -196,7 +196,8 @@ namespace Ror2Common
             var stage = new GameObject("portrait stage").transform;
             stage.position = new Vector3(0f, -2000f, 0f);
             var layers = new List<(GameObject, int)>();
-            GameObject camGo = null, lightGo = null;
+            GameObject camGo = null;
+            PortraitLight studio = null;
             RenderTexture rt = null;
             try
             {
@@ -274,13 +275,11 @@ namespace Ror2Common
                 camGo.transform.position = centre + toCamera * dist;
                 camGo.transform.rotation = Quaternion.LookRotation(-toCamera, Vector3.up);
 
-                lightGo = new GameObject("portrait light");
-                var light = lightGo.AddComponent<Light>();
-                light.type = LightType.Directional;
-                light.intensity = 1.1f;
-                light.color = new Color(1f, 0.97f, 0.92f);
-                light.cullingMask = 1 << layer;
-                lightGo.transform.rotation = orbit * Quaternion.LookRotation(-stage.forward + Vector3.down * 0.6f + stage.right * 0.4f);
+                // The shared studio (key from the camera's side, soft fill, fixed ambient): a lone
+                // directional light left the shadow side at the mercy of whatever ambient the scene had
+                // when the card was baked, which could come out dark with a hard shadow.
+                studio = new PortraitLight(layer);
+                studio.Aim(centre, camGo.transform.position);
 
                 rt = new RenderTexture(job.size, job.size, 24, RenderTextureFormat.ARGB32);
                 cam.targetTexture = rt;
@@ -316,7 +315,7 @@ namespace Ror2Common
                 foreach (var (go, l) in layers)
                     if (go) go.layer = l;
                 if (camGo) UnityEngine.Object.Destroy(camGo);
-                if (lightGo) UnityEngine.Object.Destroy(lightGo);
+                studio?.Dispose();
                 if (rt) { rt.Release(); UnityEngine.Object.Destroy(rt); }
                 UnityEngine.Object.Destroy(stage.gameObject);
                 actor.Release();
