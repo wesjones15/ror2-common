@@ -58,8 +58,8 @@ namespace Ror2Common
         static readonly HashSet<string> queued = new HashSet<string>();
         static readonly Dictionary<string, Texture2D> shared = new Dictionary<string, Texture2D>();
         static Runner runner;
-        // Generated art belongs to the installed plugin, even when the disc cache is elsewhere.
-        internal static string CacheRoot;
+        // Generated art is cached beside the extracted files it is rendered from (SharedFiles assets/melee/skill-icons,
+        // as Mario's and Olimar's are), never in the plugin's own folder, which a mod manager replaces on update.
 
         public static void Request(SkillDef def, string defName, uint kind, Func<string> assetsDir, Func<bool> ready) =>
             Request(def, defName, kind, assetsDir, ready, null);
@@ -106,7 +106,7 @@ namespace Ror2Common
                         if (share != null && shared.TryGetValue(share, out tex) && !tex) tex = null;
                         if (!tex)
                         {
-                            string cache = SkillCardCache.FileName(CacheRoot ?? dir, PortraitCache.MeleeSkillRevision, job.defName);
+                            string cache = SkillCardCache.FileName(dir,PortraitCache.MeleeSkillRevision, job.defName);
                             tex = PortraitCache.GetOrCreate(cache, job.defName,
                                 () => job.ready() ? Render(job, dir) : null, out bool cached);
                             if (tex) CommonLog.Info($"Melee skill portrait {job.defName} {(cached ? "loaded" : "generated")}: {cache}");
