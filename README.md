@@ -234,3 +234,11 @@ the same without it, and every call is a no-op with no headset.
 
 The VR mod hides the renderers under the body's model, but ModelView draws sit outside it, so
 each character hides its own body for the local player and keeps it for everyone else.
+
+## License and credits
+
+Original contributions by **wesleyasaurus** are dedicated to the public domain under
+[CC0 1.0 Universal](LICENSE), to the extent wesleyasaurus owns the relevant rights.
+Attribution for those contributions is appreciated but not required. Third-party software
+and original game content retain their respective rights and terms.
+See [CREDITS.md](CREDITS.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
