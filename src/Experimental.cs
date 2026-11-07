@@ -43,5 +43,29 @@ namespace Ror2Common
 
         /// Whether an item with this marker is in the game.
         public static bool Allows(bool experimental) => !experimental || Enabled;
+
+        const string NetworkKey = "wesleyasaurus.unfinished.registered";
+
+        /// Put the setting into RoR2's network mod list, which the lobby compares before letting a player join.
+        /// Hidden survivors are never registered, so two players with different settings would have different
+        /// body catalogs (shifted indexes, prefabs one side cannot spawn); this makes RoR2 refuse the join instead
+        /// of desyncing. Every plugin calls it at startup; ror2-common is compiled into each plugin, so the guard
+        /// lives in the AppDomain and the entry is added once, whichever plugins are installed.
+        public static void ShareWithLobby()
+        {
+            var domain = AppDomain.CurrentDomain;
+            lock (typeof(object))
+            {
+                if (domain.GetData(NetworkKey) != null) return;
+                domain.SetData(NetworkKey, true);
+            }
+            try
+            {
+                RoR2.NetworkModCompatibilityHelper.networkModList = System.Linq.Enumerable.Concat(
+                    RoR2.NetworkModCompatibilityHelper.networkModList,
+                    new[] { "wesleyasaurus.unfinished;" + (Enabled ? "shown" : "hidden") });
+            }
+            catch (Exception e) { CommonLog.Log?.LogWarning($"Unfinished-content lobby check not added: {e.Message}"); }
+        }
     }
 }

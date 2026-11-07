@@ -19,6 +19,11 @@ namespace Ror2Common
         public const uint FighterDonkey = 7;
         /// Mario's contextual-A lab plus the Melee clips ported onto Sunshine's rig.
         public const uint FighterMario = 8;
+        /// Version of `ssbm_extract`'s output (SharedFiles extracted.txt, set [`ExtractSet`]), shared by every plugin
+        /// that extracts a Melee fighter: bump it when the extractor writes an existing file differently.
+        public const int ExtractorVersion = 1;
+        /// The extracted.txt set name for one `ssbm_extract` kind (a fighter, or 100 for the items).
+        public static string ExtractSet(uint kind) => "fighter" + kind;
         const string Dll = "ssbm";
         public static bool HasOverlay {get;private set;}
         /// The view can draw a body's VR arms (ssbm_view_set_vr_arms).

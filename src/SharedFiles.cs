@@ -148,6 +148,57 @@ namespace Ror2Common
             }
         }
 
+        // Extractor versions. The native completeness checks only see whether each file is there and parses, so a
+        // file an older extractor wrote differently would be kept forever. Each extraction set (one native extract
+        // call: "main", "p2", "luigi", a fighter...) records the version that wrote it in assets/<game>/extracted.txt,
+        // one `set=version` line each; a set whose recorded version differs from the plugin's is extracted again.
+        // Bump a set's version (the constant next to its extract call) whenever that extractor's output changes for
+        // files that already exist. An install without the file (or the line) extracts once.
+        public const string VersionFile = "extracted.txt";
+
+        static Dictionary<string, string> ReadVersions(string game)
+        {
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            try
+            {
+                string path = Path.Combine(Assets(game), VersionFile);
+                if (!File.Exists(path)) return map;
+                foreach (string line in File.ReadAllLines(path))
+                {
+                    int eq = line.IndexOf('=');
+                    if (eq > 0) map[line.Substring(0, eq).Trim()] = line.Substring(eq + 1).Trim();
+                }
+            }
+            catch { }
+            return map;
+        }
+
+        /// Whether `set` in `game`'s folder was written by extractor `version`.
+        public static bool Current(string game, string set, int version) =>
+            ReadVersions(game).TryGetValue(set, out string v) && v == version.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+        /// Record that `set` was just extracted by `version` (call after a successful extract and completeness check).
+        public static void MarkCurrent(string game, string set, int version)
+        {
+            using (Lock(game)) // re-entrant: the extracting thread usually holds it already
+            {
+                try
+                {
+                    var map = ReadVersions(game);
+                    map[set] = version.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    string dir = Assets(game);
+                    Directory.CreateDirectory(dir);
+                    string path = Path.Combine(dir, VersionFile), temp = path + ".tmp";
+                    var lines = new List<string> { "# Written by the wesleyasaurus mods: which extractor version wrote each set. Delete to re-extract everything." };
+                    lines.AddRange(map.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => kv.Key + "=" + kv.Value));
+                    File.WriteAllLines(temp, lines);
+                    if (File.Exists(path)) File.Delete(path);
+                    File.Move(temp, path);
+                }
+                catch (Exception e) { CommonLog.Log?.LogWarning($"Couldn't record the {game} extractor version: {e.Message}"); }
+            }
+        }
+
         /// The one line a plugin logs when a disc it needs isn't there.
         public static string MissingDisc(string game) =>
             $"Put your own {game} disc image (.iso, .gcm or .ciso; any name) in {DiscDir} and restart the game.";

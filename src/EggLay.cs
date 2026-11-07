@@ -47,16 +47,37 @@ namespace Ror2Common
             return null;
         }
 
-        /// The Melee plugin is loaded and has the egg (published, or reachable by reflection).
+        /// Yoshi's readiness in the loaded Melee plugin (`Samus.Plugin.YoshiReady`: his files are extracted, and he
+        /// is enabled), read through reflection; null when that plugin isn't loaded or has no such property.
+        static Func<bool> yoshiFiles;
+        static bool yoshiFilesResolved;
+
+        /// The Melee plugin is loaded, has the egg (published, or reachable by reflection) and Yoshi's files are
+        /// extracted (the egg and the trap are drawn and voiced from them). Checked again each call, since the
+        /// Melee plugin extracts after startup.
         public static bool Ready
         {
             get
             {
-                if (Catch != null && Lay != null) return true;
-                if (readyResolved) return readyValue;
-                readyResolved = true;
-                readyValue = Find("YoshiFull", "Begin") != null && Find("YoshiEgg", "Lay") != null;
-                return readyValue;
+                if (!readyResolved)
+                {
+                    readyResolved = true;
+                    readyValue = (Catch != null && Lay != null) || (Find("YoshiFull", "Begin") != null && Find("YoshiEgg", "Lay") != null);
+                }
+                if (!readyValue) return false;
+                if (!yoshiFilesResolved)
+                {
+                    yoshiFilesResolved = true;
+                    foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                    {
+                        var p = asm.GetType("Samus.Plugin")?.GetProperty("YoshiReady", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                        if (p == null || p.PropertyType != typeof(bool)) continue;
+                        yoshiFiles = () => (bool)p.GetValue(null);
+                        break;
+                    }
+                }
+                // Without the property (an older Melee build) keep the old answer: the types are there.
+                return yoshiFiles == null || yoshiFiles();
             }
         }
 
