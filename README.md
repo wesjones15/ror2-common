@@ -23,6 +23,14 @@ The `modern/1.5.0` branch targets the project's RoR2 DLC4 build, Unity 2021.3 an
 
 ## What is shared
 
+Optional-content policy is split between `ModPresence` (catalog registration),
+local renderer fallback, and `OptionalContentSession` (shared gameplay availability).
+The latter advertises versioned capability bits, intersects known lobby peers,
+locks at run launch and refuses incompatible late joins after an explanation.
+`SessionFeaturePolicy` is tested without Unity, including unknown peers and run reset.
+`PrimitiveShapes` and `SurfaceQuads` own reusable, non-colliding generated visuals;
+no original models, textures or sound are bundled.
+
 | System | What it provides | Starting points |
 | --- | --- | --- |
 | Movement and the world | Collision probes, external forces and crowd control, jump/landing events, stage-start placement, wall protection and recovery from blocked terrain or falls. | [`NativeBody`](src/NativeBody.cs), [`WorldProbe`](src/WorldProbe.cs), [`WallGuard`](src/WallGuard.cs), [`Unstuck`](src/Unstuck.cs) |

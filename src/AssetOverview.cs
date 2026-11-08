@@ -27,6 +27,10 @@ namespace Ror2Common
                     + " assets are missing. Put the disc image (.iso, .gcm or .ciso; any name) in "
                     + SharedFiles.DiscHint + " and restart the game.";
 
+        public static string Fallback(string presentation, params string[] games) => games.Length == 0 ? null
+            : OptionalAssets.BuiltinOnly ? presentation + " Optional assets are disabled in the config."
+            : presentation + " Optional " + string.Join(" and ", games) + " assets are missing. Put the disc image in " + SharedFiles.DiscHint + " and restart the game.";
+
         public static void Set(Language language, string body, string token, string text, Func<string> note)
         {
             var entry = new Entry { body = body, token = token, text = text, note = note, language = language };

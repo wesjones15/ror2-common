@@ -35,6 +35,10 @@ static class Program
                 var particles = new Sms.WaterParticle[512];
                 Check(Sms.sms_sim_water_particles(sim, particles, (uint)particles.Length) > 0, "live drawing state without a view");
                 Check(float.IsFinite(particles[0].pos.x) && particles[0].radius > 0, "water layout/finite data");
+                Check(Sms.sms_sim_emitter(sim,0,out var muzzle,out var direction)!=0 && float.IsFinite(muzzle.y)
+                    && float.IsFinite(direction.z),"stand-in nozzle uses a valid gameplay emitter");
+                var wet=new Sms.WaterVertex[16384];
+                Check(Sms.sms_sim_wet_vertices(sim,wet,(uint)wet.Length)>0 && float.IsFinite(wet[0].pos.y),"wet terrain exists without a view");
             } finally { Sms.sms_sim_free(sim); }
         }
     }
@@ -58,6 +62,14 @@ static class Program
                     Check(MeleeNative.ssbm_view_update(view, sim, 1f/60f) == 1, "procedural view update");
                 }
                 Check(damaged, "fighter " + kind + " has working hit volumes");
+                if(kind==MeleeNative.FighterLuigi){
+                    Check(MeleeNative.ssbm_sim_scope(sim,1,0)==1,"Luigi can equip the scope without ItCo.dat");
+                    var beam=MeleeNative.ssbm_scope_beam_new(NativeLib.CString(""),0,new MeleeNative.Vec3(0,0,1));
+                    Check(beam!=IntPtr.Zero,"built-in scope beam");
+                    try{MeleeNative.ssbm_projectile_step(beam,1.0/60,default,0);
+                        Check(MeleeNative.ssbm_projectile_state(beam,out var beamState)==1 && beamState.position.z>0,"built-in scope beam travels");}
+                    finally{MeleeNative.ssbm_projectile_free(beam);}
+                }
             } finally { if(view != IntPtr.Zero) MeleeNative.ssbm_view_free(view); MeleeNative.ssbm_sim_free(sim); }
             var projectile = MeleeNative.ssbm_projectile_new(NativeLib.CString(""), kind, 0, 0, 0, new MeleeNative.Vec3(0,0,1));
             // Melee fighters with public article 0 must retain a simulated projectile.

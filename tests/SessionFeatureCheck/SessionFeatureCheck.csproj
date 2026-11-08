@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net6.0</TargetFramework></PropertyGroup>
+  <ItemGroup><Compile Include="../../src/SessionFeaturePolicy.cs" Link="SessionFeaturePolicy.cs" /><Compile Include="../../../ror2-olimar/OlimarTest/OnionStandInPolicy.cs" Link="OnionStandInPolicy.cs" /></ItemGroup>
+</Project>

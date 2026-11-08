@@ -42,7 +42,7 @@ namespace Ror2Common
         float age, modelScale = 1f;
         bool finished;
 
-        public static bool Available(string assetsDir) => MeleeNative.HasScope && System.IO.File.Exists(System.IO.Path.Combine(assetsDir, "ItCo.dat"));
+        public static bool Available(string assetsDir) => MeleeNative.HasScope;
 
         /// Host adaptation: the source's uncharged beam is 1% damage, unusable in RoR2. Raise the low
         /// levels and fade the bonus to zero by the top level, whose ~933% is already good.
