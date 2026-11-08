@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net6.0</TargetFramework></PropertyGroup>
   <ItemGroup><Compile Include="../../src/SkinPresentation.cs" Link="SkinPresentation.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="../../src/AssetOverview.cs" Link="AssetOverview.cs" /></ItemGroup>
   <ItemGroup><Reference Include="Mono.Cecil"><HintPath>$(RoR2Dir)/BepInEx/core/Mono.Cecil.dll</HintPath></Reference></ItemGroup>
   <Import Project="$(MSBuildThisFileDirectory)../../build/RoR2References.targets" />
 </Project>

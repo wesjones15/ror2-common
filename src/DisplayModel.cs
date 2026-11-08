@@ -31,6 +31,7 @@ namespace Ror2Common
     public sealed class DisplayModel : MonoBehaviour
     {
         static readonly Dictionary<string, Func<IDisplayActor>> factories = new Dictionary<string, Func<IDisplayActor>>();
+        static readonly Dictionary<string, Func<bool>> readiness = new Dictionary<string, Func<bool>>();
 
         /// Which factory (serialized, so the prefab's instances keep it).
         public string actorId;
@@ -63,6 +64,8 @@ namespace Ror2Common
 
         // The skin index this pad's controller last announced (-1: none yet).
         int padSkin = -1;
+        int actorSkin = -1;
+        bool? actorReady;
         bool hooked, refreshed;
         static DisplayModel active;
 
@@ -126,9 +129,10 @@ namespace Ror2Common
 
         /// Puts a DisplayModel on `displayPrefab` that draws what `make` lends out (null: keep the
         /// prefab's model). `id` names the factory; plugins pick their own.
-        public static void Attach(GameObject displayPrefab, string id, Func<IDisplayActor> make)
+        public static void Attach(GameObject displayPrefab, string id, Func<IDisplayActor> make, Func<bool> ready = null)
         {
             factories[id] = make;
+            if (ready != null) readiness[id] = ready;
             var c = displayPrefab.GetComponent<DisplayModel>();
             if (!c) c = displayPrefab.AddComponent<DisplayModel>();
             c.actorId = id;
@@ -188,6 +192,11 @@ namespace Ror2Common
 
         void Draw()
         {
+            // A costume can cross the native/procedural boundary (Mario -> Luigi
+            // without Melee, Olimar -> Louie without Pikmin 2).
+            bool? ready = readiness.TryGetValue(actorId ?? "", out var check) ? check() : (bool?)null;
+            if (actorSkin != padSkin || actorReady != ready)
+            { Release(); failed = false; retryAt = 0f; actorSkin = padSkin; actorReady = ready; }
             if (actor == null && !failed)
             {
                 if(Time.unscaledTime<retryAt)return;

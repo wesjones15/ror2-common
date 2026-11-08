@@ -97,13 +97,14 @@ namespace Ror2Common
     public sealed class PrimitiveDisplay : IDisplayActor, IProceduralDisplayActor
     {
         readonly PrimitiveShapes shapes = new PrimitiveShapes("Procedural survivor display");
-        readonly Color color;
-        public PrimitiveDisplay(Color color) { this.color = color; }
+        readonly Func<Color> color;
+        public PrimitiveDisplay(Color color) : this(() => color) { }
+        public PrimitiveDisplay(Func<Color> color) { this.color = color; }
         public ModelView Models => null;
         public float Scale => 1f;
         public void Step(float dt, Transform display)
         {
-            shapes.Begin(); shapes.Body(display.position, display.rotation, color); shapes.End();
+            shapes.Begin(); shapes.Body(display.position, display.rotation, color()); shapes.End();
         }
         public void Release() => shapes.Dispose();
     }

@@ -110,7 +110,8 @@ namespace Ror2Common
             // fighter overwrite another's lobby display.
             var displayDef = def;
             DisplayModel.Attach(lobby, def.bodyName, () => !OptionalAssets.BuiltinOnly && displayDef.assetsReady()
-                ? displayDef.displayFactory() : new PrimitiveDisplay(displayDef.bodyColor));
+                ? displayDef.displayFactory() : new PrimitiveDisplay(displayDef.bodyColor),
+                () => !OptionalAssets.BuiltinOnly && displayDef.assetsReady());
             // Same idle-only source and orientation as character select; the common
             // camera supplies Mario/Olimar's 45-degree left framing. The crop is a fraction
             // of each fighter's height so a wide idle pose cannot zoom the body out; Pikachu,
@@ -150,7 +151,10 @@ namespace Ror2Common
         {
             l.SetStringByToken(def.nameToken, def.nameStr);
             l.SetStringByToken(def.subtitleToken, def.subtitleStr);
-            l.SetStringByToken(def.descriptionToken, def.descriptionStr);
+            var overview = def;
+            AssetOverview.Set(l, def.bodyName, def.descriptionToken, def.descriptionStr,
+                () => OptionalAssets.BuiltinOnly || !overview.assetsReady()
+                    ? AssetOverview.Missing("Super Smash Bros. Melee") : null);
             l.SetStringByToken(def.outroToken, def.outroStr);
             l.SetStringByToken(def.failToken, def.failStr);
             MeleeSkills.Tokens(l, def.skills);
