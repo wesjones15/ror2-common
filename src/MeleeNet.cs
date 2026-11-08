@@ -20,8 +20,8 @@ namespace Ror2Common
     ///   enemy projectiles back (`ReflectMsg`), pulling an enemy (`PushMsg`) and the fighter's
     ///   protection buff (`ProtectMsg`).
     ///
-    /// Everyone needs the same plugin build and the fighter's own disc assets; a mismatch is logged
-    /// once and that player's fighter looks like Commando to the other.
+    /// Everyone needs the same plugin build and roster settings. Missing local assets
+    /// use procedural presentation; mixed-asset/profile co-op still needs manual validation.
     public static class MeleeNet
     {
         public const byte Protocol = 1;

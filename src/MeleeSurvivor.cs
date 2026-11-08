@@ -39,6 +39,8 @@ namespace Ror2Common
         // reuses the same type, so a per-fighter Add would collide on the second
         // survivor and abort its skill/skin registration.
         static bool arrivalRegistered;
+        static readonly List<Action> arrivalRefresh = new List<Action>();
+        static bool arrivalRefreshHooked;
         /// Clones the Commando body/display, applies the fighter's stats and
         /// layouts, registers its skills/skins/survivor, and returns the built
         /// skill set for the driver to read charges from.
@@ -62,17 +64,35 @@ namespace Ror2Common
             cb.levelMaxHealth = def.levelMaxHealth;
             cb.baseArmor = def.baseArmor;
             cb.baseJumpCount = def.baseJumpCount;
-            bool customArrival = !OptionalAssets.BuiltinOnly && def.assetsReady();
-            if (customArrival) {
-                cb.preferredPodPrefab = null;
-                cb.preferredInitialStateType = new SerializableEntityStateType(typeof(MeleeArrival));
-            }
+            var stockPod = cb.preferredPodPrefab ? cb.preferredPodPrefab
+                : LegacyResourcesAPI.Load<GameObject>("Prefabs/NetworkedObjects/SurvivorPod");
+            var stockInitial = cb.preferredInitialStateType;
+            var stockMachines = new Dictionary<EntityStateMachine, SerializableEntityStateType>();
             foreach (var state in body.GetComponents<EntityStateMachine>())
                 if (state.customName == "Body")
                 {
+                    stockMachines[state] = state.initialStateType;
                     state.mainStateType = new SerializableEntityStateType(def.mainStateType);
-                    if (customArrival) state.initialStateType = new SerializableEntityStateType(typeof(MeleeArrival));
                 }
+            // Native/asset initialization is deferred until onLoad. Refresh the prefab
+            // on the main thread so valid caches retain custom arrivals after that check.
+            // Spawned bodies are never changed by a later extraction finishing.
+            var arrivalDef = def;
+            bool? lastArrival = null;
+            Action refreshArrival = () => {
+                bool custom = !OptionalAssets.BuiltinOnly && arrivalDef.assetsReady();
+                if (lastArrival == custom) return;
+                lastArrival = custom;
+                cb.preferredPodPrefab = custom ? null : stockPod;
+                cb.preferredInitialStateType = custom ? new SerializableEntityStateType(typeof(MeleeArrival)) : stockInitial;
+                foreach (var saved in stockMachines)
+                    saved.Key.initialStateType = custom ? new SerializableEntityStateType(typeof(MeleeArrival)) : saved.Value;
+            };
+            arrivalRefresh.Add(refreshArrival); refreshArrival();
+            if (!arrivalRefreshHooked) {
+                arrivalRefreshHooked = true;
+                RoR2Application.onFixedUpdate += () => { foreach (var refresh in arrivalRefresh) refresh(); };
+            }
             body.AddComponent<NativeBody>();
             body.AddComponent(def.driverType);
             body.AddComponent<MeleeRecovery>();
