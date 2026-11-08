@@ -21,8 +21,11 @@ namespace Ror2Common
             ? description : description + "\n\n<style=cSub>" + note + "</style>";
 
         public static string Missing(params string[] games) => games.Length == 0 ? null
-            : "Using built-in stand-ins. Optional " + string.Join(" and ", games)
-                + (OptionalAssets.BuiltinOnly ? " assets are disabled." : " assets are missing or unavailable.");
+            : OptionalAssets.BuiltinOnly
+                ? "Using built-in stand-ins. Optional assets are disabled in the config."
+                : "Using built-in stand-ins. Optional " + string.Join(" and ", games)
+                    + " assets are missing. Put the disc image (.iso, .gcm or .ciso; any name) in "
+                    + SharedFiles.DiscHint + " and restart the game.";
 
         public static void Set(Language language, string body, string token, string text, Func<string> note)
         {

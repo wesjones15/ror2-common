@@ -22,6 +22,8 @@ namespace Ror2Common
         public const string PackageFolder = "wesleyasaurus-SharedFiles";
         public const string DiscFolder = "put_games_here";
         public const string AssetsFolder = "assets";
+        /// Where a player is told to put discs, relative to the game's BepInEx/plugins.
+        public const string DiscHint = "BepInEx/plugins/" + PackageFolder + "/" + DiscFolder + "/";
         /// Shipped inside put_games_here/ so the folder survives zipping and can be found under any name.
         public const string Marker = "README.txt";
 

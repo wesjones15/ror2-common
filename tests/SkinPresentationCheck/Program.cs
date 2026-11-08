@@ -20,6 +20,8 @@ static class Program
         Check(language.Text["OVERVIEW"] == "Original overview.", "fallback note persisted with original assets");
         missing = true; missingGame = "Super Smash Bros. Melee"; AssetOverview.Refresh(); AssetOverview.Refresh();
         Check(language.Text["OVERVIEW"].Contains(missingGame) && !language.Text["OVERVIEW"].Contains("Sunshine"), "skin change retained the wrong missing game");
+        Check(language.Text["OVERVIEW"].Contains("put_games_here") && language.Text["OVERVIEW"].Contains(".iso"),
+            "missing-asset note does not say where to put the disc");
         Check(language.Text["OVERVIEW"].Split("Using built-in stand-ins.").Length == 2, "refresh duplicated fallback note");
         var translated = new RoR2.Language(); RoR2.Language.currentLanguage = translated;
         AssetOverview.Set(translated, "MarioTestBody", "OVERVIEW", "Another language.", () => null);
@@ -91,5 +93,8 @@ namespace RoR2 {
         public void SetStringByToken(string token,string text) => Text[token] = text;
     }
 }
-namespace Ror2Common { public static class OptionalAssets { public static bool BuiltinOnly; } }
+namespace Ror2Common {
+    public static class OptionalAssets { public static bool BuiltinOnly; }
+    public static class SharedFiles { public const string DiscHint = "BepInEx/plugins/wesleyasaurus-SharedFiles/put_games_here/"; }
+}
 namespace RoR2.Skills { public class SkillDef : UnityEngine.Object { public UnityEngine.Sprite icon; } }
