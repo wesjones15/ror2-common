@@ -2,6 +2,7 @@
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net6.0</TargetFramework><Nullable>disable</Nullable></PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/Experimental.cs" Link="Experimental.cs" />
+    <Compile Include="../../src/OptionalAssets.cs" Link="OptionalAssets.cs" />
     <Compile Include="../../src/SharedFiles.cs" Link="SharedFiles.cs" />
     <Compile Include="../../src/CommonLog.cs" Link="CommonLog.cs" />
   </ItemGroup>
