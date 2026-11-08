@@ -61,9 +61,10 @@ namespace Ror2Common
         }
         public void Body(Vector3 feet, Quaternion facing, Color color, float height = 1.8f, float radius = 0.35f)
         {
-            Show(PrimitiveType.Cylinder, feet + Vector3.up * height * 0.5f,
+            var center = feet + Vector3.up * height * 0.5f;
+            Show(PrimitiveType.Cylinder, center,
                 new Vector3(radius * 2f, height * 0.5f, radius * 2f), facing, color);
-            Show(PrimitiveType.Sphere, feet + Vector3.up * height * 0.8f + facing * Vector3.forward * radius,
+            Show(PrimitiveType.Sphere, center + facing * (Vector3.up * height * 0.3f + Vector3.forward * radius),
                 Vector3.one * radius * 0.35f, facing, Color.white);
         }
         public void Segment(Vector3 start, Vector3 end, float radius, Color color)
