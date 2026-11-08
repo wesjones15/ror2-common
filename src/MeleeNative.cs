@@ -6,7 +6,7 @@ namespace Ror2Common
 {
     public static class MeleeNative
     {
-        public const uint AbiVersion = 6;
+        public const uint AbiVersion = 7;
         /// Fighter kinds shared with the native `FighterKind`. A survivor's
         /// driver/view passes its own kind so the shared FFI resolves its assets.
         public const uint FighterSamus = 0;

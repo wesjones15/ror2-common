@@ -203,7 +203,7 @@ namespace Ror2Common
                 // Native extraction may still be running at first selection.
                 // A pending factory must be retried once assets become ready.
                 if(actor==null){retryAt=Time.unscaledTime+0.5f;return;}
-                failed = actor.Models == null;
+                failed = actor.Models == null && !(actor is IProceduralDisplayActor);
                 if (failed)
                 {
                     actor?.Release();
@@ -218,7 +218,7 @@ namespace Ror2Common
             // Lobby previews are UI: a paused/ended run must not freeze them.
             actor.Step(Mathf.Min(Time.unscaledDeltaTime, 0.1f), transform);
             var at = transform;
-            actor.Models.Update(actor.Scale, d => (
+            actor.Models?.Update(actor.Scale, d => (
                 at.position + at.rotation * (new Vector3(d.pos.x, d.pos.y, d.pos.z) * actor.Scale),
                 at.rotation * new Quaternion(d.rot_x, d.rot_y, d.rot_z, d.rot_w)));
             if(actor is IDisplayEffects effects)effects.Draw(transform);

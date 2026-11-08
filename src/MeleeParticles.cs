@@ -8,8 +8,10 @@ namespace Ror2Common
     public sealed class MeleeParticles : IDisposable
     {
         readonly ParticleView view;
+        readonly Source source;
+        public bool Available => source.Available;
 
-        public MeleeParticles(string assetsDir, float scale) { view = new ParticleView(new Source(assetsDir), scale); }
+        public MeleeParticles(string assetsDir, float scale) { source = new Source(assetsDir); view = new ParticleView(source, scale); }
         public static Matrix4x4 At(Vector3 world, Quaternion rotation, float scale) => ParticleView.At(world, rotation, scale);
         public void Spawn(uint id, Matrix4x4 transform, ulong key) => view.Spawn(id, transform, key);
         public void Attach(ulong key, Matrix4x4 transform) => view.Attach(key, transform);
@@ -23,10 +25,11 @@ namespace Ror2Common
         sealed class Source : IParticleSource
         {
             IntPtr handle;
+            public bool Available => handle != IntPtr.Zero;
             public Source(string assetsDir)
             {
-                handle = MeleeNative.ssbm_particles_new(NativeLib.CString(assetsDir));
-                if (handle == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
+                handle = string.IsNullOrEmpty(assetsDir) ? IntPtr.Zero : MeleeNative.ssbm_particles_new(NativeLib.CString(assetsDir));
+                // Optional particle banks: a null native source is a silent empty view.
             }
             public string Error => MeleeNative.Error;
             public bool Spawn(uint id, float[] transform, ulong key) => MeleeNative.ssbm_particles_spawn(handle, id, transform, key) == 1;

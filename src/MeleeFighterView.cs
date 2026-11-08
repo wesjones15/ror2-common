@@ -112,7 +112,11 @@ namespace Ror2Common
         public static MeleeFighterView Item(string assetsDir, uint item, uint state)
             => new MeleeFighterView(MeleeNative.ssbm_item_new(NativeLib.CString(assetsDir), item, state));
         public static MeleeFighterView EntryPlatform(string assetsDir)
-            => new MeleeFighterView(MeleeNative.ssbm_entry_platform_new(NativeLib.CString(assetsDir)));
+        {
+            if (string.IsNullOrEmpty(assetsDir)) return null;
+            var handle = MeleeNative.ssbm_entry_platform_new(NativeLib.CString(assetsDir));
+            return handle == IntPtr.Zero ? null : new MeleeFighterView(handle);
+        }
         public static MeleeFighterView Grapple(string assetsDir, uint part)
             => new MeleeFighterView(MeleeNative.ssbm_grapple_new(NativeLib.CString(assetsDir), part));
         /// Link's source hookshot chain: 0/1 alternate links, 2 the hook head.

@@ -1,7 +1,10 @@
 # SharedFiles: discs and extracted assets
 
 All three plugins (Olimar, Mario, Melee) use one fixed folder, the `wesleyasaurus-SharedFiles` package.
-It's a separate install that holds two folders and no code (`src/SharedFiles.cs`).
+It is an optional convenience package holding two folders and no code (`src/SharedFiles.cs`).
+All three character mods can run without discs, extracted caches or this package, using
+their built-in gameplay profiles and generic presentation. Set `Assets.BuiltinOnly = true`
+in `BepInEx/config/Ror2Common.Assets.cfg` and restart to force that mode for testing.
 
 ```
 BepInEx/plugins/wesleyasaurus-SharedFiles/

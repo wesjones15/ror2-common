@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net6.0</TargetFramework><PlatformTarget>x64</PlatformTarget><AllowUnsafeBlocks>true</AllowUnsafeBlocks></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../ror2-mario/MarioTest/Native.cs" Link="MarioNative.cs" />
+    <Compile Include="../../src/MeleeNative.cs" Link="MeleeNative.cs" />
+    <Compile Include="../../src/NativeLib.cs" Link="NativeLib.cs" />
+    <Compile Include="../../src/MeleeMoveset.cs" Link="MeleeMoveset.cs" />
+    <Compile Include="../../src/MaterialAlpha.cs" Link="MaterialAlpha.cs" />
+    <Compile Include="../../src/ViewSource.cs" Link="ViewSource.cs" />
+    <Compile Include="../../src/ParticleSource.cs" Link="ParticleSource.cs" />
+  </ItemGroup>
+</Project>

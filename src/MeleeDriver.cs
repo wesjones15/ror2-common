@@ -325,7 +325,6 @@ namespace Ror2Common
             if (body.currentVehicle) { if (active) Cleanup(); return; }
             if (!active) {
                 if (AssetsBusy) return;
-                if (!AssetsReady) { Fallback("Assets missing. Set the fighter's disc config."); return; }
                 spawn.Settle(body, motor);
                 if (!ground.Ready(body.footPosition, Time.fixedDeltaTime, FighterName)) return;
                 try { StartSim(); } catch (Exception e) { Fallback(e.ToString()); return; }
@@ -541,7 +540,7 @@ namespace Ror2Common
             recovery = GetComponent<MeleeRecovery>();
             lastHealth = body.healthComponent.combinedHealth;
             if (RecoveryGround(safe, 0.6f, 0.8f, out var standing)) { safe = standing; transform.position = standing + feetOffset; }
-            sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(AssetsDir), ToSim(safe), FighterKind); if (sim == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
+            sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(OptionalAssets.SimulationPath(AssetsDir, AssetsReady)), ToSim(safe), FighterKind); if (sim == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
             CreatePresentation();
             self = GCHandle.Alloc(this);
             // Other players' machines replay these calls on a shadow sim (see MeleeNet).
@@ -666,7 +665,7 @@ namespace Ror2Common
             if (puppetBroken || !MeleeNative.HasReplay) return;
             if (!active)
             {
-                if (AssetsBusy || !AssetsReady) return;
+                if (AssetsBusy) return;
                 stream = MeleeNet.StreamFor(body.netId.Value);
                 if (stream == null || stream.Batches.Count == 0) return;
                 try { StartPuppet(); }
@@ -737,7 +736,7 @@ namespace Ror2Common
         void StartPuppet()
         {
             scale = MetresPerUnit; feetOffset = transform.position - body.footPosition;
-            sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(AssetsDir), ToSim(body.footPosition), FighterKind);
+            sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(OptionalAssets.SimulationPath(AssetsDir, AssetsReady)), ToSim(body.footPosition), FighterKind);
             if (sim == IntPtr.Zero) throw new InvalidOperationException(MeleeNative.Error);
             CreatePresentation();
             self = GCHandle.Alloc(this);

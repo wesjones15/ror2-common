@@ -74,6 +74,7 @@ namespace Ror2Common
 
         public void Spawn(uint id, Matrix4x4 transform, ulong serial = 0, uint bone = 0, bool stop = false, IntPtr sim = default)
         {
+            if (!particles.Available) return; // Optional decoration; never substitute a guessed asset.
             Spawn(id, MeleeNative.ssbm_effect_target(id), transform, serial, bone, stop, sim);
             // Some source effects spawn a second one with them (Falcon Punch's two flames, the
             // child slash of Link's Spin Attack).
@@ -83,6 +84,7 @@ namespace Ror2Common
 
         void Spawn(uint id, int target, Matrix4x4 transform, ulong serial, uint bone, bool stop, IntPtr sim)
         {
+            if (!particles.Available) return;
             if (target == int.MaxValue) { CommonLog.Error("Unresolved Melee effect " + id); return; }
             if (target == int.MinValue) return;
             if (target < int.MinValue + 1000)
@@ -143,6 +145,7 @@ namespace Ror2Common
 
         public void Step(IntPtr sim, float dt, bool readCues = true)
         {
+            if (!particles.Available) return;
             if (MeleeNative.ssbm_sim_charge_visual(sim, boneMatrix) == 1)
             {
                 if (charge == null && chargeView != null) charge = new Effect { view = chargeView() };

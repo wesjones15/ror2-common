@@ -57,13 +57,8 @@ namespace Ror2Common
                     if (File.Exists(Path.Combine(dir, DiscFolder, Marker))) return dir;
             }
             catch { }
-            try
-            {
-                Directory.CreateDirectory(Path.Combine(named, DiscFolder));
-                Directory.CreateDirectory(Path.Combine(named, AssetsFolder));
-                CommonLog.Log?.LogWarning($"{PackageFolder} was not installed; created it at {named}.");
-            }
-            catch (Exception e) { CommonLog.Log?.LogError($"Couldn't create {named}: {e.Message}"); }
+            // Absence is normal. Extraction creates its output only when an optional
+            // disc is supplied; basic play must not need a writable SharedFiles folder.
             return named;
         }
 
@@ -76,6 +71,7 @@ namespace Ror2Common
         /// put_games_here/ and its direct subfolders.
         public static string[] DiscDirs()
         {
+            if (OptionalAssets.BuiltinOnly) return Array.Empty<string>();
             var dirs = new List<string> { DiscDir };
             try { dirs.AddRange(Directory.GetDirectories(DiscDir).OrderBy(d => d, StringComparer.OrdinalIgnoreCase)); }
             catch { }

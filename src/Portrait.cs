@@ -65,6 +65,8 @@ namespace Ror2Common
             PortraitFraming framing = default, Func<string> assetsDir = null, string cacheKey = null,
             string revision = PortraitCache.CharacterRevision, Func<Texture2D> fallback = null)
         {
+            var fallbackBody = bodyPrefab ? bodyPrefab.GetComponent<CharacterBody>() : null;
+            if (fallbackBody) fallbackBody.portraitIcon = PrimitiveShapes.Portrait(fallbackBody.bodyColor);
             pending.Add(new Job { body = bodyPrefab, make = make, size = size, hide = hide, framing = framing,
                 assetsDir = assetsDir, cacheKey = cacheKey ?? bodyPrefab.name, revision = revision, fallback = fallback });
             EnsureRunner();
@@ -155,7 +157,8 @@ namespace Ror2Common
                     bool complete = tex;
                     if (!tex && !job.fallbackAssigned && job.fallback != null)
                     {
-                        try { tex = job.fallback(); job.fallbackAssigned = tex; }
+                        job.fallbackAssigned = true;
+                        try { tex = job.fallback(); }
                         catch (Exception e) { CommonLog.Warn($"portrait fallback for {job.body.name}: {e.Message}"); }
                     }
                     if (!tex) continue;

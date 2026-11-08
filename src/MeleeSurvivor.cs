@@ -62,13 +62,16 @@ namespace Ror2Common
             cb.levelMaxHealth = def.levelMaxHealth;
             cb.baseArmor = def.baseArmor;
             cb.baseJumpCount = def.baseJumpCount;
-            cb.preferredPodPrefab = null;
-            cb.preferredInitialStateType = new SerializableEntityStateType(typeof(MeleeArrival));
+            bool customArrival = !OptionalAssets.BuiltinOnly && def.assetsReady();
+            if (customArrival) {
+                cb.preferredPodPrefab = null;
+                cb.preferredInitialStateType = new SerializableEntityStateType(typeof(MeleeArrival));
+            }
             foreach (var state in body.GetComponents<EntityStateMachine>())
                 if (state.customName == "Body")
                 {
                     state.mainStateType = new SerializableEntityStateType(def.mainStateType);
-                    state.initialStateType = new SerializableEntityStateType(typeof(MeleeArrival));
+                    if (customArrival) state.initialStateType = new SerializableEntityStateType(typeof(MeleeArrival));
                 }
             body.AddComponent<NativeBody>();
             body.AddComponent(def.driverType);
@@ -85,7 +88,9 @@ namespace Ror2Common
             // The display factory id must be per-fighter: it is the key in the
             // shared DisplayModel factory table, so a shared guid would let one
             // fighter overwrite another's lobby display.
-            DisplayModel.Attach(lobby, def.bodyName, def.displayFactory);
+            var displayDef = def;
+            DisplayModel.Attach(lobby, def.bodyName, () => !OptionalAssets.BuiltinOnly && displayDef.assetsReady()
+                ? displayDef.displayFactory() : new PrimitiveDisplay(displayDef.bodyColor));
             // Same idle-only source and orientation as character select; the common
             // camera supplies Mario/Olimar's 45-degree left framing. The crop is a fraction
             // of each fighter's height so a wide idle pose cannot zoom the body out; Pikachu,

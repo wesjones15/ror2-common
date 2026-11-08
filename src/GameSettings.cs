@@ -74,7 +74,16 @@ namespace Ror2Common
             var model = body && body.modelLocator ? body.modelLocator.modelTransform : null;
             if (!model) return;
             HideRenderers(model, hide);
+            StockAnimation(body, !hide);
             hidden = hide;
+        }
+
+        /// Hidden borrowed survivor animations must not play its footstep/voice events.
+        public static void StockAnimation(CharacterBody body, bool enabled)
+        {
+            var model = body && body.modelLocator ? body.modelLocator.modelTransform : null;
+            var animator = model ? model.GetComponent<Animator>() : null;
+            if (animator && animator.enabled != enabled) animator.enabled = enabled;
         }
 
         /// Switches every renderer under `root` off (or back on) with forceRenderingOff.
