@@ -49,15 +49,19 @@ namespace Ror2Common
         readonly GameObject go;
         readonly Transform transform;
         readonly MeshRenderer renderer;
+        readonly Mesh mesh;
         Material material;
         Texture texture;
+        Texture2D circle;
+        Color circleTint;
+        int circleHealth = -1, circleShield = -1;
 
         public MarkerQuad(string name)
         {
             go = new GameObject(name);
             Object.DontDestroyOnLoad(go);
             transform = go.transform;
-            var mesh = new Mesh { name = name };
+            mesh = new Mesh { name = name };
             mesh.vertices = new[]
             {
                 new Vector3(-.5f, -.5f, 0f), new Vector3(.5f, -.5f, 0f),
@@ -77,6 +81,13 @@ namespace Ror2Common
         /// facing `eye` and turned `spin` degrees about the line to it.
         public void Show(Texture tex, float aspect, Vector3 at, Vector3 eye, float size, float spin)
         {
+            var away = at - eye;
+            if (away.sqrMagnitude < 1e-6f) away = Vector3.forward;
+            Show(tex, aspect, at, Quaternion.LookRotation(away, Vector3.up) * Quaternion.Euler(0f, 0f, spin), size);
+        }
+
+        public void Show(Texture tex, float aspect, Vector3 at, Quaternion rotation, float size)
+        {
             if (!tex) { Hide(); return; }
             if (tex != texture || !material)
             {
@@ -86,19 +97,42 @@ namespace Ror2Common
                 renderer.sharedMaterial = material;
                 texture = tex;
             }
-            var away = at - eye;
-            if (away.sqrMagnitude < 1e-6f) away = Vector3.forward;
-            transform.SetPositionAndRotation(at,
-                Quaternion.LookRotation(away, Vector3.up) * Quaternion.Euler(0f, 0f, spin));
+            transform.SetPositionAndRotation(at, rotation);
             transform.localScale = new Vector3(size, size / Mathf.Max(0.01f, aspect), 1f);
             go.SetActive(true);
         }
+
+        // Authored primitive cue. The host supplies the same placement/rotation as
+        // its original marker; optional texture availability never decides the pose.
+        Texture2D Circle(Color tint, float health, float shield)
+        {
+            int h = Mathf.CeilToInt(Mathf.Clamp01(health) * 10f), s = Mathf.CeilToInt(Mathf.Clamp01(shield) * 10f);
+            if (circle && circleTint == tint && circleHealth == h && circleShield == s) return circle;
+            if (!circle) circle = new Texture2D(64, 64, TextureFormat.RGBA32, false) {
+                name = "Generated lock circle", filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color[4096];
+            for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++) {
+                float dx = (x - 31.5f) / 31.5f, dy = (y - 31.5f) / 31.5f;
+                float r = Mathf.Sqrt(dx * dx + dy * dy);
+                float alpha = Mathf.Clamp01((.07f - Mathf.Abs(r - .84f)) * 64f);
+                float angle = Mathf.Repeat(Mathf.Atan2(dx, dy) / (2f * Mathf.PI), 1f);
+                Color color = angle < h * .1f ? tint : angle < (h + s) * .1f ? Color.cyan : tint * .22f;
+                color.a = alpha * tint.a; pixels[y * 64 + x] = color;
+            }
+            circle.SetPixels(pixels); circle.Apply(false, false);
+            circleTint = tint; circleHealth = h; circleShield = s; return circle;
+        }
+        public void ShowCircle(Vector3 at, Quaternion rotation, float size, Color tint) => Show(Circle(tint, 1f, 0f), 1f, at, rotation, size);
+        public void ShowCircle(Vector3 at, Vector3 eye, float size, float spin, Color tint, float health = 1f, float shield = 0f) =>
+            Show(Circle(tint, health, shield), 1f, at, eye, size, spin);
 
         public void Hide() { if (go) go.SetActive(false); }
 
         public void Dispose()
         {
             if (material) Object.Destroy(material);
+            if (circle) Object.Destroy(circle);
+            if (mesh) Object.Destroy(mesh);
             if (go) Object.Destroy(go);
         }
     }

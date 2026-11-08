@@ -35,6 +35,9 @@ static class Program
                 var particles = new Sms.WaterParticle[512];
                 Check(Sms.sms_sim_water_particles(sim, particles, (uint)particles.Length) > 0, "live drawing state without a view");
                 Check(float.IsFinite(particles[0].pos.x) && particles[0].radius > 0, "water layout/finite data");
+                var spans = new Sms.WaterSegment[512];
+                Check(Sms.sms_sim_water_segments(sim, 1f, spans, (uint)spans.Length) > 0, "textured-water spans exist without a view");
+                Check(float.IsFinite(spans[0].tail.z) && spans[0].radius > 0, "water-segment layout/finite data");
                 Check(Sms.sms_sim_emitter(sim,0,out var muzzle,out var direction)!=0 && float.IsFinite(muzzle.y)
                     && float.IsFinite(direction.z),"stand-in nozzle uses a valid gameplay emitter");
                 var wet=new Sms.WaterVertex[16384];

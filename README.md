@@ -31,6 +31,11 @@ locks at run launch and refuses incompatible late joins after an explanation.
 `PrimitiveShapes` and `SurfaceQuads` own reusable, non-colliding generated visuals;
 no original models, textures or sound are bundled.
 
+`MarkerQuad.ShowCircle` supplies a generated circle when a marker's texture is
+missing. It accepts the existing world pose or eye-facing placement, so hosts keep
+their lock behavior. Optional health/shield slices retain Mario's marker cue;
+the helper owns and disposes its generated texture, material and mesh.
+
 | System | What it provides | Starting points |
 | --- | --- | --- |
 | Movement and the world | Collision probes, external forces and crowd control, jump/landing events, stage-start placement, wall protection and recovery from blocked terrain or falls. | [`NativeBody`](src/NativeBody.cs), [`WorldProbe`](src/WorldProbe.cs), [`WallGuard`](src/WallGuard.cs), [`Unstuck`](src/Unstuck.cs) |
