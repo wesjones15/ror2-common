@@ -79,7 +79,9 @@ static class Program
             if (kind == 0 || kind == 1 || kind == 2 || kind == 3 || kind == 5 || kind == 6) {
                 Check(projectile != IntPtr.Zero, "generic projectile " + kind);
                 MeleeNative.ssbm_projectile_step(projectile, 1.0/60, default, 0);
-                Check(MeleeNative.ssbm_projectile_state(projectile, out var shot) == 1 && shot.position.z > 0, "projectile moves");
+                // Samus's article 0 is the bomb: placed and hopped, not flown (as on the disc), so it rises instead.
+                Check(MeleeNative.ssbm_projectile_state(projectile, out var shot) == 1
+                    && (kind == MeleeNative.FighterSamus ? shot.position.y > 0 : shot.position.z > 0), "projectile moves");
             }
             if (projectile != IntPtr.Zero) MeleeNative.ssbm_projectile_free(projectile);
         }
