@@ -10,6 +10,10 @@ namespace Ror2Common
         /// Fighter kinds shared with the native `FighterKind`. A survivor's
         /// driver/view passes its own kind so the shared FFI resolves its assets.
         public const uint FighterSamus = 0;
+        /// <summary>Fighters whose no-assets profile runs the shared arrival, entry and rebirth natively
+        /// (libssbm authored::samus_return, used by begin_return for a built-in handle). Their arrival state is
+        /// MeleeArrival whether or not assets are ready; NoAssetsCheck keeps this in step with the native side.</summary>
+        public static bool AuthoredArrival(uint kind) => kind == FighterSamus;
         public const uint FighterFox = 1;
         public const uint FighterLuigi = 2;
         public const uint FighterPikachu = 3;

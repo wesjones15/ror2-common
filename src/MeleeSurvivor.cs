@@ -80,7 +80,9 @@ namespace Ror2Common
             var arrivalDef = def;
             bool? lastArrival = null;
             Action refreshArrival = () => {
-                bool custom = !OptionalAssets.BuiltinOnly && arrivalDef.assetsReady();
+                // A natively authored fighter plays the shared arrival with or without assets (the sim runs it
+                // either way), so the host must hold its arrival state to match.
+                bool custom = MeleeNative.AuthoredArrival(arrivalDef.fighterKind) || (!OptionalAssets.BuiltinOnly && arrivalDef.assetsReady());
                 if (lastArrival == custom) return;
                 lastArrival = custom;
                 cb.preferredPodPrefab = custom ? null : stockPod;

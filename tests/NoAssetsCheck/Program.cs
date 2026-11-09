@@ -54,6 +54,13 @@ static class Program
         {
             IntPtr sim = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(""), default, kind);
             Check(sim != IntPtr.Zero, "fighter " + kind + " constructor");
+            // The host holds MeleeArrival as the arrival state exactly for the fighters whose built-in
+            // sim runs the shared arrival (MeleeNative.AuthoredArrival); the two must agree.
+            IntPtr arrival = MeleeNative.ssbm_sim_new_fighter(NativeLib.CString(""), default, kind);
+            Check(arrival != IntPtr.Zero && MeleeNative.ssbm_sim_begin_arrival(arrival, NativeLib.CString("")) == 1, "built-in arrival call");
+            Check((MeleeNative.ssbm_sim_rebirth_flags(arrival) != 0) == MeleeNative.AuthoredArrival(kind),
+                "fighter " + kind + " built-in arrival matches MeleeNative.AuthoredArrival");
+            MeleeNative.ssbm_sim_free(arrival);
             IntPtr view = MeleeNative.ssbm_view_new(NativeLib.CString(""), kind, 0);
             try {
                 Check(view != IntPtr.Zero && MeleeNative.ssbm_view_model(view, out var model) == 1 && model.vertex_count > 0, "generated fighter geometry");
