@@ -59,13 +59,17 @@ namespace Ror2Common
             go.GetComponent<Renderer>().sharedMaterial = Material(color);
             go.SetActive(true);
         }
-        public void Body(Vector3 feet, Quaternion facing, Color color, float height = 1.8f, float radius = 0.35f)
+        /// <summary>The stand-in body: a cylinder with a facing marker. <paramref name="strikePitch"/> (radians,
+        /// default upright) tips the whole body forward about its center and local right axis (the shared
+        /// strike pose, libcommon strike_pose): the marker rides with it. Rendering only.</summary>
+        public void Body(Vector3 feet, Quaternion facing, Color color, float height = 1.8f, float radius = 0.35f, float strikePitch = 0f)
         {
             var center = feet + Vector3.up * height * 0.5f;
+            var tipped = strikePitch == 0f ? facing : facing * Quaternion.Euler(strikePitch * Mathf.Rad2Deg, 0f, 0f);
             Show(PrimitiveType.Cylinder, center,
-                new Vector3(radius * 2f, height * 0.5f, radius * 2f), facing, color);
-            Show(PrimitiveType.Sphere, center + facing * (Vector3.up * height * 0.3f + Vector3.forward * radius),
-                Vector3.one * radius * 0.35f, facing, Color.white);
+                new Vector3(radius * 2f, height * 0.5f, radius * 2f), tipped, color);
+            Show(PrimitiveType.Sphere, center + tipped * (Vector3.up * height * 0.3f + Vector3.forward * radius),
+                Vector3.one * radius * 0.35f, tipped, Color.white);
         }
         public void Segment(Vector3 start, Vector3 end, float radius, Color color)
         {
