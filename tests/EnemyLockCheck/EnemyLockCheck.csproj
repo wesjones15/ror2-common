@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/EnemyLock.cs" Link="EnemyLock.cs" />
+    <Compile Include="../../src/Ballistics.cs" Link="Ballistics.cs" />
   </ItemGroup>
 </Project>

@@ -79,6 +79,20 @@ static class Program
         GameSettings.camera.position = new Vector3(4, 0, 0);
         Check(new EnemyLock { Range = 120f, DistanceWeight = .00002f }.Update(owner, true, false, default) == ownerAhead, "from the owner by default");
         Check(new EnemyLock { Range = 120f, DistanceWeight = .00002f, FromCamera = true }.Update(owner, true, false, default) == cameraAhead, "from the camera when asked");
+
+        // Lead: a 10 m shot at 12 m/s takes ~1.1 s on the diagonal, so an 8 m/s strafe
+        // leads by ~8.9 m (the shot has to cover the sideways offset too).
+        var origin = new Vector3(0, 0, 0);
+        var still = new Vector3(0, 0, 10);
+        var strafe = new Vector3(8, 0, 0);
+        var lead = Ballistics.Intercept(origin, still, strafe, 12f, 100f, 1f);
+        Check(lead.x > 8f && lead.x < 9.5f, "lead is the strafe speed times the diagonal flight time");
+        Check(Ballistics.Intercept(origin, still, default, 12f, 100f, 1f).x == still.x, "a still target is not led");
+        Check(Ballistics.Intercept(origin, still, strafe, 12f, 100f, .5f).x < lead.x, "lead share scales the aim point");
+        var capped = Ballistics.Intercept(origin, still, strafe, 12f, 2f, 1f);
+        Check(capped.x <= 2.001f, "max lead caps a fast strafe");
+        var closing = Ballistics.Intercept(origin, still, new Vector3(-8, 0, 0), 12f, 100f, 1f);
+        Check(closing.x < still.x, "a closing target is led short, not long");
         Console.WriteLine("EnemyLockCheck: world visibility, on-screen priority, off-screen fallback, cycling, filters and aim-ray locking pass.");
     }
 }
