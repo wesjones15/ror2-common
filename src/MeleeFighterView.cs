@@ -113,8 +113,8 @@ namespace Ror2Common
             => new MeleeFighterView(MeleeNative.ssbm_item_new(NativeLib.CString(assetsDir), item, state));
         public static MeleeFighterView EntryPlatform(string assetsDir)
         {
-            if (string.IsNullOrEmpty(assetsDir)) return null;
-            var handle = MeleeNative.ssbm_entry_platform_new(NativeLib.CString(assetsDir));
+            // No assets (or a cache that fails to load): the native side gives the generic flat cylinder.
+            var handle = MeleeNative.ssbm_entry_platform_new(NativeLib.CString(assetsDir ?? ""));
             return handle == IntPtr.Zero ? null : new MeleeFighterView(handle);
         }
         public static MeleeFighterView Grapple(string assetsDir, uint part)
