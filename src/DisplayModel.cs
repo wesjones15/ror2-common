@@ -116,7 +116,9 @@ namespace Ror2Common
                         break;
                     }
             // One line whenever a pad's skin changes, to tell whose loadout a lobby pad read.
-            var key = bodyName + "|" + who;
+            // Per pad: two pads showing the same body in different skins would otherwise flip one shared entry every frame
+            // (32,000 log lines in a lobby).
+            var key = bodyName + "|" + who + "|" + (active != null ? active.GetInstanceID() : 0);
             if (!logged.TryGetValue(key, out var last) || last != skin)
             {
                 logged[key] = skin;
