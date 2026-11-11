@@ -21,14 +21,14 @@ namespace Ror2Common
         bool receivedState, locked, wasNetworked;
         float nextSend;
         bool Applies => applies == null || applies();
-        /// The server: connected players who reported without `bit` and without `excuse` (a bit meaning "still preparing"), so a host can refuse them.
+        /// The server: connected players who reported without all of the bits in `bit` and without `excuse` (a bit meaning "still preparing"), so a host can refuse them.
         public IEnumerable<NetworkConnection> Lacking(uint bit, uint excuse)
         {
             var gone = new List<NetworkConnection>();
             foreach (var pair in reports)
             {
                 if (pair.Key == null || !pair.Key.isConnected) { gone.Add(pair.Key); continue; }
-                if ((pair.Value & bit) == 0 && (pair.Value & excuse) == 0) yield return pair.Key;
+                if ((pair.Value & bit) != bit && (pair.Value & excuse) == 0) yield return pair.Key;
             }
             foreach (var key in gone) reports.Remove(key);
         }
