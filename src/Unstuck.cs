@@ -27,6 +27,7 @@ namespace Ror2Common
             wedgedFor = clearFor = 0f;
             hasStart = false;
             underFloor = false;
+            NoFootingReset = false;
         }
 
         /// The last spot the body stood on safely, if it has one.
@@ -61,6 +62,10 @@ namespace Ror2Common
         /// object and put it out under the map): after a few seconds, falling or inside an out-of-bounds map
         /// zone, it goes back to the map's nearest player spawn point to where it started. `destination` is
         /// the ground at the spawn point.
+        /// The last recovery `Fell` or `FellEarly` returned came from the no-footing rescue (a body that was never put
+        /// on the stage), not a fall: the host should not treat it as a miss ("TOO BAD!"). Cleared by `Reset`.
+        public bool NoFootingReset { get; private set; }
+
         bool NoFootingFall(Vector3 feet, float height, GroundProbe probe, out Vector3 destination)
         {
             destination = default;
@@ -79,6 +84,18 @@ namespace Ror2Common
             if (float.IsInfinity(bestDistance)) return false;
             destination = probe(best, height * 2f, height * 3f, out var clear) ? clear : best + Vector3.up * 0.5f;
             noSafe = 0f;
+            // Already standing on the spawn point (a cave whose low ceiling fails the clearance probe, with a zone box over it):
+            // putting it back there changes nothing and fired again every five seconds. Take its own spot as safe.
+            var apart = destination - feet;
+            if (apart.x * apart.x + apart.z * apart.z <= 2.25f && System.Math.Abs(apart.y) < height)
+            {
+                SetSafe(feet);
+                CommonLog.Info($"No safe footing since it was placed at {startFeet}, but it already stands at the spawn point {destination}"
+                    + (WorldProbe.InMapZone(feet + Vector3.up * (height * 0.5f), out var zone) ? $" (inside map zone '{zone.name}', {zone.zoneType}, {zone.triggerType}; ignored)" : "")
+                    + ": taking this spot as its safe one");
+                return false;
+            }
+            NoFootingReset = true;
             CommonLog.Info($"No safe footing since it was placed at {startFeet}: back at the nearest spawn point {destination}");
             return true;
         }
@@ -118,6 +135,7 @@ namespace Ror2Common
             float anyDrop = AnyDrop)
         {
             destination = default;
+            NoFootingReset = false;
             if (!hasSafeFeet) return NoFootingFall(feet, height, probe, out destination);
             if (safeFeet.y - feet.y >= anyDrop)
             {

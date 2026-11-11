@@ -158,6 +158,24 @@ static class Program
         Check(target.x>11.9f&&target.x<12.1f,"no-footing fall did not pick the nearest spawn point");
         RoR2.SpawnPoint.readOnlyInstancesList=new System.Collections.Generic.List<RoR2.SpawnPoint>();
 
+        // Standing on the spawn point with a probe that never accepts the spot (a low cave ceiling) and a map zone over it:
+        // no rescue loop; the spot becomes the safe one, and a real rescue still says it was not a fall.
+        m.Reset();probe=Blocked;WorldProbe.inZone=true;
+        RoR2.SpawnPoint.readOnlyInstancesList=new System.Collections.Generic.List<RoR2.SpawnPoint>{
+            new RoR2.SpawnPoint{transform=new UnityEngine.Transform{position=new Vector3(0.3f,0f,0.2f)}},
+        };
+        for(int i=0;i<6*60;i++)Step(m,new Vector3(0f,0.02f,0f),fallen:false,grounded:true);
+        Check(!m.Fell(new Vector3(0f,0.02f,0f),Height,Blocked,out _),"standing on the spawn point was rescued to itself");
+        Check(m.TryGetSafe(out var home)&&System.Math.Abs(home.x)<0.01f,"standing spot on the spawn point not taken as safe");
+        WorldProbe.inZone=false;
+        m.Reset();probe=Floor;
+        RoR2.SpawnPoint.readOnlyInstancesList=new System.Collections.Generic.List<RoR2.SpawnPoint>{
+            new RoR2.SpawnPoint{transform=new UnityEngine.Transform{position=new Vector3(12f,0f,0f)}},
+        };
+        for(int i=0;i<6*60;i++)Step(m,new Vector3(0f,-i*0.5f,0f));
+        Check(m.Fell(new Vector3(0f,-50f,0f),Height,Floor,out _)&&m.NoFootingReset,"a never-placed body's rescue not marked as no-footing");
+        RoR2.SpawnPoint.readOnlyInstancesList=new System.Collections.Generic.List<RoR2.SpawnPoint>();
+
         Wedges();
 
         Console.WriteLine("PASS: shared Mario 20m clear-void trigger, stage-floor gating, no-footing spawn rescue, lower terrain/zone safeguards and timeout at 30/60/120 Hz, motion, jitter, idle, crowd control, reset, " +
